@@ -24,7 +24,7 @@ export async function POST(req: Request) {
   const cfg = await getCfg();
   if (!daySlots(cfg, date).includes(time) || slotMs(date, time) < Date.now() + LEAD_MS)
     return NextResponse.json({ error: "Yeh slot available nahi hai. Doosra slot chunein.", code: "slot_taken" }, { status: 409 });
-  const email = b.email || S(f, "email");
+  const email = S(f, "email").toLowerCase() || b.email; // customer may use a different email than the payment one
   if (!/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: "Sahi email bharein." }, { status: 400 });
 
   const dob = (p: string) => [S(f, p + "d"), S(f, p + "m"), S(f, p + "y")];

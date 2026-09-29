@@ -126,7 +126,7 @@ export default function ReadingForm() {
         <div className="rf-2">
         <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={bk.name} autoComplete="name" /></Field>
         <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga."><input className="rf-in" name="phone" type="tel" defaultValue={bk.phone} autoComplete="tel" /></Field>
-        <Field label="Email ID" req hint="Payment wali email — Meet link isi par aayega."><input className="rf-in" name="email" type="email" defaultValue={bk.email} readOnly={!!bk.email} /></Field>
+        <Field label="Email ID" req hint="Meet link aur schedule isi email par aayega — aap doosri email bhi likh sakte hain."><input className="rf-in" name="email" type="email" defaultValue={/@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} placeholder="aapka@email.com" autoComplete="email" /></Field>
         <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
         <Field label="Date of Birth" req hint="Vedic Astrology & Numerology chart ke liye zaroori."><DateField p="dob" onChange={setDobOk} /></Field>
         <Field label="Birth Time" hint="Pata ho toh clock se chunein, warna skip."><ClockField p="tob" /></Field>
