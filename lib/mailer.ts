@@ -70,7 +70,7 @@ export async function sendClientConfirmation(b: { name: string; email: string; b
 
 /** Sent to the owner with every answer and the uploaded photos attached. */
 export async function sendOwnerNotification(sub: Record<string, any>, photos: { filename: string; content: Buffer; contentType: string }[], meetLink: string | null) {
-  const to = process.env.OWNER_EMAIL || process.env.SMTP_USER;
+  const to = (process.env.OWNER_EMAIL || process.env.SMTP_USER || "").split(",").map((x) => x.trim()).filter(Boolean); // one or many addresses
   const { day, range } = prettySlot(sub.date, sub.time);
   const rows = Object.entries(sub.answers as Record<string, string>).filter(([, v]) => v)
     .map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#555;vertical-align:top">${esc(k)}</td><td style="padding:4px 0"><b>${esc(String(v))}</b></td></tr>`).join("");
