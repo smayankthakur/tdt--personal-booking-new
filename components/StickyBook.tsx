@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import PayButton from "./PayButton";
 
 /** Price + Book button that follows the visitor while scrolling; hides once the booking section is on screen. */
 export default function StickyBook({ price }: { price: string }) {
@@ -17,6 +18,6 @@ export default function StickyBook({ price }: { price: string }) {
   return (
     <div className={`sticky-book${show ? " show" : ""}`} aria-hidden={!show}>
       <div><strong>{price}</strong><span>40 min voice call reading</span></div>
-      <a href="#book" className="btn gold" tabIndex={show ? 0 : -1}>Book Now</a>
+      <PayButton label="Book Now" tabIndex={show ? 0 : -1} />
     </div>);
 }

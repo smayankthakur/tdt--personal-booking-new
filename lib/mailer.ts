@@ -11,6 +11,11 @@ function transporter() {
     auth: { user: SMTP_USER, pass: SMTP_PASS },
   });
 }
+/** Every mail gets a plain-text twin and normal transactional headers — HTML-only mail is a common spam signal. */
+const toText = (h: string) => h.replace(/<br\s*\/?>|<\/(p|div|li|h\d|tr)>/gi, "\n").replace(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, "$2 ($1)").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\n{3,}/g, "\n\n").trim();
+async function send(m: nodemailer.SendMailOptions) {
+  return transporter().sendMail({ ...m, text: toText(String(m.html || "")), headers: { "X-Auto-Response-Suppress": "OOF, AutoReply", ...(m.headers as object) } });
+}
 const from = () => process.env.SMTP_FROM || `"The Divine Tarot" <${process.env.SMTP_USER}>`;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
 
@@ -43,12 +48,12 @@ export async function sendClientConfirmation(b: { name: string; email: string; b
   const meet = b.meetLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink}</span></p>`
     : `<p style="background:#fff4e5;padding:12px 16px;border-radius:6px">Aapka Google Meet link thodi der mein alag email se bhej diya jayega.</p>`;
-  await transporter().sendMail({
+  await send({
     from: from(), to: b.email,
-    subject: `Appointment Confirmed — ${day}, ${range.split(" – ")[0]} IST | The Divine Tarot`,
+    subject: `Your reading is confirmed - ${day}, ${range.split(" – ")[0]} IST`,
     attachments: [{ filename: "reading.ics", content: ics(b.bid, b.date, b.time, b.meetLink), contentType: "text/calendar; method=PUBLISH" }],
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
-      <h2 style="color:#6d28d9">Namaste ${esc(b.name)} 🙏</h2>
+      <h2 style="color:#6d28d9">Namaste ${esc(b.name)}</h2>
       <p>Aapka payment aur form mil gaya hai. Aapki Personal Reading confirm ho chuki hai.</p>
       <div style="background:#f6f3fb;border-left:3px solid #6d28d9;padding:14px 20px;margin:20px 0;line-height:1.8">
         <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>Call:</b> Google Meet (40 min)<br/><b>Booking ID:</b> ${b.bid}
@@ -74,9 +79,9 @@ export async function sendOwnerNotification(sub: Record<string, any>, photos: { 
   const { day, range } = prettySlot(sub.date, sub.time);
   const rows = Object.entries(sub.answers as Record<string, string>).filter(([, v]) => v)
     .map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#555;vertical-align:top">${esc(k)}</td><td style="padding:4px 0"><b>${esc(String(v))}</b></td></tr>`).join("");
-  await transporter().sendMail({
+  await send({
     from: from(), to, replyTo: sub.email,
-    subject: `New reading form — ${sub.name} — ${day} ${range.split(" – ")[0]}`,
+    subject: `New reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
     attachments: photos,
     html: `<div style="font-family:Arial,sans-serif;max-width:640px"><h3>${day} · ${range}</h3>
       <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "<b style='color:#c00'>NOT CREATED — create manually</b>"}<br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}</p>
@@ -87,10 +92,10 @@ export async function sendOwnerNotification(sub: Record<string, any>, photos: { 
 /** Sent at payment time so a customer who closes the tab can still reach the form. */
 export async function sendPaymentReceived(b: { email: string; bid: string; origin?: string }) {
   const url = `${b.origin || SITE()}/form?bid=${b.bid}`;
-  await transporter().sendMail({
-    from: from(), to: b.email, subject: "Payment Received — Ab Reading Form bharein | The Divine Tarot",
+  await send({
+    from: from(), to: b.email, subject: "Payment received - please complete your reading form",
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
-      <h2 style="color:#6d28d9">Namaste 🙏</h2>
+      <h2 style="color:#6d28d9">Namaste</h2>
       <p>Aapka payment receive ho gaya hai. Ab apna <b>slot chunein aur reading form bharein</b> (2-3 minute):</p>
       <p style="text-align:center;margin:26px 0"><a href="${url}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Choose Slot &amp; Fill Form</a></p>
       <p style="font-size:13px;color:#666">Form submit karte hi Google Meet link aur schedule isi email par mil jayega. Booking ID: ${b.bid}</p></div>`,

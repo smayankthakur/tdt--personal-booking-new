@@ -3,6 +3,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import BookingWidget from "@/components/BookingWidget";
 import StickyBook from "@/components/StickyBook";
+import PayButton from "@/components/PayButton";
 
 
 /** Fades an element up into view the first time it scrolls into the viewport. */
@@ -107,7 +108,7 @@ export default function Home() {
               <span>40 min voice call<br />Pay first · choose your slot after</span>
             </div>
             <div className="hero-actions">
-              <a href="#book" className="btn gold">Book Now — ₹8,500</a>
+              <PayButton label="Book Now — ₹8,500" />
             </div>
             <div className="hero-stats">
               <div>
