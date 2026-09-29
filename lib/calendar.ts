@@ -4,6 +4,10 @@ export function formUrl(b: { bid: string }) {
   return `${process.env.SITE_URL || ""}/form?bid=${b.bid}`;
 }
 
+/** Customer + the owner accounts that must be on every event (override with CALENDAR_GUESTS, comma-separated). */
+const guests = (customer: string) =>
+  Array.from(new Set([customer, ...(process.env.CALENDAR_GUESTS || "dev.thedivinetarot111@gmail.com,thedivinetarot111@gmail.com").split(",")].map((e) => e.trim().toLowerCase()).filter(Boolean)));
+
 /** Creates a Google Calendar event with a Meet link. No Google email goes out: our own confirmation email is sent after the form is submitted. */
 export async function createMeet(key: string, b: { name: string; email: string; bid: string; phone: string }) {
   const [date, time] = key.split("T");
@@ -28,7 +32,7 @@ export async function createMeet(key: string, b: { name: string; email: string; 
         summary: `Personal Reading — ${b.name}`,
         description: `Booking ID: ${b.bid}\nWhatsApp: ${b.phone}\n\nReading form: ${formUrl(b)}`,
         start: { dateTime: iso(start), timeZone: "Asia/Kolkata" }, end: { dateTime: iso(end), timeZone: "Asia/Kolkata" },
-        attendees: [{ email: b.email }],
+        attendees: guests(b.email).map((email) => ({ email })),
         conferenceData: { createRequest: { requestId: key, conferenceSolutionKey: { type: "hangoutsMeet" } } },
         reminders: { useDefault: false, overrides: [{ method: "email", minutes: 1440 }, { method: "popup", minutes: 30 }] },
       }),
