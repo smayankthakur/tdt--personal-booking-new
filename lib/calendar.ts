@@ -7,6 +7,8 @@ export function formUrl(b: { bid: string }) {
 /** Creates a Google Calendar event with a Meet link. No Google email goes out: our own confirmation email is sent after the form is submitted. */
 export async function createMeet(key: string, b: { name: string; email: string; bid: string; phone: string }) {
   const [date, time] = key.split("T");
+  const miss = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN"].filter((k) => !process.env[k]);
+  if (miss.length) throw new Error("Missing env: " + miss.join(", "));
   const tok = await (await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     body: new URLSearchParams({
@@ -14,6 +16,7 @@ export async function createMeet(key: string, b: { name: string; email: string; 
       refresh_token: process.env.GOOGLE_REFRESH_TOKEN as string, grant_type: "refresh_token",
     }),
   })).json();
+  if (!tok.access_token) throw new Error(`Google login failed: ${tok.error || "?"} — ${tok.error_description || ""}`);
   const start = slotMs(date, time), end = start + Number(process.env.CALL_MINUTES || 40) * 60000;
   const iso = (ms: number) => new Date(ms + 330 * 60000).toISOString().slice(0, 19) + "+05:30";
   const res = await (await fetch(
@@ -31,5 +34,6 @@ export async function createMeet(key: string, b: { name: string; email: string; 
       }),
     }
   )).json();
+  if (!res.hangoutLink) throw new Error(`Calendar: ${res.error?.message || "event created without Meet link"}`);
   return { meetLink: res.hangoutLink as string | undefined, eventId: res.id as string | undefined };
 }

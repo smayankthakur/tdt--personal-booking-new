@@ -67,9 +67,10 @@ export async function POST(req: Request) {
   if (claimed === "done") return NextResponse.json({ error: "Form pehle hi submit ho chuka hai." }, { status: 409 });
   if (claimed === "taken") return NextResponse.json({ error: "Yeh slot abhi kisi ne le liya. Doosra slot chunein.", code: "slot_taken" }, { status: 409 });
 
-  const m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone }).catch((e) => { console.error("calendar failed", e); return null; });
+  let m: { meetLink?: string; eventId?: string } | null = null, calendarErr = "";
+  try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone }); } catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); }
   const meetLink = m?.meetLink || null;
-  await slotRef.update({ meetLink, eventId: m?.eventId || null, calendarOk: !!meetLink });
+  await slotRef.update({ meetLink, eventId: m?.eventId || null, calendarOk: !!meetLink, calendarErr });
   await orderRef.update({ meetLink });
 
   const mails = await Promise.allSettled([
@@ -77,7 +78,8 @@ export async function POST(req: Request) {
     sendOwnerNotification({ bid, date, time, name: p1.name, email, paymentId: b.paymentId, answers }, photos, meetLink),
   ]);
   mails.forEach((x) => x.status === "rejected" && console.error("mail failed", x.reason));
-  await slotRef.update({ clientMailOk: mails[0].status === "fulfilled", ownerMailOk: mails[1].status === "fulfilled" });
+  const why = (r: PromiseSettledResult<unknown>) => (r.status === "rejected" ? String((r.reason as any)?.message || r.reason).slice(0, 300) : "");
+  await slotRef.update({ clientMailOk: mails[0].status === "fulfilled", ownerMailOk: mails[1].status === "fulfilled", mailErr: why(mails[0]) || why(mails[1]) });
 
   return NextResponse.json({ ok: true, date, time, meetLink });
 }
