@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type ReactNode } from "react";
 import BookingWidget from "@/components/BookingWidget";
+import StickyBook from "@/components/StickyBook";
 
 
 /** Fades an element up into view the first time it scrolls into the viewport. */
@@ -101,8 +102,12 @@ export default function Home() {
               Psychic Ability, Face Analysis, Candle Wax Reading, Kundli Analysis,
               Kundli Milan &amp; a Manifestation Coach.
             </p>
+            <div className="hero-price">
+              <strong>₹8,500</strong>
+              <span>40 min voice call<br />Pay first · choose your slot after</span>
+            </div>
             <div className="hero-actions">
-              <a href="#book" className="btn gold">Book Your Personal Reading</a>
+              <a href="#book" className="btn gold">Book Now — ₹8,500</a>
             </div>
             <div className="hero-stats">
               <div>
@@ -255,6 +260,7 @@ export default function Home() {
           </span>
         </div>
       </footer>
+      <StickyBook price="₹8,500" />
     </>
   );
 }

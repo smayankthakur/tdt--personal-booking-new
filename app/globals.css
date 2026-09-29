@@ -885,3 +885,19 @@ footer a {
 @keyframes draw { to { stroke-dashoffset: 0; } }
 @media (max-width: 560px) { .concerns { grid-template-columns: 1fr; } .stepper-dot small { font-size: 10px; } .clock-digital { font-size: 34px; } }
 @media (prefers-reduced-motion: reduce) { .step.active, .pop, .fd-icon, .person-body { animation: none; } }
+
+/* ---------- price visible above the fold + sticky book bar ---------- */
+.hero-price { display: inline-flex; align-items: center; gap: 14px; margin: 4px 0 18px; padding: 10px 20px 10px 16px; border: 1px solid var(--gold); border-radius: 14px; background: linear-gradient(135deg, rgba(201,162,39,.16), rgba(139,92,246,.14)); animation: priceGlow 3s ease-in-out infinite; }
+.hero-price strong { font-family: "Cinzel", serif; font-size: 32px; color: var(--gold-soft); line-height: 1; }
+.hero-price span { font-size: 13px; line-height: 1.35; color: var(--ivory-dim); text-align: left; }
+@keyframes priceGlow { 50% { box-shadow: 0 0 22px rgba(201,162,39,.35); } }
+.sticky-book { position: fixed; left: 0; right: 0; bottom: 0; z-index: 60; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px max(18px, calc((100vw - 1100px) / 2)); padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); background: rgba(20,14,36,.92); backdrop-filter: blur(12px); border-top: 1px solid var(--gold); transform: translateY(110%); transition: transform .35s cubic-bezier(.22,1,.36,1); }
+.sticky-book.show { transform: none; }
+.sticky-book strong { font-family: "Cinzel", serif; font-size: 22px; color: var(--gold-soft); margin-right: 10px; }
+.sticky-book span { font-size: 13px; color: var(--ivory-dim); }
+@media (max-width: 560px) { .sticky-book span { display: none; } .hero-price { display: flex; justify-content: center; } }
+@media (prefers-reduced-motion: reduce) { .hero-price { animation: none; } .sticky-book { transition: none; } }
+
+/* hero photo: keep the face in frame at every size, and drop the inner frame that cut across the picture */
+.hero-media-img { object-position: 50% 28%; }
+.hero-media-frame { display: none; }

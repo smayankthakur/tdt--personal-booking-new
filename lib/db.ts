@@ -1,5 +1,5 @@
 import { getApps, initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { DEFAULT_CFG, type Cfg } from "./slots";
 
 // Preferred: paste the whole downloaded service-account JSON (single line) into FIREBASE_SERVICE_ACCOUNT_JSON.
@@ -18,9 +18,15 @@ function credential() {
     privateKey: (process.env.FIREBASE_PRIVATE_KEY as string).replace(/\\n/g, "\n"),
   });
 }
-if (!getApps().length) initializeApp({ credential: credential() });
-
-export const db = getFirestore();
+// Initialised on first use (not at import), so `next build` succeeds even before env vars exist.
+let _db: Firestore | null = null;
+function real(): Firestore {
+  if (!_db) { if (!getApps().length) initializeApp({ credential: credential() }); _db = getFirestore(); }
+  return _db;
+}
+export const db = new Proxy({} as Firestore, {
+  get: (_t, prop) => { const v = (real() as any)[prop]; return typeof v === "function" ? v.bind(real()) : v; },
+});
 export async function getCfg(): Promise<Cfg> {
   const s = await db.doc("config/availability").get();
   return s.exists ? { ...DEFAULT_CFG, ...(s.data() as Cfg) } : DEFAULT_CFG;
