@@ -1,10 +1,11 @@
 "use client";
 import { useState } from "react";
-import type { Cfg } from "@/lib/slots";
+import { slotMs, type Cfg } from "@/lib/slots";
+const td = { padding: "3px 14px 3px 0", opacity: 0.7, verticalAlign: "top", whiteSpace: "nowrap" } as const;
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function Admin() {
-  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [pending, setPending] = useState<any[]>([]), [msg, setMsg] = useState("");
+  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [pending, setPending] = useState<any[]>([]), [msg, setMsg] = useState(""), [openId, setOpenId] = useState("");
   const load = async () => {
     const r = await fetch("/api/admin", { headers: { "x-admin-token": token } });
     if (!r.ok) return setMsg("Galat password");
@@ -25,7 +26,7 @@ export default function Admin() {
       <button className="btn gold" onClick={load} style={{ marginTop: 12 }}>Open</button> <p>{msg}</p>
     </div>);
   return (
-    <div style={{ maxWidth: 720, margin: "40px auto", padding: 20 }}>
+    <div style={{ maxWidth: 900, margin: "40px auto", padding: 20 }}>
       <h2>Slots settings (India time)</h2>
       {DAYS.map((n, i) => (
         <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0" }}>
@@ -47,11 +48,29 @@ export default function Admin() {
           </div>))}
       </>)}
       <h3 style={{ marginTop: 32 }}>Confirmed bookings ({rows.length})</h3>
-      {rows.map((b) => (
-        <div key={b.slot} style={{ borderTop: "1px solid #555", padding: "8px 0", fontSize: 14 }}>
-          <b>{b.slot.replace("T", " ")}</b> · {b.name} · {b.phone} · {b.email} · ID {b.bid}
-          {b.calendarOk === false && <span style={{ color: "#f66" }}> · ⚠ Meet link nahi bana</span>}
-          {b.formDone && b.clientMailOk === false && <span style={{ color: "#f66" }}> · ⚠ client mail fail</span>}
-        </div>))}
+      {rows.map((b) => {
+        const [d, t] = b.slot.split("T"), past = slotMs(d, t) < Date.now(), open = openId === b.slot, a: Record<string, string> = b.answers || {};
+        return (
+          <div key={b.slot} style={{ borderTop: "1px solid #555", padding: "10px 0", fontSize: 14, opacity: past ? 0.55 : 1 }}>
+            <div onClick={() => setOpenId(open ? "" : b.slot)} style={{ cursor: "pointer", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
+              <span>{open ? "▼" : "▶"}</span><b>{d} · {t}</b><span>{b.name}</span><span>{b.phone}</span>
+              {a["Concern"] && <span style={{ color: "#c9a227" }}>· {a["Concern"]}</span>}
+              {b.calendarOk === false && <span style={{ color: "#f66" }}>⚠ Meet link nahi bana</span>}
+              {b.clientMailOk === false && <span style={{ color: "#f66" }}>⚠ client mail fail</span>}
+            </div>
+            {open && (
+              <div style={{ margin: "10px 0 4px 22px", padding: 14, border: "1px solid #555", borderRadius: 10 }}>
+                <table style={{ borderCollapse: "collapse", width: "100%" }}><tbody>
+                  {b.meetLink && <tr><td style={td}>Meet link</td><td><a href={b.meetLink} target="_blank" rel="noopener noreferrer" style={{ color: "#9b8cff" }}>{b.meetLink}</a></td></tr>}
+                  <tr><td style={td}>Email</td><td>{b.email}</td></tr>
+                  {Object.entries(a).filter(([k, v]) => v && k !== "Email (payment)" && k !== "Slot").map(([k, v]) => (
+                    <tr key={k}><td style={td}>{k}</td><td style={{ whiteSpace: "pre-wrap" }}>{v}</td></tr>))}
+                  <tr><td style={td}>Booking / Payment</td><td>{b.bid} · {b.paymentId || "-"}</td></tr>
+                </tbody></table>
+                {!b.answers && <p style={{ color: "#e8a33d" }}>Is booking ka form data nahi mila (purani booking).</p>}
+                <p style={{ fontSize: 12, opacity: 0.7, margin: "10px 0 0" }}>Photos sirf email (OWNER_EMAIL) mein attach hoti hain, yahan nahi.</p>
+              </div>)}
+          </div>);
+      })}
     </div>);
 }

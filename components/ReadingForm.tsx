@@ -25,10 +25,12 @@ function Person({ n, on, toggle }: { n: "2" | "3"; on: boolean; toggle: () => vo
       <button type="button" className="person-head" onClick={toggle}><span className="plus">{on ? "−" : "+"}</span><div><b>{ord}</b><small>Optional — love life ya family ke liye</small></div></button>
       {on && (
         <div className="person-body">
+          <div className="rf-2">
           <Field label="Naam"><input className="rf-in" name={"name" + n} /></Field>
+          <Field label="Place of Birth"><input className="rf-in" name={"place" + n} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
           <Field label="Date of Birth"><DateField p={"dob" + n} /></Field>
           <Field label="Birth Time" hint="Pata ho toh, warna skip."><ClockField p={"tob" + n} /></Field>
-          <Field label="Place of Birth"><input className="rf-in" name={"place" + n} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
+          </div>
           <Field label="One Clear Photo"><FileDrop name={"photo" + n} /></Field>
         </div>)}
     </div>);
@@ -121,12 +123,14 @@ export default function ReadingForm() {
 
       <div className={S(1)}>
         <h2 className="rf-sec first">Aapki Details</h2>
+        <div className="rf-2">
         <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={bk.name} autoComplete="name" /></Field>
         <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga."><input className="rf-in" name="phone" type="tel" defaultValue={bk.phone} autoComplete="tel" /></Field>
         <Field label="Email ID" req hint="Payment wali email — Meet link isi par aayega."><input className="rf-in" name="email" type="email" defaultValue={bk.email} readOnly={!!bk.email} /></Field>
-        <Field label="Date of Birth" req hint="Vedic Astrology & Numerology chart ke liye zaroori."><DateField p="dob" onChange={setDobOk} /></Field>
         <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
+        <Field label="Date of Birth" req hint="Vedic Astrology & Numerology chart ke liye zaroori."><DateField p="dob" onChange={setDobOk} /></Field>
         <Field label="Birth Time" hint="Pata ho toh clock se chunein, warna skip."><ClockField p="tob" /></Field>
+        </div>
         <Field label="Your One Clear Photo" req hint="Face reading analysis ke liye."><FileDrop name="photo1" onChange={setPhoto1} /></Field>
       </div>
 
