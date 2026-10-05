@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { createMeet } from "@/lib/calendar";
-import { getCfg } from "@/lib/db";
-import { daySlots, slotMs, isTaken, LEAD_MS } from "@/lib/slots";
+import { freeSlots } from "@/lib/freeSlots";
+import { isTaken } from "@/lib/slots";
 import { sendClientConfirmation, sendOwnerNotification } from "@/lib/mailer";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 30;
 
@@ -20,10 +20,6 @@ export async function POST(req: Request) {
   if (b.status !== "paid") return NextResponse.json({ error: "Payment abhi confirm nahi hua." }, { status: 402 });
   if (b.formDone) return NextResponse.json({ error: "Form pehle hi submit ho chuka hai." }, { status: 409 });
 
-  const date = S(f, "date"), time = S(f, "time"), key = `${date}T${time}`;
-  const cfg = await getCfg();
-  if (!daySlots(cfg, date).includes(time) || slotMs(date, time) < Date.now() + LEAD_MS)
-    return NextResponse.json({ error: "Yeh slot available nahi hai. Doosra slot chunein.", code: "slot_taken" }, { status: 409 });
   const email = S(f, "email").toLowerCase() || b.email; // customer may use a different email than the payment one
   if (!/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: "Sahi email bharein." }, { status: 400 });
 
@@ -46,26 +42,36 @@ export async function POST(req: Request) {
   if (!(f.get("photo1") instanceof File) || !(f.get("photo1") as File).size)
     return NextResponse.json({ error: "Apni ek clear photo upload karein." }, { status: 400 });
 
-  const answers: Record<string, string> = {
-    "Slot": `${date} ${time} IST`, "Full name": p1.name, "WhatsApp": p1.phone, "Email (payment)": email,
+  let answers: Record<string, string> = {
+    "Full name": p1.name, "WhatsApp": p1.phone, "Email (payment)": email,
     "Date of birth (D/M/Y)": dob("dob").join(" / "), "Place of birth": p1.place, "Birth time": tob("tob"),
     "2nd person name": S(f, "name2"), "2nd DOB": dob("dob2").filter(Boolean).join(" / "), "2nd birth time": tob("tob2"), "2nd place": S(f, "place2"),
     "3rd person name": S(f, "name3"), "3rd DOB": dob("dob3").filter(Boolean).join(" / "), "3rd birth time": tob("tob3"), "3rd place": S(f, "place3"),
     "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
   };
 
-  // claim slot + submission atomically: first paid customer to submit gets the slot
-  const slotRef = db.doc(`bookings/${key}`);
+  // Slot is AUTO-ASSIGNED: the earliest free slot is claimed atomically. If someone grabbed it a moment
+  // earlier, the next free one is taken instead — the customer never has to pick.
+  const candidates = (await freeSlots()).slice(0, 20);
+  const noSlot = () => NextResponse.json({ error: `Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545 (Booking ID ${bid}).`, code: "no_slots" }, { status: 409 });
+  if (!candidates.length) return noSlot();
   const claimed = await db.runTransaction(async (tx) => {
-    const [o, sl] = await Promise.all([tx.get(orderRef), tx.get(slotRef)]);
+    const o = await tx.get(orderRef);
     if (o.data()?.formDone) return "done";
-    if (sl.exists && isTaken(sl.data())) return "taken";
-    tx.set(slotRef, { status: "confirmed", bid, name: p1.name, email, phone: p1.phone, paymentId: b.paymentId || null, formDone: true, answers, createdAt: Date.now() });
-    tx.update(orderRef, { formDone: true, slot: key, name: p1.name, formAt: Date.now() });
-    return "ok";
+    for (const k of candidates) {
+      const ref = db.doc(`bookings/${k}`), sl = await tx.get(ref);
+      if (sl.exists && isTaken(sl.data())) continue;
+      const [d, t] = k.split("T");
+      tx.set(ref, { status: "confirmed", bid, name: p1.name, email, phone: p1.phone, paymentId: b.paymentId || null, formDone: true, answers: { "Slot": `${d} ${t} IST`, ...answers }, createdAt: Date.now() });
+      tx.update(orderRef, { formDone: true, slot: k, name: p1.name, formAt: Date.now() });
+      return k;
+    }
+    return "taken";
   });
   if (claimed === "done") return NextResponse.json({ error: "Form pehle hi submit ho chuka hai." }, { status: 409 });
-  if (claimed === "taken") return NextResponse.json({ error: "Yeh slot abhi kisi ne le liya. Doosra slot chunein.", code: "slot_taken" }, { status: 409 });
+  if (claimed === "taken") return noSlot();
+  const key = claimed, [date, time] = key.split("T"), slotRef = db.doc(`bookings/${key}`);
+  answers = { "Slot": `${date} ${time} IST`, ...answers };
 
   let m: { meetLink?: string; eventId?: string } | null = null, calendarErr = "";
   try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone }); } catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); }

@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import SlotPicker from "./SlotPicker";
 import DateField from "./form/DateField";
 import ClockField from "./form/ClockField";
 import FileDrop, { photoStore } from "./form/FileDrop";
@@ -11,7 +10,7 @@ const CONCERNS: [string, string][] = [
   ["🕉️", "Apni Spritual Journey Jaanni haii"], ["🧭", "Aapna Life Purpose Jaanna hai"], ["💰", "Financial tension bohot hai"],
   ["🧿", "Black magic ka Doubt hai"], ["🩺", "Health ko lekar pareshan hai"], ["👶", "Bacha kab hoga?"], ["❤️", "Current Ya Ex Partner se Shaadi hogi?"],
 ];
-const STEPS = ["Slot", "Aap", "Doosre log", "Wajah"];
+const STEPS = ["Aap", "Doosre log", "Wajah"];
 const fmtD = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const fmtT = (t: string) => { const [h, m] = t.split(":").map(Number); return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 
@@ -39,12 +38,13 @@ function Person({ n, on, toggle }: { n: "2" | "3"; on: boolean; toggle: () => vo
 export default function ReadingForm() {
   const [waited, setWaited] = useState(false), [bid, setBid] = useState(""), [bk, setBk] = useState<any>(null);
   const [busy, setBusy] = useState(false), [err, setErr] = useState(""), [shake, setShake] = useState(0), [done, setDone] = useState<any>(null);
-  const [slots, setSlots] = useState<Record<string, string[]> | null>(null), [date, setDate] = useState(""), [time, setTime] = useState("");
+  // Slot is auto-assigned (earliest free one). undefined = loading, null = nothing free.
+  const [next, setNext] = useState<{ date: string; time: string } | null | undefined>(undefined);
   const [step, setStep] = useState(0), [concern, setConcern] = useState(""), [p2, setP2] = useState(false), [p3, setP3] = useState(false);
   const [dobOk, setDobOk] = useState(false), [photo1, setPhoto1] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setSlots(j.slots)).catch(() => setSlots({}));
-  useEffect(() => { if (bk?.status === "paid" && !bk.formDone && !slots) loadSlots(); }, [bk]);
+  const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setNext(j.next ?? null)).catch(() => setNext(null));
+  useEffect(() => { if (bk?.status === "paid" && !bk.formDone && next === undefined) loadSlots(); }, [bk]);
 
   useEffect(() => {
     const b = new URLSearchParams(window.location.search).get("bid") || ""; setBid(b);
@@ -60,8 +60,8 @@ export default function ReadingForm() {
   const bad = (m: string) => { setErr(m); setShake((s) => s + 1); return false; };
   function valid(s: number) {
     setErr("");
-    if (s === 0 && (!date || !time)) return bad("Pehle calendar se din aur time chunein.");
-    if (s === 1) {
+    if (!next) return bad("Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545.");
+    if (s === 0) {
       if (!val("name")) return bad("Apna poora naam likhein.");
       if (val("phone").replace(/\D/g, "").length < 10) return bad("Sahi WhatsApp number likhein.");
       if (!/^\S+@\S+\.\S+$/.test(val("email"))) return bad("Sahi email likhein.");
@@ -69,19 +69,19 @@ export default function ReadingForm() {
       if (!val("place")) return bad("Place of Birth likhein.");
       if (!photo1) return bad("Apni ek clear photo upload karein.");
     }
-    if (s === 3 && (!concern || (concern === "Other" && !val("concernOther")))) return bad("Reading ki wajah chunein.");
+    if (s === 2 && (!concern || (concern === "Other" && !val("concernOther")))) return bad("Reading ki wajah chunein.");
     return true;
   }
   const go = (d: number) => { if (d < 0 || valid(step)) { setStep(step + d); window.scrollTo({ top: 0, behavior: "smooth" }); } };
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault(); if (!valid(3)) return; setBusy(true);
-    const fd = new FormData(e.currentTarget); fd.set("bid", bid); fd.set("date", date); fd.set("time", time);
+    e.preventDefault(); if (!valid(2)) return; setBusy(true);
+    const fd = new FormData(e.currentTarget); fd.set("bid", bid);
     for (const k of ["photo1", "photo2", "photo3"]) if (photoStore[k]) fd.set(k, photoStore[k]);
     try {
       const j = await (await fetch("/api/form", { method: "POST", body: fd })).json();
       if (j.ok) { setDone(j); window.scrollTo({ top: 0, behavior: "smooth" }); }
-      else { setErr(j.error || "Kuch galat hua. Dobara try karein."); if (j.code === "slot_taken") { setTime(""); setStep(0); loadSlots(); } }
+      else { setErr(j.error || "Kuch galat hua. Dobara try karein."); if (j.code === "no_slots") loadSlots(); }
     } catch { setErr("Network error. Dobara try karein."); }
     setBusy(false);
   }
@@ -115,13 +115,15 @@ export default function ReadingForm() {
         {STEPS.map((s, i) => <div key={s} className={`stepper-dot${i <= step ? " on" : ""}`}><span>{i < step ? "✓" : i + 1}</span><small>{s}</small></div>)}
       </div>
 
-      <div className={S(0)}>
-        <h2 className="rf-sec first">Apna Slot Chunein</h2>
-        {!slots ? <p className="rf-hint">Slots load ho rahe hain…</p> : !Object.keys(slots).length ? <p className="rf-err">Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545 (Booking ID {bid}).</p>
-          : <SlotPicker slots={slots} date={date} time={time} onDate={setDate} onTime={setTime} />}
+      <div className="rf-slot">
+        <span>Aapka slot</span>
+        {next === undefined ? <b>Slot dhoondh rahe hain…</b>
+          : next ? <b>{fmtD(next.date)} · {fmtT(next.time)} IST</b>
+          : <b className="rf-err">Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545 (Booking ID {bid}).</b>}
       </div>
+      {next && <p className="rf-hint">Sabse pehla khaali slot aapke liye chuna gaya hai. Agar submit karte waqt yeh kisi aur ko mil gaya, toh agla khaali slot mil jayega — final slot email par confirm hoga.</p>}
 
-      <div className={S(1)}>
+      <div className={S(0)}>
         <h2 className="rf-sec first">Aapki Details</h2>
         <div className="rf-2">
         <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={bk.name} autoComplete="name" /></Field>
@@ -134,14 +136,14 @@ export default function ReadingForm() {
         <Field label="Your One Clear Photo" req hint="Face reading analysis ke liye."><FileDrop name="photo1" onChange={setPhoto1} /></Field>
       </div>
 
-      <div className={S(2)}>
+      <div className={S(1)}>
         <h2 className="rf-sec first">Kisi Aur Ke Baare Mein? <small>(optional)</small></h2>
         <p className="rf-hint">Sirf unhi logon ki reading hogi jinki details yahan doge. Nahi chahiye toh seedha Next dabayein.</p>
         <Person n="2" on={p2} toggle={() => { if (p2) delete photoStore.photo2; setP2(!p2); }} />
         <Person n="3" on={p3} toggle={() => { if (p3) delete photoStore.photo3; setP3(!p3); }} />
       </div>
 
-      <div className={S(3)}>
+      <div className={S(2)}>
         <h2 className="rf-sec first">Reading Book Karne Ki Wajah <b>*</b></h2>
         <div className="concerns">
           {[...CONCERNS, ["✍️", "Other"] as [string, string]].map(([ic, c]) => (
@@ -156,7 +158,7 @@ export default function ReadingForm() {
         {step > 0 && <button type="button" className="btn ghost" onClick={() => go(-1)}>← Back</button>}
         {step < STEPS.length - 1
           ? <button type="button" className="btn gold" style={{ marginLeft: "auto" }} onClick={() => go(1)}>Next →</button>
-          : <button className="btn gold" disabled={busy} style={{ marginLeft: "auto" }}>{busy ? "Submit ho raha hai…" : "Submit & Confirm ✦"}</button>}
+          : <button className="btn gold" disabled={busy || !next} style={{ marginLeft: "auto" }}>{busy ? "Submit ho raha hai…" : "Submit & Confirm ✦"}</button>}
       </div>
     </form>);
 }

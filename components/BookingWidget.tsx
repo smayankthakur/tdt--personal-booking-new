@@ -23,7 +23,7 @@ export default function BookingWidget({ price }: { price: string }) {
     <div>
       <ol style={{ textAlign: "left", fontSize: 14, lineHeight: 1.9, margin: "0 0 16px 18px" }}>
         <li>Pehle payment karein</li>
-        <li>Phir apna slot chunein aur poora form bharein</li>
+        <li>Phir form bharein — sabse pehla khaali slot (Tue/Fri) aapko apne aap mil jayega</li>
         <li>Meet link &amp; schedule turant aapki email par</li>
       </ol>
       {err && <p style={{ color: "#f66" }}>{err}</p>}

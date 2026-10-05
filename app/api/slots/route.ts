@@ -1,20 +1,12 @@
 import { NextResponse } from "next/server";
-import { FieldPath } from "firebase-admin/firestore";
-import { db, getCfg } from "@/lib/db";
-import { daySlots, istNow, ymd, slotMs, isTaken, LEAD_MS } from "@/lib/slots";
+import { freeSlots } from "@/lib/freeSlots";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
+// `next` = the slot the form auto-assigns (earliest free one). `slots` kept for reference.
 export async function GET() {
-  const cfg = await getCfg();
-  const dates = Array.from({ length: cfg.advanceDays + 1 }, (_, i) => ymd(new Date(istNow().getTime() + i * 864e5)));
-  const snap = await db.collection("bookings")
-    .where(FieldPath.documentId(), ">=", dates[0])
-    .where(FieldPath.documentId(), "<=", dates[dates.length - 1] + "~").get();
-  const taken = new Set(snap.docs.filter((d) => isTaken(d.data())).map((d) => d.id));
+  const free = await freeSlots();
   const slots: Record<string, string[]> = {};
-  for (const d of dates) {
-    const free = daySlots(cfg, d).filter((t) => !taken.has(`${d}T${t}`) && slotMs(d, t) > Date.now() + LEAD_MS);
-    if (free.length) slots[d] = free;
-  }
-  return NextResponse.json({ slots });
+  for (const k of free) { const [d, t] = k.split("T"); (slots[d] ||= []).push(t); }
+  const next = free[0] ? { date: free[0].split("T")[0], time: free[0].split("T")[1] } : null;
+  return NextResponse.json({ next, slots });
 }

@@ -3,8 +3,8 @@
 ## Flow
 1. Visitor clicks **Pay ₹8,500 & Book** — no slot needed yet. A Razorpay Payment Link is created; its return URL is built from the domain the visitor is on.
 2. Razorpay webhook (`payment_link.paid`) marks the order paid (`orders/{bid}`), saves the payer's email/phone and emails a "choose slot & fill form" link.
-3. Visitor lands on **`/form?bid=…`**: picks a slot (Tue 1–5pm, Thu 3–6pm, Sat 12–8pm, Sun 12–1pm IST; editable at `/admin`) and fills the full form. Photos are compressed in the browser.
-4. On submit the slot is claimed atomically (if someone took it first, they pick another), a Google Meet event is created, the **customer gets an email with date, time, Meet link and .ics**, and **you get an email with every answer + photos**.
+3. Visitor lands on **`/form?bid=…`**: fills the full form. The slot is **auto-assigned**: the earliest free slot (Tuesday & Friday, hourly 12 PM–8 PM IST, last slot 8–9 PM; editable at `/admin`) is shown on the form and claimed on submit. Photos are compressed in the browser.
+4. On submit the slot is claimed atomically (if someone took it first, the next free slot is given automatically), a Google Meet event is created, the **customer gets an email with date, time, Meet link and .ics**, and **you get an email with every answer + photos**.
 
 ## Setup
 ```bash

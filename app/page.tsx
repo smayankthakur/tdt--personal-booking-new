@@ -105,7 +105,7 @@ export default function Home() {
             </p>
             <div className="hero-price">
               <strong>₹8,500</strong>
-              <span>40 min voice call<br />Pay first · choose your slot after</span>
+              <span>40 min voice call<br />Pay first · slot auto-assigned (Tue &amp; Fri)</span>
             </div>
             <div className="hero-actions">
               <PayButton label="Book Now — ₹8,500" />
@@ -147,7 +147,7 @@ export default function Home() {
 
                 <ul className="feature-list">
                   <li>Ask unlimited questions, up to 3 people including you</li>
-                  <li>Pay → choose slot &amp; fill form → Meet link &amp; schedule on your email</li>
+                  <li>Pay → fill form (earliest Tue/Fri slot auto-assigned) → Meet link &amp; schedule on your email</li>
                   <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
                 </ul>
 
