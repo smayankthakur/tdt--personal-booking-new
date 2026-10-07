@@ -27,7 +27,10 @@ function real(): Firestore {
 export const db = new Proxy({} as Firestore, {
   get: (_t, prop) => { const v = (real() as any)[prop]; return typeof v === "function" ? v.bind(real()) : v; },
 });
+export const CFG_DOC = "config/schedule2026";
 export async function getCfg(): Promise<Cfg> {
-  const s = await db.doc("config/availability").get();
+  // New schedule (12 Oct – 30 Nov, every day, festivals blocked) lives in a fresh doc so an older saved
+  // Tue/Fri setting in "config/availability" can't override it. /admin saves here.
+  const s = await db.doc(CFG_DOC).get();
   return s.exists ? { ...DEFAULT_CFG, ...(s.data() as Cfg) } : DEFAULT_CFG;
 }

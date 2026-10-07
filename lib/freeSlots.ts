@@ -6,7 +6,7 @@ const ms = (k: string) => { const [d, t] = k.split("T"); return slotMs(d, t); };
 
 /**
  * Bookable slots for one booking, earliest first, as "YYYY-MM-DDTHH:MM" (IST).
- * standard → day 7–10 after payment (Tue/Fri), later only if that window is full.
+ * standard → day 7–10 after payment, earliest first (later only if that window is full), within 12 Oct – 30 Nov.
  * urgent   → within 48 h of payment (every day).
  * Slots held by this same booking (`bid`) count as free; `prefer` is moved to the front if still free.
  */

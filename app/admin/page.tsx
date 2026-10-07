@@ -47,7 +47,8 @@ export default function Admin() {
         <button onClick={load} style={{ marginLeft: "auto", padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>↻ Refresh</button>
       </div>
       {tab === "slots" && (<div>
-      <h3>Normal booking (₹8,500) — days &amp; time (India time)</h3>
+      <p style={{ margin: "0 0 14px" }}>Booking dates: <input type="date" value={cfg.fromDate || ""} onChange={(e) => setCfg({ ...cfg, fromDate: e.target.value })} style={box} /> se <input type="date" value={cfg.toDate || ""} onChange={(e) => setCfg({ ...cfg, toDate: e.target.value })} style={box} /> tak (normal + urgent dono)</p>
+      <h3>Normal booking — days &amp; time (India time)</h3>
       {DAYS.map((n, i) => (
         <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0" }}>
           <label style={{ width: 130 }}><input type="checkbox" checked={day(i).on} onChange={(e) => setDay(i, { on: e.target.checked })} /> {n}</label>
@@ -57,8 +58,8 @@ export default function Admin() {
       <p>Call length (min): <input type="number" value={cfg.duration} onChange={(e) => setCfg({ ...cfg, duration: +e.target.value })} style={{ ...box, width: 70 }} />
         &nbsp; Slot gap (min): <input type="number" value={cfg.step} onChange={(e) => setCfg({ ...cfg, step: +e.target.value })} style={{ ...box, width: 70 }} />
         </p>
-      <p>Normal appointment payment ke din <input type="number" value={cfg.minDays} onChange={(e) => setCfg({ ...cfg, minDays: +e.target.value })} style={{ ...box, width: 60 }} /> se din <input type="number" value={cfg.maxDays} onChange={(e) => setCfg({ ...cfg, maxDays: +e.target.value })} style={{ ...box, width: 60 }} /> ke andar.
-        &nbsp; Window full ho toh max kitne din aage tak: <input type="number" value={cfg.advanceDays} onChange={(e) => setCfg({ ...cfg, advanceDays: +e.target.value })} style={{ ...box, width: 60 }} /></p>
+      <p>Normal slot payment ke kam se kam <input type="number" value={cfg.minDays} onChange={(e) => setCfg({ ...cfg, minDays: +e.target.value })} style={{ ...box, width: 60 }} /> din baad, din 7–10 wali window (0 = jo pehla slot khaali ho, non-stop).
+        &nbsp; Max kitne din aage tak: <input type="number" value={cfg.advanceDays} onChange={(e) => setCfg({ ...cfg, advanceDays: +e.target.value })} style={{ ...box, width: 60 }} /></p>
       <h3 style={{ marginTop: 28 }}>⚡ Urgent booking (₹17,000) — days &amp; time</h3>
       {DAYS.map((n, i) => (
         <div key={"u" + i} style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0" }}>
@@ -69,7 +70,7 @@ export default function Admin() {
       <p>Payment ke <input type="number" value={cfg.urgentHours} onChange={(e) => setCfg({ ...cfg, urgentHours: +e.target.value })} style={{ ...box, width: 60 }} /> ghante ke andar.
         &nbsp; Kam se kam kitne ghante baad (taiyari ka time): <input type="number" value={cfg.urgentLeadHours} onChange={(e) => setCfg({ ...cfg, urgentLeadHours: +e.target.value })} style={{ ...box, width: 60 }} /></p>
       <p style={{ fontSize: 13, opacity: 0.7 }}>Tip: normal aur urgent ke start time ek jaise rakhein (jaise 12:00, 13:00…) taaki slots overlap na hon. Band dates dono par lagti hain.</p>
-      <p>Band karne wali dates (YYYY-MM-DD, comma se alag):<br />
+      <p>Band karne wali dates / festivals (YYYY-MM-DD, comma se alag):<br />
         <input value={cfg.blocked.join(",")} onChange={(e) => setCfg({ ...cfg, blocked: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} style={{ ...box, width: "100%" }} /></p>
       <button className="btn gold" onClick={save}>Save</button> <span>{msg}</span>
       </div>)}

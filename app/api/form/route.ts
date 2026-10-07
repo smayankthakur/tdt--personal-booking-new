@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
   };
 
-  // Slot is AUTO-ASSIGNED and claimed atomically. Standard: earliest free on day 7–10 after payment (later only if full).
+  // Slot is AUTO-ASSIGNED and claimed atomically. Standard: earliest free slot on day 7–10 after payment (later only if full).
   // Urgent: the slot held at payment time (or the next free one within 48 h). The customer never has to pick.
   const tier = b.tier === "urgent" ? "urgent" : "standard";
   const candidates = (await freeSlots({ tier, paidAt: b.paidAt, bid, prefer: b.heldSlot || undefined })).slice(0, 20);
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       const ref = db.doc(`bookings/${k}`), sl = await tx.get(ref);
       if (sl.exists && isTaken(sl.data()) && sl.data()!.bid !== bid) continue;
       const [d, t] = k.split("T");
-      tx.set(ref, { status: "confirmed", tier, bid, name: p1.name, email, phone: p1.phone, paymentId: b.paymentId || null, formDone: true, answers: { "Slot": `${d} ${t} IST`, "Booking type": tier === "urgent" ? "URGENT (48 hrs)" : "Standard (7–10 days)", ...answers }, createdAt: Date.now() });
+      tx.set(ref, { status: "confirmed", tier, bid, name: p1.name, email, phone: p1.phone, paymentId: b.paymentId || null, formDone: true, answers: { "Slot": `${d} ${t} IST`, "Booking type": tier === "urgent" ? "URGENT (48 hrs)" : "Standard", ...answers }, createdAt: Date.now() });
       tx.update(orderRef, { formDone: true, slot: k, name: p1.name, formAt: Date.now() });
       if (heldRef && k !== b.heldSlot && held?.exists && held.data()!.bid === bid && held.data()!.status === "held") tx.delete(heldRef); // free the old hold
       return k;
@@ -75,7 +75,7 @@ export async function POST(req: Request) {
   if (claimed === "done") return NextResponse.json({ error: "Form pehle hi submit ho chuka hai." }, { status: 409 });
   if (claimed === "taken") return noSlot();
   const key = claimed, [date, time] = key.split("T"), slotRef = db.doc(`bookings/${key}`);
-  answers = { "Slot": `${date} ${time} IST`, "Booking type": tier === "urgent" ? "URGENT (48 hrs)" : "Standard (7–10 days)", ...answers };
+  answers = { "Slot": `${date} ${time} IST`, "Booking type": tier === "urgent" ? "URGENT (48 hrs)" : "Standard", ...answers };
 
   let m: { meetLink?: string; eventId?: string } | null = null, calendarErr = "";
   try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone, tier }); } catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { db, getCfg } from "@/lib/db";
+import { CFG_DOC, db, getCfg } from "@/lib/db";
 import { createMeet } from "@/lib/calendar";
 import { sendClientConfirmation } from "@/lib/mailer";
 import { originOf, resumeToken } from "@/lib/session";
@@ -17,7 +17,7 @@ export async function GET(req: Request) {
 }
 export async function PUT(req: Request) {
   if (deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  await db.doc("config/availability").set(await req.json());
+  await db.doc(CFG_DOC).set(await req.json());
   return NextResponse.json({ ok: true });
 }
 
