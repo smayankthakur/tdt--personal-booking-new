@@ -160,7 +160,7 @@ export default function Landing({ offer }: { offer: boolean }) {
                 </div>
 
                 <ul className="feature-list">
-                  <li>Appointment payment ke 7–10 din ke andar (har din 12 PM – 9 PM IST, 12 Oct – 30 Nov) — immediate slot nahi milta</li>
+                  <li>Appointment payment ke 7–10 din ke andar (Slots between 12 PM – 9 PM IST)</li>
                   <li>Ask unlimited questions, up to 3 people including you</li>
                   <li>Pay → form fill &amp; submit → slot, Google Meet link &amp; schedule turant email par</li>
                   <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
@@ -220,7 +220,7 @@ export default function Landing({ offer }: { offer: boolean }) {
                     <p>We do not provide sugar-coated readings. Our purpose is to deliver honest messages as guided by the universe with complete sincerity.</p>
                     <p>We strictly DO NOT offer any services related to Tantra, Vashikaran, black magic, or any unethical practices. Please do not request such services.</p>
                     <p>We do not provide readings on: legal matters, court cases, share market, lottery, gambling, child gender prediction, or explicit/sexual questions.</p>
-                    <p><strong>Appointment timing:</strong> slots run from 12 October to 30 November, every day from 12 PM to 9 PM IST (last slot 9 PM). A standard booking gets the earliest free slot 7–10 days after payment — immediate slots are not available. No appointments are given on festival days (Dussehra, Karwa Chauth, Dhanteras to Bhai Dooj, Chhath Puja and Guru Nanak Jayanti). If you need the reading sooner, book the Urgent reading ({urgent}), which gets a slot within 48 hours of payment.</p>
+                    <p><strong>Appointment timing:</strong> slots run from 12 October to 30 November, every day from 12 PM to 9 PM IST (last slot 9 PM). A standard booking gets the earliest free slot 7–10 days after payment. No appointments are given on festival days (Dussehra, Karwa Chauth, Dhanteras to Bhai Dooj, Chhath Puja and Guru Nanak Jayanti). If you need the reading sooner, book the Urgent reading ({urgent}), which gets a slot within 48 hours of payment.</p>
                     {offer && <p><strong>{OFFER.name}:</strong> the {price} price applies to payments made till {OFFER.untilText} (IST). After that the regular price of {regular} applies. The Urgent reading is not part of the offer.</p>}
                     <p>Your call takes place on Google Meet at the slot assigned to you — the slot, link and schedule are emailed to you as soon as you submit the form after payment. Please join on time from a stable network; if repeated connection issues occur, the appointment may be cancelled.</p>
                     <p><strong>Late arrival:</strong> we wait a maximum of 5 minutes after your slot starts. If you have not joined the Google Meet by then, the appointment is treated as missed. Once your slot time is over, the appointment cannot be rescheduled, and no refund is given.</p>
