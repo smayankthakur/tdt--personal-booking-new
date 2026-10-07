@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { sendPaymentReceived } from "./mailer";
+import { slotMs } from "./slots";
 
 const auth = () => "Basic " + Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
 const rz = async (path: string) => (await fetch(`https://api.razorpay.com/v1/${path}`, { headers: { Authorization: auth() }, cache: "no-store" })).json();
@@ -11,10 +12,16 @@ export async function markPaid(bid: string, plinkId: string, paymentId: string |
     const s = await tx.get(ref), d = s.data();
     if (!d || d.plinkId !== plinkId) { tx.set(db.doc(`problems/${plinkId}`), { bid, paymentLink: plinkId, why: "paid but order missing/mismatch — check & refund manually", at: Date.now() }); return null; }
     if (d.status !== "created") return null; // already handled
+    // Urgent: keep the slot that was held during payment reserved for this customer until the form is filled.
+    const hRef = d.heldSlot ? db.doc(`bookings/${d.heldSlot}`) : null, h = hRef ? await tx.get(hRef) : null;
     tx.update(ref, { status: "paid", paymentId, email, phone, paidAt: Date.now() });
+    if (hRef && h?.exists && h.data()!.bid === bid && h.data()!.status === "held") {
+      const [sd, st] = String(d.heldSlot).split("T");
+      tx.update(hRef, { holdUntil: slotMs(sd, st) });
+    }
     return d;
   });
-  if (order && email) await sendPaymentReceived({ email, bid, origin: order.origin }).catch((e) => console.error("payment-received mail failed", e));
+  if (order && email) await sendPaymentReceived({ email, bid, tier: order.tier }).catch((e) => console.error("payment-received mail failed", e));
 }
 
 /** Asks Razorpay directly whether this order's payment link is paid — works even if the webhook never arrives. */

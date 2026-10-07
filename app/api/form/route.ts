@@ -4,6 +4,7 @@ import { createMeet } from "@/lib/calendar";
 import { freeSlots } from "@/lib/freeSlots";
 import { isTaken } from "@/lib/slots";
 import { sendClientConfirmation, sendOwnerNotification } from "@/lib/mailer";
+import { bidFrom } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 30;
 
 const MAX_PHOTO = 1.4 * 1024 * 1024; // client compresses first; Vercel body limit is ~4.5MB for all 3
@@ -12,8 +13,8 @@ const S = (f: FormData, k: string) => String(f.get(k) ?? "").trim().slice(0, 300
 
 export async function POST(req: Request) {
   const f = await req.formData();
-  const bid = S(f, "bid");
-  if (!/^[A-Za-z0-9]{8,20}$/.test(bid)) return NextResponse.json({ error: "Booking nahi mili." }, { status: 404 });
+  const bid = bidFrom(req); // only from the signed cookie set after a verified payment — never from the request body
+  if (!bid) return NextResponse.json({ error: "Booking nahi mili. Form sirf payment ke baad khulta hai." }, { status: 404 });
   const orderRef = db.doc(`orders/${bid}`), os = await orderRef.get();
   if (!os.exists) return NextResponse.json({ error: "Booking nahi mili." }, { status: 404 });
   const b = os.data()!;
@@ -50,20 +51,23 @@ export async function POST(req: Request) {
     "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
   };
 
-  // Slot is AUTO-ASSIGNED: the earliest free slot is claimed atomically. If someone grabbed it a moment
-  // earlier, the next free one is taken instead — the customer never has to pick.
-  const candidates = (await freeSlots()).slice(0, 20);
+  // Slot is AUTO-ASSIGNED and claimed atomically. Standard: earliest free on day 7–10 after payment (later only if full).
+  // Urgent: the slot held at payment time (or the next free one within 48 h). The customer never has to pick.
+  const tier = b.tier === "urgent" ? "urgent" : "standard";
+  const candidates = (await freeSlots({ tier, paidAt: b.paidAt, bid, prefer: b.heldSlot || undefined })).slice(0, 20);
   const noSlot = () => NextResponse.json({ error: `Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545 (Booking ID ${bid}).`, code: "no_slots" }, { status: 409 });
   if (!candidates.length) return noSlot();
   const claimed = await db.runTransaction(async (tx) => {
     const o = await tx.get(orderRef);
     if (o.data()?.formDone) return "done";
+    const heldRef = b.heldSlot ? db.doc(`bookings/${b.heldSlot}`) : null, held = heldRef ? await tx.get(heldRef) : null;
     for (const k of candidates) {
       const ref = db.doc(`bookings/${k}`), sl = await tx.get(ref);
-      if (sl.exists && isTaken(sl.data())) continue;
+      if (sl.exists && isTaken(sl.data()) && sl.data()!.bid !== bid) continue;
       const [d, t] = k.split("T");
-      tx.set(ref, { status: "confirmed", bid, name: p1.name, email, phone: p1.phone, paymentId: b.paymentId || null, formDone: true, answers: { "Slot": `${d} ${t} IST`, ...answers }, createdAt: Date.now() });
+      tx.set(ref, { status: "confirmed", tier, bid, name: p1.name, email, phone: p1.phone, paymentId: b.paymentId || null, formDone: true, answers: { "Slot": `${d} ${t} IST`, "Booking type": tier === "urgent" ? "URGENT (48 hrs)" : "Standard (7–10 days)", ...answers }, createdAt: Date.now() });
       tx.update(orderRef, { formDone: true, slot: k, name: p1.name, formAt: Date.now() });
+      if (heldRef && k !== b.heldSlot && held?.exists && held.data()!.bid === bid && held.data()!.status === "held") tx.delete(heldRef); // free the old hold
       return k;
     }
     return "taken";
@@ -71,17 +75,17 @@ export async function POST(req: Request) {
   if (claimed === "done") return NextResponse.json({ error: "Form pehle hi submit ho chuka hai." }, { status: 409 });
   if (claimed === "taken") return noSlot();
   const key = claimed, [date, time] = key.split("T"), slotRef = db.doc(`bookings/${key}`);
-  answers = { "Slot": `${date} ${time} IST`, ...answers };
+  answers = { "Slot": `${date} ${time} IST`, "Booking type": tier === "urgent" ? "URGENT (48 hrs)" : "Standard (7–10 days)", ...answers };
 
   let m: { meetLink?: string; eventId?: string } | null = null, calendarErr = "";
-  try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone }); } catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); }
+  try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone, tier }); } catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); }
   const meetLink = m?.meetLink || null;
   await slotRef.update({ meetLink, eventId: m?.eventId || null, calendarOk: !!meetLink, calendarErr });
   await orderRef.update({ meetLink });
 
   const mails = await Promise.allSettled([
     sendClientConfirmation({ name: p1.name, email, bid, date, time, meetLink }),
-    sendOwnerNotification({ bid, date, time, name: p1.name, email, paymentId: b.paymentId, answers }, photos, meetLink),
+    sendOwnerNotification({ bid, tier, date, time, name: p1.name, email, paymentId: b.paymentId, answers }, photos, meetLink),
   ]);
   mails.forEach((x) => x.status === "rejected" && console.error("mail failed", x.reason));
   const why = (r: PromiseSettledResult<unknown>) => (r.status === "rejected" ? String((r.reason as any)?.message || r.reason).slice(0, 300) : "");

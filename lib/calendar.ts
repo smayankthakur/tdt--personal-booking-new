@@ -1,15 +1,11 @@
 import { slotMs } from "./slots";
 
-export function formUrl(b: { bid: string }) {
-  return `${process.env.SITE_URL || ""}/form?bid=${b.bid}`;
-}
-
 /** Customer + the owner accounts that must be on every event (override with CALENDAR_GUESTS, comma-separated). */
 const guests = (customer: string) =>
   Array.from(new Set([customer, ...(process.env.CALENDAR_GUESTS || "dev.thedivinetarot111@gmail.com,thedivinetarot111@gmail.com").split(",")].map((e) => e.trim().toLowerCase()).filter(Boolean)));
 
 /** Creates a Google Calendar event with a Meet link. No Google email goes out: our own confirmation email is sent after the form is submitted. */
-export async function createMeet(key: string, b: { name: string; email: string; bid: string; phone: string }) {
+export async function createMeet(key: string, b: { name: string; email: string; bid: string; phone: string; tier?: string }) {
   const [date, time] = key.split("T");
   const miss = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN"].filter((k) => !process.env[k]);
   if (miss.length) throw new Error("Missing env: " + miss.join(", "));
@@ -29,8 +25,8 @@ export async function createMeet(key: string, b: { name: string; email: string; 
       method: "POST",
       headers: { Authorization: `Bearer ${tok.access_token}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        summary: `Personal Reading — ${b.name}`,
-        description: `Booking ID: ${b.bid}\nWhatsApp: ${b.phone}\n\nReading form: ${formUrl(b)}`,
+        summary: `${b.tier === "urgent" ? "⚡ URGENT " : ""}Personal Reading — ${b.name}`,
+        description: `Booking ID: ${b.bid}\nWhatsApp: ${b.phone}\nType: ${b.tier === "urgent" ? "URGENT (48 hrs)" : "Standard"}`,
         start: { dateTime: iso(start), timeZone: "Asia/Kolkata" }, end: { dateTime: iso(end), timeZone: "Asia/Kolkata" },
         attendees: guests(b.email).map((email) => ({ email })),
         conferenceData: { createRequest: { requestId: key, conferenceSolutionKey: { type: "hangoutsMeet" } } },

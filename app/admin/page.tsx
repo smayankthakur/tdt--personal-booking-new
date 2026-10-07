@@ -16,12 +16,21 @@ export default function Admin() {
     const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-token": token, "Content-Type": "application/json" }, body: JSON.stringify({ slot }) });
     const j = await r.json(); setNote(`${slot.replace("T", " ")}: ${j.result || j.error}`); load();
   };
+  const resume = async (bid: string) => {
+    const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-token": token, "Content-Type": "application/json" }, body: JSON.stringify({ resume: bid }) });
+    const j = await r.json();
+    if (j.link) { await navigator.clipboard?.writeText(j.link).catch(() => {}); setNote(`Form link (24 ghante valid, sirf WhatsApp par customer ko bhejein — copy ho gaya): ${j.link}`); }
+    else setNote(j.error || "Link nahi bana");
+    setTab("book");
+  };
   const save = async () => {
     const r = await fetch("/api/admin", { method: "PUT", headers: { "x-admin-token": token, "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
     setMsg(r.ok ? "Saved ✓ — naye slots turant live" : "Save nahi hua");
   };
   const day = (i: number) => cfg!.days[i] || { on: false, start: "12:00", end: "18:00" };
   const setDay = (i: number, p: object) => setCfg({ ...cfg!, days: { ...cfg!.days, [i]: { ...day(i), ...p } } });
+  const uday = (i: number) => cfg!.urgentDays?.[i] || { on: false, start: "12:00", end: "21:00" };
+  const setUday = (i: number, p: object) => setCfg({ ...cfg!, urgentDays: { ...cfg!.urgentDays, [i]: { ...uday(i), ...p } } });
   const box = { padding: 6, borderRadius: 6, border: "1px solid #888", background: "transparent", color: "inherit" } as const;
 
   if (!cfg) return (
@@ -38,7 +47,7 @@ export default function Admin() {
         <button onClick={load} style={{ marginLeft: "auto", padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>↻ Refresh</button>
       </div>
       {tab === "slots" && (<div>
-      <h3>Slots settings (India time)</h3>
+      <h3>Normal booking (₹8,500) — days &amp; time (India time)</h3>
       {DAYS.map((n, i) => (
         <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0" }}>
           <label style={{ width: 130 }}><input type="checkbox" checked={day(i).on} onChange={(e) => setDay(i, { on: e.target.checked })} /> {n}</label>
@@ -47,7 +56,19 @@ export default function Admin() {
         </div>))}
       <p>Call length (min): <input type="number" value={cfg.duration} onChange={(e) => setCfg({ ...cfg, duration: +e.target.value })} style={{ ...box, width: 70 }} />
         &nbsp; Slot gap (min): <input type="number" value={cfg.step} onChange={(e) => setCfg({ ...cfg, step: +e.target.value })} style={{ ...box, width: 70 }} />
-        &nbsp; Kitne din aage tak: <input type="number" value={cfg.advanceDays} onChange={(e) => setCfg({ ...cfg, advanceDays: +e.target.value })} style={{ ...box, width: 70 }} /></p>
+        </p>
+      <p>Normal appointment payment ke din <input type="number" value={cfg.minDays} onChange={(e) => setCfg({ ...cfg, minDays: +e.target.value })} style={{ ...box, width: 60 }} /> se din <input type="number" value={cfg.maxDays} onChange={(e) => setCfg({ ...cfg, maxDays: +e.target.value })} style={{ ...box, width: 60 }} /> ke andar.
+        &nbsp; Window full ho toh max kitne din aage tak: <input type="number" value={cfg.advanceDays} onChange={(e) => setCfg({ ...cfg, advanceDays: +e.target.value })} style={{ ...box, width: 60 }} /></p>
+      <h3 style={{ marginTop: 28 }}>⚡ Urgent booking (₹17,000) — days &amp; time</h3>
+      {DAYS.map((n, i) => (
+        <div key={"u" + i} style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0" }}>
+          <label style={{ width: 130 }}><input type="checkbox" checked={uday(i).on} onChange={(e) => setUday(i, { on: e.target.checked })} /> {n}</label>
+          <input type="time" value={uday(i).start} onChange={(e) => setUday(i, { start: e.target.value })} style={box} /> to
+          <input type="time" value={uday(i).end} onChange={(e) => setUday(i, { end: e.target.value })} style={box} />
+        </div>))}
+      <p>Payment ke <input type="number" value={cfg.urgentHours} onChange={(e) => setCfg({ ...cfg, urgentHours: +e.target.value })} style={{ ...box, width: 60 }} /> ghante ke andar.
+        &nbsp; Kam se kam kitne ghante baad (taiyari ka time): <input type="number" value={cfg.urgentLeadHours} onChange={(e) => setCfg({ ...cfg, urgentLeadHours: +e.target.value })} style={{ ...box, width: 60 }} /></p>
+      <p style={{ fontSize: 13, opacity: 0.7 }}>Tip: normal aur urgent ke start time ek jaise rakhein (jaise 12:00, 13:00…) taaki slots overlap na hon. Band dates dono par lagti hain.</p>
       <p>Band karne wali dates (YYYY-MM-DD, comma se alag):<br />
         <input value={cfg.blocked.join(",")} onChange={(e) => setCfg({ ...cfg, blocked: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} style={{ ...box, width: "100%" }} /></p>
       <button className="btn gold" onClick={save}>Save</button> <span>{msg}</span>
@@ -66,9 +87,11 @@ export default function Admin() {
           {orders.map((o) => { const [label, col] = st(o); return (
             <div key={o.bid} style={{ borderTop: "1px solid #555", padding: "9px 0", fontSize: 14, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
               <b style={{ color: col, minWidth: 130 }}>{label}</b>
+              {o.tier === "urgent" && <b style={{ color: "#c9a227" }}>⚡ Urgent</b>}
               <span>{o.name || "-"}</span><span>{o.email || "-"}</span><span>{o.phone || "-"}</span>
               {o.slot && <span>Slot {o.slot.replace("T", " ")}</span>}
               <span style={{ opacity: 0.6 }}>{new Date(o.paidAt || o.createdAt).toLocaleString("en-IN")} · ID {o.bid}{o.paymentId ? ` · ${o.paymentId}` : ""}</span>
+              {o.status === "paid" && !o.formDone && <button onClick={() => resume(o.bid)} style={{ padding: "3px 10px", background: "transparent", border: "1px solid #e8a33d", borderRadius: 6, color: "#e8a33d", cursor: "pointer", fontSize: 13 }}>Form link banao</button>}
             </div>); })}
         </>);
       })()}
@@ -82,7 +105,7 @@ export default function Admin() {
         return (
           <div key={b.slot} style={{ borderTop: "1px solid #555", padding: "10px 0", fontSize: 14, opacity: past ? 0.55 : 1 }}>
             <div onClick={() => setOpenId(open ? "" : b.slot)} style={{ cursor: "pointer", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-              <span>{open ? "▼" : "▶"}</span><b>{d} · {t}</b><span>{b.name}</span><span>{b.phone}</span>
+              <span>{open ? "▼" : "▶"}</span><b>{d} · {t}</b>{b.tier === "urgent" && <b style={{ color: "#c9a227" }}>⚡ Urgent</b>}<span>{b.name}</span><span>{b.phone}</span>
               {a["Concern"] && <span style={{ color: "#c9a227" }}>· {a["Concern"]}</span>}
               {b.calendarOk === false && <span style={{ color: "#f66" }}>⚠ Meet link nahi bana</span>}
               {b.clientMailOk === false && <span style={{ color: "#f66" }}>⚠ client mail fail</span>}

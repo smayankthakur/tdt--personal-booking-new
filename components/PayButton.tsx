@@ -2,12 +2,12 @@
 import { useState } from "react";
 
 /** CTA that goes straight to the Razorpay payment page (creates the payment link, then redirects). */
-export default function PayButton({ label, className = "btn gold", tabIndex }: { label: string; className?: string; tabIndex?: number }) {
+export default function PayButton({ label, tier = "standard", className = "btn gold", tabIndex }: { label: string; tier?: "standard" | "urgent"; className?: string; tabIndex?: number }) {
   const [busy, setBusy] = useState(false);
   async function go() {
     setBusy(true);
     try {
-      const j = await (await fetch("/api/book", { method: "POST" })).json();
+      const j = await (await fetch("/api/book", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tier }) })).json();
       if (j.url) { window.location.href = j.url; return; }
       alert(j.error || "Payment page nahi khul paya. Dobara try karein.");
     } catch { alert("Network error. Dobara try karein."); }

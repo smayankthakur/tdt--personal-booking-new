@@ -1,12 +1,21 @@
 import { NextResponse } from "next/server";
+import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
+import { bidFrom } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
-// `next` = the slot the form auto-assigns (earliest free one). `slots` kept for reference.
-export async function GET() {
-  const free = await freeSlots();
-  const slots: Record<string, string[]> = {};
-  for (const k of free) { const [d, t] = k.split("T"); (slots[d] ||= []).push(t); }
-  const next = free[0] ? { date: free[0].split("T")[0], time: free[0].split("T")[1] } : null;
-  return NextResponse.json({ next, slots });
+const split = (k?: string) => (k ? { date: k.split("T")[0], time: k.split("T")[1] } : null);
+
+// With the booking cookie: the slot the form will assign to THIS booking.
+// Without it (?tier=urgent): only whether an urgent slot is available right now — for the landing page.
+export async function GET(req: Request) {
+  const bid = bidFrom(req);
+  if (bid && !new URL(req.url).searchParams.get("tier")) {
+    const s = await db.doc(`orders/${bid}`).get(), o = s.data();
+    if (!o || o.status !== "paid") return NextResponse.json({ next: null });
+    const free = await freeSlots({ tier: o.tier || "standard", paidAt: o.paidAt, bid, prefer: o.heldSlot || undefined });
+    return NextResponse.json({ next: split(free[0]) });
+  }
+  const free = await freeSlots({ tier: "urgent" });
+  return NextResponse.json({ available: free.length > 0, next: split(free[0]) });
 }

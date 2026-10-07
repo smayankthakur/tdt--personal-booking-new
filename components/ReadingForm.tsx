@@ -47,10 +47,10 @@ export default function ReadingForm() {
   useEffect(() => { if (bk?.status === "paid" && !bk.formDone && next === undefined) loadSlots(); }, [bk]);
 
   useEffect(() => {
-    const b = new URLSearchParams(window.location.search).get("bid") || ""; setBid(b);
-    if (!b) return setBk({ status: "unknown" });
+    // The booking comes from a secure cookie set after payment — nothing in the URL.
+    if (window.location.search) window.history.replaceState(null, "", "/form");
     let n = 0;
-    const check = async () => { try { const j = await (await fetch(`/api/booking?bid=${b}`)).json(); setBk(j); return j.status; } catch { return "created"; } };
+    const check = async () => { try { const j = await (await fetch("/api/booking", { cache: "no-store" })).json(); setBk(j); if (j.bid) setBid(j.bid); return j.status; } catch { return "created"; } };
     check();
     const t = setInterval(async () => { const s = await check(); if (s !== "created") clearInterval(t); else if (++n > 90) { clearInterval(t); setWaited(true); } }, 2000);
     return () => clearInterval(t);
@@ -76,7 +76,7 @@ export default function ReadingForm() {
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!valid(2)) return; setBusy(true);
-    const fd = new FormData(e.currentTarget); fd.set("bid", bid);
+    const fd = new FormData(e.currentTarget);
     for (const k of ["photo1", "photo2", "photo3"]) if (photoStore[k]) fd.set(k, photoStore[k]);
     try {
       const j = await (await fetch("/api/form", { method: "POST", body: fd })).json();
@@ -87,7 +87,7 @@ export default function ReadingForm() {
   }
 
   if (!bk) return <div className="rf-card"><p>Load ho raha hai…</p></div>;
-  if (bk.status === "unknown") return <div className="rf-card"><h1>Booking nahi mili</h1><p>Yeh link galat ya adhoora hai. Payment ke baad aapko email par sahi link mila hoga.</p><a className="btn gold" href="/#book">Slot book karein</a></div>;
+  if (bk.status === "unknown") return <div className="rf-card"><h1>Pehle payment karein</h1><p>Reading form sirf payment ke baad khulta hai. Agar aapne payment kar diya hai aur form nahi khula, toh WhatsApp karein <b>+91 88281 16545</b> (payment ka screenshot bhejein).</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>Booking page par jayein</a></div>;
   if (bk.status === "created" && !waited) return <div className="rf-card"><p>Form load ho raha hai…</p></div>;
   if (bk.status === "created") return <div className="rf-card"><h1>Payment abhi tak nahi mila</h1><p>Agar payment ho chuka hai toh page refresh karein. Nahi hua hai toh dobara payment karein.</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>Payment page par jayein</a></div>;
   if (bk.status !== "paid") return <div className="rf-card"><h1>Payment nahi mila</h1><a className="btn gold" href="/#book">Wapas jayein</a></div>;
@@ -108,7 +108,7 @@ export default function ReadingForm() {
   const S = (i: number) => `step${step === i ? " active" : ""}`;
   return (
     <form ref={formRef} className="rf-card" onSubmit={submit} noValidate>
-      <div className="rf-badge">✓ Payment received</div>
+      <div className="rf-badge">✓ Payment received{bk.tier === "urgent" ? " · ⚡ Urgent" : ""}{bid ? ` · ID ${bid}` : ""}</div>
       <h1>Personal Reading Form</h1>
       <div className="stepper">
         <div className="stepper-bar"><i style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }} /></div>
@@ -121,7 +121,9 @@ export default function ReadingForm() {
           : next ? <b>{fmtD(next.date)} · {fmtT(next.time)} IST</b>
           : <b className="rf-err">Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545 (Booking ID {bid}).</b>}
       </div>
-      {next && <p className="rf-hint">Sabse pehla khaali slot aapke liye chuna gaya hai. Agar submit karte waqt yeh kisi aur ko mil gaya, toh agla khaali slot mil jayega — final slot email par confirm hoga.</p>}
+      {next && <p className="rf-hint">{bk.tier === "urgent"
+        ? "⚡ Urgent booking: 48 ghante ke andar ka slot aapke liye rakha gaya hai."
+        : "Aapka appointment payment ke 7–10 din ke andar ka sabse pehla khaali slot hai."} Form submit karte hi final slot aur Google Meet link email par aa jayega.</p>}
 
       <div className={S(0)}>
         <h2 className="rf-sec first">Aapki Details</h2>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db, getCfg } from "@/lib/db";
 import { createMeet } from "@/lib/calendar";
 import { sendClientConfirmation } from "@/lib/mailer";
+import { originOf, resumeToken } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 const ENV = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN", "SMTP_HOST", "SMTP_USER", "SMTP_PASS", "OWNER_EMAIL"];
 const deny = (req: Request) => !process.env.ADMIN_TOKEN || req.headers.get("x-admin-token") !== process.env.ADMIN_TOKEN;
@@ -23,7 +24,13 @@ export async function PUT(req: Request) {
 // Re-create the Meet link and re-send the customer email for one booking.
 export async function POST(req: Request) {
   if (deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  const { slot } = await req.json(), ref = db.doc(`bookings/${slot}`), s = await ref.get();
+  const body = await req.json();
+  if (body.resume) { // 24-hour form link for a paid customer who lost the payment page — share on WhatsApp only
+    const o = await db.doc(`orders/${body.resume}`).get();
+    if (!o.exists || o.data()!.status !== "paid" || o.data()!.formDone) return NextResponse.json({ error: "Yeh order paid + form-baaki nahi hai." }, { status: 400 });
+    return NextResponse.json({ link: `${originOf(req)}/api/resume?t=${resumeToken(body.resume)}` });
+  }
+  const { slot } = body, ref = db.doc(`bookings/${slot}`), s = await ref.get();
   if (!s.exists) return NextResponse.json({ error: "booking nahi mili" }, { status: 404 });
   const b = s.data() as any, [date, time] = String(slot).split("T"), out: string[] = [];
   let meetLink: string | null = b.meetLink || null, calendarErr = "", mailErr = "";

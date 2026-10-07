@@ -1,18 +1,26 @@
 import { FieldPath } from "firebase-admin/firestore";
 import { db, getCfg } from "./db";
-import { daySlots, istNow, ymd, slotMs, isTaken, LEAD_MS } from "./slots";
+import { candidates, isTaken, slotMs, type Tier } from "./slots";
 
-/** Every bookable slot, earliest first, as "YYYY-MM-DDTHH:MM" (IST). Used to auto-assign the customer's slot. */
-export async function freeSlots(): Promise<string[]> {
+const ms = (k: string) => { const [d, t] = k.split("T"); return slotMs(d, t); };
+
+/**
+ * Bookable slots for one booking, earliest first, as "YYYY-MM-DDTHH:MM" (IST).
+ * standard → day 7–10 after payment (Tue/Fri), later only if that window is full.
+ * urgent   → within 48 h of payment (every day).
+ * Slots held by this same booking (`bid`) count as free; `prefer` is moved to the front if still free.
+ */
+export async function freeSlots(o: { tier: Tier; paidAt?: number; bid?: string; prefer?: string }): Promise<string[]> {
   const cfg = await getCfg();
-  const dates = Array.from({ length: cfg.advanceDays + 1 }, (_, i) => ymd(new Date(istNow().getTime() + i * 864e5)));
+  const all = candidates(cfg, o.tier, o.paidAt || Date.now());
+  if (!all.length) return [];
+  const first = all[0].slice(0, 10), last = all[all.length - 1].slice(0, 10);
   const snap = await db.collection("bookings")
-    .where(FieldPath.documentId(), ">=", dates[0])
-    .where(FieldPath.documentId(), "<=", dates[dates.length - 1] + "~").get();
-  const taken = new Set(snap.docs.filter((d) => isTaken(d.data())).map((d) => d.id));
-  const out: string[] = [];
-  for (const d of dates)
-    for (const t of daySlots(cfg, d))
-      if (!taken.has(`${d}T${t}`) && slotMs(d, t) > Date.now() + LEAD_MS) out.push(`${d}T${t}`);
-  return out;
+    .where(FieldPath.documentId(), ">=", first)
+    .where(FieldPath.documentId(), "<=", last + "~").get();
+  const taken = snap.docs.filter((d) => isTaken(d.data()) && (!o.bid || d.data().bid !== o.bid)).map((d) => ms(d.id));
+  // a slot is blocked if any other booking starts less than one slot-gap away (standard and urgent share the calendar)
+  const free = all.filter((k) => !taken.some((t) => Math.abs(t - ms(k)) < cfg.step * 60000));
+  if (o.prefer && free.includes(o.prefer)) return [o.prefer, ...free.filter((k) => k !== o.prefer)];
+  return free;
 }

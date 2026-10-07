@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import BookingWidget from "@/components/BookingWidget";
 import StickyBook from "@/components/StickyBook";
 import PayButton from "@/components/PayButton";
+import ResumeBanner from "@/components/ResumeBanner";
 
 
 /** Fades an element up into view the first time it scrolls into the viewport. */
@@ -48,6 +49,7 @@ function Reveal({
 export default function Home() {
   return (
     <>
+      <ResumeBanner />
       {/* NAV — exact structure/order per thedivinetarotonline.com header */}
       <nav className="navbar">
         <div className="container navbar-inner">
@@ -105,10 +107,11 @@ export default function Home() {
             </p>
             <div className="hero-price">
               <strong>₹8,500</strong>
-              <span>40 min voice call<br />Pay first · slot auto-assigned (Tue &amp; Fri)</span>
+              <span>40 min voice call<br />Appointment 7–10 din ke andar (Tue &amp; Fri)</span>
             </div>
             <div className="hero-actions">
               <PayButton label="Book Now — ₹8,500" />
+              <PayButton tier="urgent" className="btn ghost" label="⚡ Urgent (48 hrs) — ₹17,000" />
             </div>
             <div className="hero-stats">
               <div>
@@ -136,7 +139,7 @@ export default function Home() {
             <h2>Voice Call Reading</h2>
           </Reveal>
 
-          <div className="book-notes-grid">
+          <div className="tier-grid">
             <Reveal delay={80}>
               <div className="price-card">
                 <span className="badge">40 Minutes · Voice Call</span>
@@ -146,14 +149,37 @@ export default function Home() {
                 </div>
 
                 <ul className="feature-list">
+                  <li>Appointment 7–10 din ke andar (Tue &amp; Fri, 12–9 PM IST) — immediate slot nahi milta</li>
                   <li>Ask unlimited questions, up to 3 people including you</li>
-                  <li>Pay → fill form (earliest Tue/Fri slot auto-assigned) → Meet link &amp; schedule on your email</li>
+                  <li>Pay → form bharein → slot, Meet link &amp; schedule turant email par</li>
                   <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
                 </ul>
 
                 <BookingWidget price="₹8,500" />
               </div>
             </Reveal>
+
+            <Reveal delay={130}>
+              <div className="price-card urgent">
+                <span className="badge">⚡ Urgent · Within 48 Hours</span>
+                <h3>Urgent Call Reading</h3>
+                <div className="amount">
+                  ₹17,000<small>Same 40 min reading — Tarot, Astro, Numero, Face Reading, Kundli Analysis &amp; Psychic</small>
+                </div>
+
+                <ul className="feature-list">
+                  <li>Appointment 48 ghante ke andar (any day, 12–9 PM IST)</li>
+                  <li>Ask unlimited questions, up to 3 people including you</li>
+                  <li>Pay → form bharein → slot, Meet link &amp; schedule turant email par</li>
+                  <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
+                </ul>
+
+                <BookingWidget price="₹17,000" tier="urgent" />
+              </div>
+            </Reveal>
+          </div>
+
+          <div className="book-notes-grid single">
 
             <Reveal delay={180}>
               <div className="notes-card">
@@ -183,7 +209,8 @@ export default function Home() {
                     <p>We do not provide sugar-coated readings. Our purpose is to deliver honest messages as guided by the universe with complete sincerity.</p>
                     <p>We strictly DO NOT offer any services related to Tantra, Vashikaran, black magic, or any unethical practices. Please do not request such services.</p>
                     <p>We do not provide readings on: legal matters, court cases, share market, lottery, gambling, child gender prediction, or explicit/sexual questions.</p>
-                    <p>Your call takes place on Google Meet at the slot you book — the link and schedule are emailed to you as soon as you submit the form after payment. Please join on time from a stable network; if repeated connection issues occur, the appointment may be cancelled.</p>
+                    <p><strong>Appointment timing:</strong> a standard booking (₹8,500) gets the earliest free Tuesday/Friday slot 7–10 days after payment — immediate slots are not available. If you need the reading sooner, book the Urgent reading (₹17,000), which gets a slot within 48 hours of payment.</p>
+                    <p>Your call takes place on Google Meet at the slot assigned to you — the slot, link and schedule are emailed to you as soon as you submit the form after payment. Please join on time from a stable network; if repeated connection issues occur, the appointment may be cancelled.</p>
                     <p><strong>Late arrival:</strong> we wait a maximum of 5 minutes after your slot starts. If you have not joined the Google Meet by then, the appointment is treated as missed. Once your slot time is over, the appointment cannot be rescheduled, and no refund is given.</p>
                     <p>You may ask about up to 3 people in one reading, only those whose details you submit in the form.</p>
                     <p>All readings are for guidance purposes only. Please use your own judgment and decision-making.</p>

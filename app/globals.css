@@ -922,3 +922,15 @@ footer a {
 .concerns { gap: 8px; margin-top: 8px; grid-template-columns: repeat(3, 1fr); } .concerns label { padding: 9px 10px; font-size: 13px; gap: 8px; border-radius: 11px; } .concerns span { font-size: 18px; }
 .rf-nav { margin-top: 16px; }
 @media (max-width: 720px) { .rf-2 { grid-template-columns: 1fr; } .concerns { grid-template-columns: 1fr 1fr; } .rf-card { padding: 18px 16px; } }
+
+/* ---------- two booking options + resume banner ---------- */
+.tier-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: stretch; max-width: 1000px; margin: 0 auto 32px; }
+@media (max-width: 860px) { .tier-grid { grid-template-columns: 1fr; } }
+.book-notes-grid.single { grid-template-columns: 1fr; max-width: 1000px; }
+.price-card.urgent { border-color: rgba(201,162,39,.55); background: linear-gradient(160deg, rgba(201,162,39,.10), var(--panel) 55%); }
+.price-card.urgent .badge { background: rgba(201,162,39,.15); }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.hero-actions .btn.ghost { border-color: var(--gold); color: var(--gold-soft); }
+.resume-banner { position: sticky; top: 0; z-index: 70; display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 10px 16px; background: #123222; border-bottom: 1px solid #7ee2a8; color: #d9fbe8; font-size: 14px; text-align: center; }
+.resume-banner .btn { padding: 8px 18px; font-size: 14px; }
+@media (max-width: 860px) { .hero-actions { justify-content: center; } }

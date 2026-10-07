@@ -1,8 +1,6 @@
 import nodemailer from "nodemailer";
 import { slotMs } from "./slots";
 
-const SITE = () => process.env.SITE_URL || "https://booking.thedivinetarotonline.com";
-
 function transporter() {
   const { SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS } = process.env;
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS) throw new Error("SMTP settings missing (SMTP_HOST / SMTP_USER / SMTP_PASS)");
@@ -81,7 +79,7 @@ export async function sendOwnerNotification(sub: Record<string, any>, photos: { 
     .map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#555;vertical-align:top">${esc(k)}</td><td style="padding:4px 0"><b>${esc(String(v))}</b></td></tr>`).join("");
   await send({
     from: from(), to, replyTo: sub.email,
-    subject: `New reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
+    subject: `${sub.tier === "urgent" ? "⚡ URGENT " : ""}New reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
     attachments: photos,
     html: `<div style="font-family:Arial,sans-serif;max-width:640px"><h3>${day} · ${range}</h3>
       <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "<b style='color:#c00'>NOT CREATED — create manually</b>"}<br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}</p>
@@ -89,15 +87,15 @@ export async function sendOwnerNotification(sub: Record<string, any>, photos: { 
   });
 }
 
-/** Sent at payment time so a customer who closes the tab can still reach the form. */
-export async function sendPaymentReceived(b: { email: string; bid: string; origin?: string }) {
-  const url = `${b.origin || SITE()}/form?bid=${b.bid}`;
+/** Payment receipt. Deliberately has NO form link: the form opens only on the page Razorpay returns to after payment. */
+export async function sendPaymentReceived(b: { email: string; bid: string; tier?: string }) {
+  const when = b.tier === "urgent" ? "48 ghante ke andar" : "7 se 10 din ke andar";
   await send({
-    from: from(), to: b.email, subject: "Payment received - please complete your reading form",
+    from: from(), to: b.email, subject: "Payment received - The Divine Tarot",
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
       <h2 style="color:#6d28d9">Namaste</h2>
-      <p>Aapka payment receive ho gaya hai. Ab apna <b>slot chunein aur reading form bharein</b> (2-3 minute):</p>
-      <p style="text-align:center;margin:26px 0"><a href="${url}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Choose Slot &amp; Fill Form</a></p>
-      <p style="font-size:13px;color:#666">Form submit karte hi Google Meet link aur schedule isi email par mil jayega. Booking ID: ${b.bid}</p></div>`,
+      <p>Aapka payment receive ho gaya hai${b.tier === "urgent" ? " (<b>Urgent booking</b>)" : ""}. Payment ke baad jo page khula hai, usi par <b>reading form bharein</b> (2-3 minute).</p>
+      <p>Form submit karte hi aapka <b>appointment slot (${when}), Google Meet link aur schedule</b> isi email par aa jayega.</p>
+      <p style="background:#fff4e5;padding:12px 16px;border-radius:6px;font-size:14px">Page band ho gaya? Usi phone/browser se booking page dobara kholein — form wahin mil jayega. Na mile toh WhatsApp karein <b>+91 88281 16545</b> aur yeh Booking ID bhejein: <b>${b.bid}</b></p></div>`,
   });
 }
