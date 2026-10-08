@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   const tob = (p: string) => (S(f, p + "h") ? `${S(f, p + "h")}:${S(f, p + "min") || "00"} ${S(f, p + "ap") || "AM"}` : "");
   const concern = S(f, "concern") === "Other" ? `Other: ${S(f, "concernOther")}` : S(f, "concern");
   const p1 = { name: S(f, "name"), phone: S(f, "phone"), place: S(f, "place") };
-  if (!p1.name || p1.phone.replace(/\D/g, "").length < 10 || !p1.place || !dob("dob").every(Boolean) || !concern || concern === "Other: ")
+  if (!p1.name || p1.phone.replace(/\D/g, "").length < 10 || !p1.place || !concern || concern === "Other: ")
     return NextResponse.json({ error: "Zaroori (*) sawal bharein." }, { status: 400 });
 
   const photos: { filename: string; content: Buffer; contentType: string }[] = [];
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
 
   let answers: Record<string, string> = {
     "Full name": p1.name, "WhatsApp": p1.phone, "Email (payment)": email,
-    "Date of birth (D/M/Y)": dob("dob").join(" / "), "Place of birth": p1.place, "Birth time": tob("tob"),
+    "Date of birth (D/M/Y)": dob("dob").filter(Boolean).join(" / "), "Place of birth": p1.place, "Birth time": tob("tob"),
     "2nd person name": S(f, "name2"), "2nd DOB": dob("dob2").filter(Boolean).join(" / "), "2nd birth time": tob("tob2"), "2nd place": S(f, "place2"),
     "3rd person name": S(f, "name3"), "3rd DOB": dob("dob3").filter(Boolean).join(" / "), "3rd birth time": tob("tob3"), "3rd place": S(f, "place3"),
     "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),

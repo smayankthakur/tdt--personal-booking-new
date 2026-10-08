@@ -27,7 +27,7 @@ function Person({ n, on, toggle }: { n: "2" | "3"; on: boolean; toggle: () => vo
           <div className="rf-2">
           <Field label="Naam"><input className="rf-in" name={"name" + n} /></Field>
           <Field label="Place of Birth"><input className="rf-in" name={"place" + n} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
-          <Field label="Date of Birth"><DateField p={"dob" + n} /></Field>
+          <Field label="Date of Birth" hint="Pata ho toh, warna skip."><DateField p={"dob" + n} /></Field>
           <Field label="Birth Time" hint="Pata ho toh, warna skip."><ClockField p={"tob" + n} /></Field>
           </div>
           <Field label="One Clear Photo"><FileDrop name={"photo" + n} /></Field>
@@ -41,7 +41,7 @@ export default function ReadingForm() {
   // Slot is auto-assigned (earliest free one). undefined = loading, null = nothing free.
   const [next, setNext] = useState<{ date: string; time: string } | null | undefined>(undefined);
   const [step, setStep] = useState(0), [concern, setConcern] = useState(""), [p2, setP2] = useState(false), [p3, setP3] = useState(false);
-  const [dobOk, setDobOk] = useState(false), [photo1, setPhoto1] = useState(false);
+  const [photo1, setPhoto1] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setNext(j.next ?? null)).catch(() => setNext(null));
   useEffect(() => { if (bk?.status === "paid" && !bk.formDone && next === undefined) loadSlots(); }, [bk]);
@@ -65,7 +65,6 @@ export default function ReadingForm() {
       if (!val("name")) return bad("Apna poora naam likhein.");
       if (val("phone").replace(/\D/g, "").length < 10) return bad("Sahi WhatsApp number likhein.");
       if (!/^\S+@\S+\.\S+$/.test(val("email"))) return bad("Sahi email likhein.");
-      if (!dobOk) return bad("Apni Date of Birth chunein.");
       if (!val("place")) return bad("Place of Birth likhein.");
       if (!photo1) return bad("Apni ek clear photo upload karein.");
     }
@@ -132,7 +131,7 @@ export default function ReadingForm() {
         <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga."><input className="rf-in" name="phone" type="tel" defaultValue={bk.phone} autoComplete="tel" /></Field>
         <Field label="Email ID" req hint="Google Meet link aur schedule isi email par aayega — aap doosri email bhi likh sakte hain."><input className="rf-in" name="email" type="email" defaultValue={/@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} placeholder="aapka@email.com" autoComplete="email" /></Field>
         <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
-        <Field label="Date of Birth" req hint="Vedic Astrology & Numerology chart ke liye zaroori."><DateField p="dob" onChange={setDobOk} /></Field>
+        <Field label="Date of Birth" hint="Pata ho toh chunein, warna skip."><DateField p="dob" /></Field>
         <Field label="Birth Time" hint="Pata ho toh clock se chunein, warna skip."><ClockField p="tob" /></Field>
         </div>
         <Field label="Your One Clear Photo" req hint="Face reading analysis ke liye."><FileDrop name="photo1" onChange={setPhoto1} /></Field>
