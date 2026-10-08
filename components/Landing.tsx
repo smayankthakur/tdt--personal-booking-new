@@ -98,7 +98,7 @@ export default function Landing({ offer }: { offer: boolean }) {
             {offer && (
               <a href="#book" className="diwali-flash" aria-label={`${OFFER.name}: personal reading at just ${price}, valid till ${OFFER.untilText}`}>
                 <b>🪔 {OFFER.name} 🪔</b>
-                <span>Get your Personal Reading at just <strong>{price}</strong></span>
+                <span>Get your Personal Reading <strong>@ Just Rs. {OFFER.price}/- Rs Only</strong></span>
                 <small>Offer valid till {OFFER.untilText}</small>
               </a>
             )}
@@ -115,13 +115,20 @@ export default function Landing({ offer }: { offer: boolean }) {
               Kundli Milan &amp; a Manifestation Coach.
             </p>
             <div className="hero-price">
-              {offer && <s className="old-price">{regular}</s>}
-              <strong>{price}</strong>
-              <span>{offer ? <><b className="offer-tag">🪔 {OFFER.name}</b> · till {OFFER.untilText}<br /></> : null}40 min voice call · appointment 7–10 din ke andar</span>
+              <div className="hp-amount">
+                {offer && <s className="old-price">{regular}</s>}
+                <strong>{offer ? OFFER.price : REGULAR_PRICE} <small className="rs-only">Rs only</small></strong>
+              </div>
+              <ul className="hp-lines">
+                {offer && <li className="offer-tag">🪔 {OFFER.name}</li>}
+                {offer && <li>Offer Till {OFFER.untilText}</li>}
+                <li>40 mins Voice Reading</li>
+                <li>Appointment Within 7 - 10 Days</li>
+              </ul>
             </div>
             <div className="hero-actions">
               <PayButton label={`Book Now — ${price}`} />
-              <PayButton tier="urgent" className="btn ghost" label={`⚡ Urgent (48 hrs) — ${urgent}`} />
+              <PayButton tier="urgent" className="btn ghost" label={`For Urgent Reading (within 48 Hours) = ${URGENT_PRICE}/- Rs only`} />
             </div>
             <div className="hero-stats">
               <div>
@@ -162,7 +169,7 @@ export default function Landing({ offer }: { offer: boolean }) {
                 <ul className="feature-list">
                   <li>Appointment payment ke 7–10 din ke andar (Slots between 12 PM – 9 PM IST)</li>
                   <li>Ask unlimited questions, up to 3 people including you</li>
-                  <li>Pay → form fill &amp; submit → slot, Google Meet link &amp; schedule turant email par</li>
+                  <li>Payment ke baad form bharein — slot, Google Meet link aur schedule turant aapki email par aa jayega</li>
                   <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
                 </ul>
 
@@ -179,9 +186,9 @@ export default function Landing({ offer }: { offer: boolean }) {
                 </div>
 
                 <ul className="feature-list">
-                  <li>Appointment payment ke 48 ghante ke andar (12 Oct se, har din 12–9 PM IST)</li>
+                  <li>Appointment payment ke 48 ghante ke andar</li>
                   <li>Ask unlimited questions, up to 3 people including you</li>
-                  <li>Pay → form fill &amp; submit → slot, Google Meet link &amp; schedule turant email par</li>
+                  <li>Payment ke baad form bharein — slot, Google Meet link aur schedule turant aapki email par aa jayega</li>
                   <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
                 </ul>
 

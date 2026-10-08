@@ -2,8 +2,8 @@
 export const OFFER = {
   name: "Diwali Offer",
   price: 5500,
-  until: Date.parse("2026-11-11T23:59:59+05:30"), // valid till 11 November (IST), then the regular price applies again
-  untilText: "11 November",
+  until: Date.parse("2026-11-30T23:59:59+05:30"), // valid till 30 November 2026 (IST), then the regular price applies again
+  untilText: "30 Nov 2026",
 };
 export const REGULAR_PRICE = 8500;
 export const URGENT_PRICE = 17000;

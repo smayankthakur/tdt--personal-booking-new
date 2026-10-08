@@ -943,7 +943,7 @@ footer a {
 .diwali-flash small { font-size: 12px; font-weight: 600; opacity: .85; }
 @keyframes diwaliBlink {
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(255,190,60,.75), 0 12px 30px rgba(0,0,0,.45); }
-  50% { opacity: .55; box-shadow: 0 0 26px 8px rgba(255,190,60,.55), 0 12px 30px rgba(0,0,0,.45); }
+  50% { opacity: .82; box-shadow: 0 0 30px 10px rgba(255,190,60,.7), 0 12px 30px rgba(0,0,0,.45); }
 }
 .old-price { color: var(--ivory-dim); font-size: .55em; margin-right: 10px; text-decoration-thickness: 2px; text-decoration-color: #ff7a59; }
 .hero-price .old-price { font-size: 18px; margin-right: 0; }
@@ -953,3 +953,12 @@ footer a {
 @media (max-width: 560px) { .offer-ribbon { margin: -28px -22px 18px; } }
 @media (max-width: 860px) { .diwali-flash { top: auto; bottom: 12px; padding: 9px 12px; } .diwali-flash b { font-size: 15px; } }
 @media (prefers-reduced-motion: reduce) { .diwali-flash, .offer-ribbon { animation: none; } }
+
+.hero-price .rs-only { font-size: .55em; white-space: nowrap; }
+
+/* hero price box: amount on top, each detail on its own line (was squeezed into a narrow column on phones) */
+.hero-price { flex-direction: column; align-items: flex-start; gap: 10px; padding: 14px 22px 16px; }
+.hero-price .hp-amount { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.hero-price .hp-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14.5px; line-height: 1.35; color: var(--ivory-dim); text-align: left; }
+.hero-price .hp-lines .offer-tag { font-weight: 700; font-size: 15.5px; }
+@media (max-width: 860px) { .hero-price { align-items: center; width: 100%; max-width: 420px; margin-left: auto; margin-right: auto; } .hero-price .hp-amount { justify-content: center; } .hero-price .hp-lines { text-align: center; } }

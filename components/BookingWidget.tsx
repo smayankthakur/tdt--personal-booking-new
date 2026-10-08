@@ -32,22 +32,22 @@ export default function BookingWidget({ price, tier = "standard" }: { price: str
     setBusy(false);
   }
 
-  const off = next === null;
+  const off = !urgent && next === null; // urgent: always clickable; if no slot is free, the reason is shown on click
   return (
     <div>
       <ol style={{ textAlign: "left", fontSize: 14, lineHeight: 1.9, margin: "0 0 16px 18px" }}>
         <li>Pehle payment karein</li>
         <li>Payment ke baad ek form open hoga — fill karke submit karein</li>
-        <li>{urgent ? "48 ghante ke andar ka slot" : "7–10 din ke andar ka slot"}, Google Meet link &amp; schedule turant aapki email par</li>
+        <li>Form submit karte hi aapka slot ({urgent ? "48 ghante ke andar" : "7–10 din ke andar"}), Google Meet link aur schedule aapki email par aa jayega</li>
       </ol>
-      <p style={{ fontSize: 13, margin: "0 0 12px", color: next ? "#7ee2a8" : "var(--ivory-dim)" }}>
+      {!urgent && <p style={{ fontSize: 13, margin: "0 0 12px", color: next ? "#7ee2a8" : "var(--ivory-dim)" }}>
         {next === undefined ? "Slot check ho raha hai…"
           : next ? `✓ ${urgent ? "Urgent slot available" : "Abhi book karne par slot"} — ${fmt(next)} IST`
-          : urgent ? "Abhi 48 ghante mein koi urgent slot khaali nahi hai (urgent slots 12 Oct se)." : "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545."}
-      </p>
+          : "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545."}
+      </p>}
       {err && <p style={{ color: "#f66" }}>{err}</p>}
       <button className="btn gold" disabled={busy || off} onClick={pay} style={{ width: "100%", justifyContent: "center" }}>
-        {busy ? "Payment page khul raha hai…" : `Pay ${price} & Book${urgent ? " Urgent" : ""}`}
+        {busy ? "Payment page khul raha hai…" : urgent ? "Book Now" : `Pay ${price} & Book`}
       </button>
     </div>);
 }
