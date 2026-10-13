@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { verifyWithRazorpay } from "@/lib/payments";
+import { verifyAnyWithRazorpay } from "@/lib/payments";
 import { bidFrom } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
-// Polled by /form (and the landing page banner). The booking comes ONLY from the signed cookie set after payment.
+// Polled by /form (and the landing page banner) and by the mobile app. The booking comes ONLY from the signed
+// cookie set after payment, or the same signed value in the x-tdt-booking header (app).
 export async function GET(req: Request) {
   const bid = bidFrom(req);
   if (!bid) return NextResponse.json({ status: "unknown" });
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
   let s = await ref.get();
   if (!s.exists) return NextResponse.json({ status: "unknown" });
   if (s.data()!.status === "created" && s.data()!.plinkId) { // don't wait for the webhook: ask Razorpay directly
-    if (await verifyWithRazorpay(bid, s.data()!.plinkId).catch(() => false)) s = await ref.get();
+    if (await verifyAnyWithRazorpay(bid, s.data()!.plinkId).catch(() => false)) s = await ref.get();
   }
   const d = s.data()!, done = !!d.formDone;
   let date = null, time = null, meetLink = null;
