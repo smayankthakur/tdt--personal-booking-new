@@ -154,6 +154,7 @@ export default function ReadingForm() {
         <Field label="Kuch aur batana chahte hain? (optional)"><textarea className="rf-in" name="notes" rows={3} placeholder="Jaise: date/time ka koi hissa pata nahi, ya kuch aur." /></Field>
       </div>
 
+      {step === STEPS.length - 1 && <p className="rf-hint" style={{ marginTop: 14 }}>Submit karke aap hamari <a href="https://thedivinetarotonline.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Privacy Policy</a> se sahmat hain. Aapki details aur photos sirf reading ke liye use hoti hain.</p>}
       {err && <p className="rf-err" key={shake} style={{ animation: "shake .4s" }}>{err}</p>}
       <div className="rf-nav">
         {step > 0 && <button type="button" className="btn ghost" onClick={() => go(-1)}>← Back</button>}

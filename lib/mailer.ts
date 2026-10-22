@@ -1,4 +1,4 @@
-import nodemailer from "nodemailer";
+import nodemailer, { type SendMailOptions } from "nodemailer";
 import { slotMs } from "./slots";
 
 function transporter() {
@@ -11,7 +11,7 @@ function transporter() {
 }
 /** Every mail gets a plain-text twin and normal transactional headers — HTML-only mail is a common spam signal. */
 const toText = (h: string) => h.replace(/<br\s*\/?>|<\/(p|div|li|h\d|tr)>/gi, "\n").replace(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, "$2 ($1)").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\n{3,}/g, "\n\n").trim();
-async function send(m: nodemailer.SendMailOptions) {
+async function send(m: SendMailOptions) {
   return transporter().sendMail({ ...m, text: toText(String(m.html || "")), headers: { "X-Auto-Response-Suppress": "OOF, AutoReply", ...(m.headers as object) } });
 }
 const from = () => process.env.SMTP_FROM || `"The Divine Tarot" <${process.env.SMTP_USER}>`;

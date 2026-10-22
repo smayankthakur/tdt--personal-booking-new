@@ -5,7 +5,7 @@ export const metadata: Metadata = {
   title: "The Divine Tarot | Book a Personal Reading with Bharti Singh",
   description:
     "India's No.1 Psychic Tarot Reader — Bharti Singh. Book a personal voice call reading covering Tarot, Astrology, Numerology, Kundli analysis, Psychic ability & more.",
-  metadataBase: new URL("https://thedivinetarotonline.co.in"),
+  metadataBase: new URL("https://booking.thedivinetarotonline.com"),
   openGraph: {
     title: "The Divine Tarot | Personal Reading Booking",
     description:
