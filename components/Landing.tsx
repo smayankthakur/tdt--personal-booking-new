@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import BookingWidget from "@/components/BookingWidget";
 import StickyBook from "@/components/StickyBook";
 import PayButton from "@/components/PayButton";
@@ -47,7 +47,24 @@ function Reveal({
   );
 }
 
+const NAV = [
+  ["Home", "https://thedivinetarotonline.com/"],
+  ["About", "https://thedivinetarotonline.com/about"],
+  ["Reading", "https://thedivinetarotonline.com/reading"],
+  ["Course", "https://learn.thedivinetarotonline.com/"],
+  ["Kundli Milan", "https://thedivinetarotonline.com/kundli-milan"],
+  ["Personal Reading", "https://booking.thedivinetarotonline.com/"],
+] as const;
+const ASK_URL = "https://reading.thedivinetarotonline.com/";
+
 export default function Landing({ offer }: { offer: boolean }) {
+  const [menu, setMenu] = useState(false); // phone/tablet hamburger menu
+  useEffect(() => {
+    if (!menu) return;
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu(false);
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [menu]);
   const price = inr(offer ? OFFER.price : REGULAR_PRICE), regular = inr(REGULAR_PRICE), urgent = inr(URGENT_PRICE);
   return (
     <>
@@ -64,12 +81,7 @@ export default function Landing({ offer }: { offer: boolean }) {
           </a>
 
           <div className="nav-links">
-            <a href="https://thedivinetarotonline.com/">Home</a>
-            <a href="https://thedivinetarotonline.com/about">About</a>
-            <a href="https://thedivinetarotonline.com/reading">Reading</a>
-            <a href="https://learn.thedivinetarotonline.com/">Course</a>
-            <a href="https://thedivinetarotonline.com/kundli-milan">Kundli Milan</a>
-            <a href="https://booking.thedivinetarotonline.com/" className="active">Personal Reading</a>
+            {NAV.map(([label, href]) => <a key={label} href={href} className={label === "Personal Reading" ? "active" : undefined}>{label}</a>)}
           </div>
 
           <div className="nav-right">
@@ -78,11 +90,20 @@ export default function Landing({ offer }: { offer: boolean }) {
               <span>हिंदी</span>
               <span>Hinglish</span>
             </div> */}
-            <a href="https://thedivinetarotonline.com/reading" className="nav-cta">
-              Ask your question here
-            </a>
+            <a href={ASK_URL} className="nav-cta">Ask your question here</a>
+            {/* Phones/tablets: three-line menu instead of the CTA pill (the CTA moves inside the menu) */}
+            <button type="button" className={`nav-burger${menu ? " open" : ""}`} aria-label={menu ? "Close menu" : "Open menu"}
+              aria-expanded={menu} aria-controls="mobile-menu" onClick={() => setMenu(!menu)}>
+              <span /><span /><span />
+            </button>
           </div>
         </div>
+        {menu && (
+          <div id="mobile-menu" className="mobile-menu">
+            {NAV.map(([label, href]) => (
+              <a key={label} href={href} className={label === "Personal Reading" ? "active" : undefined} onClick={() => setMenu(false)}>{label}</a>))}
+            <a href={ASK_URL} className="nav-cta" onClick={() => setMenu(false)}>Ask your question here</a>
+          </div>)}
       </nav>
 
       {/* HERO — 50/50 image + text, matching thedivinetarotonline.com's split layout */}
