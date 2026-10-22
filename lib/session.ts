@@ -18,11 +18,15 @@ export function originOf(req: Request) {
 
 export const sealBid = (bid: string) => `${bid}.${mac("bk:" + bid)}`;
 
-/** Booking ID from the signed cookie, or null. */
+/**
+ * Booking ID from the signed cookie (website) or the same signed value in the x-tdt-booking header (mobile app,
+ * which has no cookie jar it can rely on), or null.
+ */
 export function bidFrom(req: Request): string | null {
   const m = (req.headers.get("cookie") || "").match(/(?:^|;\s*)tdt_bk=([^;]+)/);
-  if (!m || !key()) return null;
-  const [bid, sig] = decodeURIComponent(m[1]).split(".");
+  const raw = req.headers.get("x-tdt-booking") || (m ? decodeURIComponent(m[1]) : "");
+  if (!raw || !key()) return null;
+  const [bid, sig] = raw.split(".");
   return bid && sig && BID.test(bid) && same(sig, mac("bk:" + bid)) ? bid : null;
 }
 
