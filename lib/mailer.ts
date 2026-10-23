@@ -40,6 +40,14 @@ function ics(bid: string, date: string, time: string, meet: string | null) {
   ].join("\r\n");
 }
 
+/** One-click "Add to Google Calendar" link for the slot (40-min event with the Meet link). */
+export function gcalLink(date: string, time: string, meet: string | null) {
+  const s = slotMs(date, time), e = s + Number(process.env.CALL_MINUTES || 40) * 60000;
+  const q = new URLSearchParams({ action: "TEMPLATE", text: "Personal Reading — The Divine Tarot", dates: `${utc(s)}/${utc(e)}`,
+    details: `Google Meet: ${meet || "link aapki email mein"}\nSirf 5 minute wait kiya jayega — time par join karein.`, location: meet || "Google Meet" });
+  return `https://calendar.google.com/calendar/render?${q}`;
+}
+
 /** Sent to the customer right after the form is submitted: schedule + Meet link. */
 export async function sendClientConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null }) {
   const { day, range } = prettySlot(b.date, b.time);
@@ -57,11 +65,18 @@ export async function sendClientConfirmation(b: { name: string; email: string; b
         <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>Call:</b> Google Meet (40 min)<br/><b>Booking ID:</b> ${b.bid}
       </div>
       ${meet}
+      <div style="background:#fff4e5;border:2px solid #f59e0b;border-radius:8px;padding:14px 18px;margin:22px 0;line-height:1.7">
+        <b style="font-size:16px">⏰ Please set a reminder in your calendar or clock so you don't miss your consultation.</b><br/>
+        Abhi apne phone ke Calendar ya Alarm mein reminder laga lein. <b>Hum alag se koi reminder call ya message nahi karte.</b><br/>
+        <b>Slot time par sirf 5 minute wait kiya jayega.</b> 5 minute ke andar join nahi kiya toh appointment miss maani jayegi — koi refund ya reschedule nahi.
+        <p style="margin:12px 0 0"><a href="${gcalLink(b.date, b.time, b.meetLink)}" style="background:#1b1330;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">📅 Add to Google Calendar</a>
+        <span style="font-size:12px;color:#555;display:block;margin-top:6px">Ya is email ke saath attached reading.ics file kholein — kisi bhi calendar app mein add ho jayegi.</span></p>
+      </div>
       <div style="font-size:14px;line-height:1.7">
         <b>Zaroori baatein:</b>
         <ul style="padding-left:18px">
           <li>Slot time par isi email id (${esc(b.email)}) se Meet join karein. Better experience ke liye headphones lagayein.</li>
-          <li>Hum sirf 5 minute wait karte hain — uske baad appointment miss maani jayegi.</li>
+          <li><b>Hum sirf 5 minute wait karte hain</b> — uske baad appointment miss maani jayegi.</li>
           <li>Slot time nikalne ke baad reschedule nahi hota. Koi refund nahi diya jata.</li>
           <li>Stable network mein rahein; baar-baar call cut hui toh appointment cancel ho sakti hai.</li>
           <li>Sirf form mein di gayi details (max 3 log) ki reading hoti hai.</li>

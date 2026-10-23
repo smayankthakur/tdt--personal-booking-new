@@ -12,6 +12,12 @@ const CONCERNS: [string, string][] = [
 ];
 const STEPS = ["Aap", "Doosre log", "Wajah"];
 const fmtD = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
+const gcalLink = (d: string, t: string, meet: string | null) => {
+  const s = Date.parse(`${d}T${t}:00+05:30`), u = (ms: number) => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+  const q = new URLSearchParams({ action: "TEMPLATE", text: "Personal Reading — The Divine Tarot", dates: `${u(s)}/${u(s + 40 * 60000)}`,
+    details: `Google Meet: ${meet || "link aapki email mein"}\nSirf 5 minute wait kiya jayega — time par join karein.`, location: meet || "Google Meet" });
+  return `https://calendar.google.com/calendar/render?${q}`;
+};
 const fmtT = (t: string) => { const [h, m] = t.split(":").map(Number); return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 
 function Field({ label, req, hint, children }: { label: string; req?: boolean; hint?: string; children: React.ReactNode }) {
@@ -100,7 +106,13 @@ export default function ReadingForm() {
         {dd && <div className="rf-slot"><span>Aapka slot</span><b>{fmtD(dd)} · {fmtT(tt)} IST</b></div>}
         <p>Aapka form mil gaya hai. <b>Google Meet link aur schedule aapki email par bhej diya gaya hai</b> — spam folder bhi check kar lein.</p>
         {meet && <a className="btn gold" href={meet} target="_blank" rel="noopener noreferrer">Google Meet Link</a>}
-        <p className="rf-hint" style={{ marginTop: 18 }}>Slot time par 5 minute ke andar join karein. Headphones lagana na bhoolein. 🎧</p>
+        <div className="rf-remind">
+          <b>⏰ Please set a reminder in your calendar or clock so you don't miss your consultation.</b>
+          <p>Abhi apne phone ke Calendar ya Alarm mein reminder laga lein. <b>Hum alag se koi reminder call ya message nahi karte.</b></p>
+          <p><b>Slot time par sirf 5 minute wait kiya jayega.</b> 5 minute ke andar join nahi kiya toh appointment miss maani jayegi — koi refund ya reschedule nahi.</p>
+          {dd && <a className="btn ghost" href={gcalLink(dd, tt, meet)} target="_blank" rel="noopener noreferrer">📅 Add to Google Calendar</a>}
+        </div>
+        <p className="rf-hint" style={{ marginTop: 18 }}>Headphones lagana na bhoolein. 🎧</p>
       </div>);
   }
 

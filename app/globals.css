@@ -990,3 +990,9 @@ footer a {
 .hero-price .hp-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14.5px; line-height: 1.35; color: var(--ivory-dim); text-align: left; }
 .hero-price .hp-lines .offer-tag { font-weight: 700; font-size: 15.5px; }
 @media (max-width: 860px) { .hero-price { align-items: center; width: 100%; max-width: 420px; margin-left: auto; margin-right: auto; } .hero-price .hp-amount { justify-content: center; } .hero-price .hp-lines { text-align: center; } }
+
+/* success screen: reminder + 5-minute wait notice (customers were missing their calls) */
+.rf-remind { margin: 20px 0 4px; padding: 16px 18px; text-align: left; border: 2px solid #f59e0b; border-radius: 14px; background: rgba(245, 158, 11, 0.12); color: var(--ivory); line-height: 1.55; }
+.rf-remind > b { display: block; font-size: 16px; color: #ffcf4d; margin-bottom: 8px; }
+.rf-remind p { margin: 0 0 8px; font-size: 14.5px; }
+.rf-remind .btn { margin-top: 6px; padding: 10px 20px; font-size: 14px; border-color: #f59e0b; color: #ffcf4d; }
