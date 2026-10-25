@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { emailTypo } from "@/lib/emailTypo";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const KEY = "tdt_email";
@@ -28,7 +29,7 @@ export function usePay(tier: "standard" | "urgent", onNoSlots?: () => void) {
 }
 
 function EmailModal({ busy, err, onClose, onSubmit, urgent }: { busy: boolean; err: string; onClose: () => void; onSubmit: (email: string) => void; urgent: boolean }) {
-  const [email, setEmail] = useState(load), [local, setLocal] = useState("");
+  const [email, setEmail] = useState(load), [local, setLocal] = useState(""), [sugg, setSugg] = useState(""), [asTyped, setAsTyped] = useState("");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
     input.current?.focus();
@@ -37,8 +38,9 @@ function EmailModal({ busy, err, onClose, onSubmit, urgent }: { busy: boolean; e
     return () => { window.removeEventListener("keydown", esc); document.body.style.overflow = ""; };
   }, []);
   function submit(e: React.FormEvent) {
-    e.preventDefault(); setLocal("");
-    const v = email.trim().toLowerCase();
+    e.preventDefault(); setLocal(""); setSugg("");
+    const v = email.trim().toLowerCase(), s = emailTypo(email);
+    if (s && asTyped !== v) return setSugg(s); // "did you mean …?" — one click to fix, or keep what they typed
     if (!EMAIL.test(v)) return setLocal("Sahi email likhein, jaise aapka@gmail.com");
     onSubmit(v);
   }
@@ -49,7 +51,15 @@ function EmailModal({ busy, err, onClose, onSubmit, urgent }: { busy: boolean; e
         <button type="button" className="pg-x" onClick={onClose} aria-label="Close">×</button>
         <h3 id="pg-title">{urgent ? "⚡ Urgent Reading" : "Personal Reading"} — aapki email</h3>
         <p>Payment ke baad <b>reading form ka link</b>, aapka <b>slot, Google Meet link</b> aur reminder isi email par aayenge. Dhyan se likhein.</p>
-        <input ref={input} className="rf-in" type="email" inputMode="email" autoComplete="email" placeholder="aapka@gmail.com" value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy} />
+        <input ref={input} className="rf-in" type="email" inputMode="email" autoComplete="email" placeholder="aapka@gmail.com" value={email} onChange={(e) => { setEmail(e.target.value); setSugg(""); }} disabled={busy} />
+        {sugg && (
+          <div className="pg-sugg">
+            Kya aapka matlab <b>{sugg}</b> hai?
+            <div>
+              <button type="button" className="btn gold" onClick={() => { setEmail(sugg); setSugg(""); onSubmit(sugg); }}>Haan, yahi</button>
+              {EMAIL.test(email.trim()) && <button type="button" className="btn ghost" onClick={() => { const v = email.trim().toLowerCase(); setAsTyped(v); setSugg(""); onSubmit(v); }}>Nahi, jo likha wahi sahi</button>}
+            </div>
+          </div>)}
         {(local || err) && <p className="rf-err">{local || err}</p>}
         <button className="btn gold" disabled={busy} style={{ width: "100%", justifyContent: "center", marginTop: 12 }}>{busy ? "Payment page khul raha hai…" : "Continue to Payment →"}</button>
         <p className="pg-note">🔒 Payment Razorpay par secure hota hai. Email sirf booking ke liye use hoti hai — <a href="https://thedivinetarotonline.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Privacy Policy</a></p>

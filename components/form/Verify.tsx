@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { emailTypo } from "@/lib/emailTypo";
 
 const post = async (url: string, body: object) => {
   try { const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); return await r.json(); }
@@ -20,18 +21,21 @@ function Shell({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 export function EmailVerify({ defaultValue, onChange }: { defaultValue?: string; onChange: (verified: boolean) => void }) {
   const [email, setEmail] = useState(defaultValue || ""), [sentTo, setSentTo] = useState(""), [code, setCode] = useState("");
   const [ok, setOk] = useState(false), [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [err, setErr] = useState("");
+  const [sugg, setSugg] = useState(""), [asTyped, setAsTyped] = useState("");
   const [left, setLeft] = useCountdown();
   const set = (v: boolean) => { setOk(v); onChange(v); };
 
-  async function send() {
-    setErr(""); setMsg("");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return setErr("Sahi email likhein.");
+  async function send(to = email.trim(), skipTypo = false) {
+    setErr(""); setMsg(""); setSugg("");
+    const s = emailTypo(to);
+    if (s && !skipTypo && asTyped !== to.toLowerCase()) return setSugg(s);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(to)) return setErr("Sahi email likhein.");
     setBusy(true);
-    const j = await post("/api/otp/email", { action: "send", email: email.trim() });
+    const j = await post("/api/otp/email", { action: "send", email: to });
     setBusy(false);
     if (j.error) return setErr(j.error);
-    setSentTo(email.trim().toLowerCase()); setCode(""); setLeft(45);
-    setMsg(`OTP ${email.trim()} par bheja gaya hai (spam folder bhi dekhein).`);
+    setSentTo(to.toLowerCase()); setCode(""); setLeft(45);
+    setMsg(`OTP ${to} par bheja gaya hai (spam folder bhi dekhein).`);
   }
   async function verify() {
     setErr("");
@@ -46,10 +50,18 @@ export function EmailVerify({ defaultValue, onChange }: { defaultValue?: string;
     <Shell ok={ok}>
       <div className="otp-row">
         <input className="rf-in" name="email" type="email" value={email} placeholder="aapka@email.com" autoComplete="email"
-          onChange={(e) => { setEmail(e.target.value); if (ok || sentTo) { set(false); setSentTo(""); setMsg(""); } }} readOnly={ok} />
+          onChange={(e) => { setEmail(e.target.value); setSugg(""); if (ok || sentTo) { set(false); setSentTo(""); setMsg(""); } }} readOnly={ok} />
         {ok ? <span className="otp-badge">✓ Verified</span>
-          : <button type="button" className="btn ghost otp-btn" onClick={send} disabled={busy || left > 0}>{left > 0 ? `${left}s` : sentTo ? "Resend" : "OTP bhejein"}</button>}
+          : <button type="button" className="btn ghost otp-btn" onClick={() => send()} disabled={busy || left > 0}>{left > 0 ? `${left}s` : sentTo ? "Resend" : "OTP bhejein"}</button>}
       </div>
+      {sugg && (
+        <div className="pg-sugg">
+          Kya aapka matlab <b>{sugg}</b> hai?
+          <div>
+            <button type="button" className="btn gold otp-btn" onClick={() => { setEmail(sugg); send(sugg, true); }}>Haan, yahi</button>
+            {/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim()) && <button type="button" className="btn ghost otp-btn" onClick={() => { setAsTyped(email.trim().toLowerCase()); send(email.trim(), true); }}>Nahi, jo likha wahi sahi</button>}
+          </div>
+        </div>)}
       {sentTo && !ok && (
         <div className="otp-row">
           <input className="rf-in otp-code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="6 digit OTP" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} />
