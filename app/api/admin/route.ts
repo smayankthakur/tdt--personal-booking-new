@@ -6,10 +6,12 @@ import { sendClientConfirmation } from "@/lib/mailer";
 import { originOf, resumeToken } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 const ENV = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN", "SMTP_HOST", "SMTP_USER", "SMTP_PASS", "OWNER_EMAIL"];
-const deny = (req: Request) => !process.env.ADMIN_TOKEN || req.headers.get("x-admin-token") !== process.env.ADMIN_TOKEN;
+import { adminFrom } from "@/lib/adminAuth";
+// Email + password login (see lib/adminAuth.ts); the old shared ADMIN_TOKEN is no longer accepted.
+const deny = async (req: Request) => !(await adminFrom(req));
 
 export async function GET(req: Request) {
-  if (deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (await deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const snap = await db.collection("bookings").where("status", "==", "confirmed").get();
   const bookings = snap.docs.map((d) => ({ slot: d.id, ...d.data() })).sort((a, b) => a.slot.localeCompare(b.slot));
   const os = await db.collection("orders").orderBy("createdAt", "desc").limit(300).get();
@@ -17,14 +19,14 @@ export async function GET(req: Request) {
   return NextResponse.json({ cfg: await getCfg(), bookings, orders, missingEnv: ENV.filter((k) => !process.env[k]) });
 }
 export async function PUT(req: Request) {
-  if (deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (await deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   await db.doc(CFG_DOC).set(await req.json());
   return NextResponse.json({ ok: true });
 }
 
 // Re-create the Meet link and re-send the customer email for one booking.
 export async function POST(req: Request) {
-  if (deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (await deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const body = await req.json();
   if (body.resume) { // 24-hour form link for a paid customer who lost the payment page — share on WhatsApp only
     const o = await db.doc(`orders/${body.resume}`).get();

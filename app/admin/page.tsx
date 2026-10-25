@@ -1,23 +1,42 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { slotMs, type Cfg } from "@/lib/slots";
 const td = { padding: "3px 14px 3px 0", opacity: 0.7, verticalAlign: "top", whiteSpace: "nowrap" } as const;
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function Admin() {
   const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"book" | "pay" | "slots">("book"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
+  const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [who, setWho] = useState(""), [busy, setBusy] = useState(false);
+  const SKEY = "tdt_admin";
+  useEffect(() => { // keep the session across refreshes in this tab only
+    try { const v = JSON.parse(sessionStorage.getItem(SKEY) || "null"); if (v?.token) { setToken(v.token); setWho(v.email); } } catch {}
+  }, []);
+  useEffect(() => { if (token) load(); }, [token]);
+  const logout = () => { try { sessionStorage.removeItem(SKEY); } catch {} setToken(""); setWho(""); setCfg(null); setPw(""); };
+  const signIn = async (e: React.FormEvent) => {
+    e.preventDefault(); setMsg(""); setBusy(true);
+    try {
+      const r = await fetch("/api/admin/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, password: pw }) });
+      const j = await r.json();
+      if (!r.ok) { setMsg(j.error || "Login nahi hua"); setBusy(false); return; }
+      try { sessionStorage.setItem(SKEY, JSON.stringify({ token: j.token, email: j.email })); } catch {}
+      setPw(""); setWho(j.email); setToken(j.token);
+    } catch { setMsg("Network error"); }
+    setBusy(false);
+  };
   const load = async () => {
-    const r = await fetch("/api/admin", { headers: { "x-admin-token": token } });
-    if (!r.ok) return setMsg("Galat password");
+    const r = await fetch("/api/admin", { headers: { "x-admin-session": token } });
+    if (r.status === 401) { logout(); return setMsg("Session khatam ho gaya. Dobara login karein."); }
+    if (!r.ok) return setMsg("Load nahi hua");
     const j = await r.json(); setCfg(j.cfg); setRows(j.bookings); setOrders(j.orders || []); setMissing(j.missingEnv || []); setMsg("");
   };
   const retry = async (slot: string) => {
     setNote("Try ho raha hai…");
-    const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-token": token, "Content-Type": "application/json" }, body: JSON.stringify({ slot }) });
+    const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify({ slot }) });
     const j = await r.json(); setNote(`${slot.replace("T", " ")}: ${j.result || j.error}`); load();
   };
   const resume = async (bid: string) => {
-    const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-token": token, "Content-Type": "application/json" }, body: JSON.stringify({ resume: bid }) });
+    const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify({ resume: bid }) });
     const j = await r.json();
     if (j.link) { await navigator.clipboard?.writeText(j.link).catch(() => {}); setNote(`Form link (24 ghante valid, sirf WhatsApp par customer ko bhejein — copy ho gaya): ${j.link}`); }
     else setNote(j.error || "Link nahi bana");
@@ -25,11 +44,11 @@ export default function Admin() {
   };
   const invite = async () => {
     setNote("Upcoming customers ko Google Calendar invite bheja ja raha hai…");
-    const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-token": token, "Content-Type": "application/json" }, body: JSON.stringify({ inviteUpcoming: true }) });
+    const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify({ inviteUpcoming: true }) });
     const j = await r.json(); setNote(j.result || j.error || "Kuch galat hua"); load();
   };
   const save = async () => {
-    const r = await fetch("/api/admin", { method: "PUT", headers: { "x-admin-token": token, "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
+    const r = await fetch("/api/admin", { method: "PUT", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
     setMsg(r.ok ? "Saved ✓ — naye slots turant live" : "Save nahi hua");
   };
   const day = (i: number) => cfg!.days[i] || { on: false, start: "12:00", end: "18:00" };
@@ -41,8 +60,13 @@ export default function Admin() {
   if (!cfg) return (
     <div style={{ maxWidth: 360, margin: "80px auto", padding: 20 }}>
       <h2>Booking Admin</h2>
-      <input type="password" placeholder="Admin password" value={token} onChange={(e) => setToken(e.target.value)} style={{ ...box, width: "100%" }} />
-      <button className="btn gold" onClick={load} style={{ marginTop: 12 }}>Open</button> <p>{msg}</p>
+      {token ? <p>Load ho raha hai…</p> : (
+        <form onSubmit={signIn}>
+          <input type="email" placeholder="Admin email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...box, width: "100%", marginBottom: 10 }} />
+          <input type="password" placeholder="Password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} style={{ ...box, width: "100%" }} />
+          <button className="btn gold" disabled={busy || !email || !pw} style={{ marginTop: 12 }}>{busy ? "Login ho raha hai…" : "Login"}</button>
+        </form>)}
+      <p>{msg}</p>
     </div>);
   return (
     <div style={{ maxWidth: 900, margin: "40px auto", padding: 20 }}>
@@ -50,6 +74,8 @@ export default function Admin() {
         {([["book", `Confirmed bookings (${rows.length})`], ["pay", `Payment status (${orders.length})`], ["slots", "Slots settings"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{ padding: "10px 16px", background: "transparent", border: 0, borderBottom: tab === k ? "2px solid #c9a227" : "2px solid transparent", color: tab === k ? "#c9a227" : "inherit", font: "inherit", fontWeight: tab === k ? 700 : 400, cursor: "pointer" }}>{l}</button>))}
         <button onClick={load} style={{ marginLeft: "auto", padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>↻ Refresh</button>
+        <span style={{ alignSelf: "center", fontSize: 12, opacity: 0.7 }}>{who}</span>
+        <button onClick={logout} style={{ padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>Logout</button>
         <button onClick={invite} title="Jin upcoming bookings ko abhi tak Google Calendar invite nahi gaya, unhe bhejein" style={{ padding: "6px 12px", background: "transparent", border: "1px solid #c9a227", borderRadius: 8, color: "#c9a227", cursor: "pointer" }}>📅 Upcoming ko invite bhejo</button>
       </div>
       {tab === "slots" && (<div>
