@@ -23,6 +23,11 @@ export default function Admin() {
     else setNote(j.error || "Link nahi bana");
     setTab("book");
   };
+  const invite = async () => {
+    setNote("Upcoming customers ko Google Calendar invite bheja ja raha hai…");
+    const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-token": token, "Content-Type": "application/json" }, body: JSON.stringify({ inviteUpcoming: true }) });
+    const j = await r.json(); setNote(j.result || j.error || "Kuch galat hua"); load();
+  };
   const save = async () => {
     const r = await fetch("/api/admin", { method: "PUT", headers: { "x-admin-token": token, "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
     setMsg(r.ok ? "Saved ✓ — naye slots turant live" : "Save nahi hua");
@@ -45,6 +50,7 @@ export default function Admin() {
         {([["book", `Confirmed bookings (${rows.length})`], ["pay", `Payment status (${orders.length})`], ["slots", "Slots settings"]] as const).map(([k, l]) => (
           <button key={k} onClick={() => setTab(k)} style={{ padding: "10px 16px", background: "transparent", border: 0, borderBottom: tab === k ? "2px solid #c9a227" : "2px solid transparent", color: tab === k ? "#c9a227" : "inherit", font: "inherit", fontWeight: tab === k ? 700 : 400, cursor: "pointer" }}>{l}</button>))}
         <button onClick={load} style={{ marginLeft: "auto", padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>↻ Refresh</button>
+        <button onClick={invite} title="Jin upcoming bookings ko abhi tak Google Calendar invite nahi gaya, unhe bhejein" style={{ padding: "6px 12px", background: "transparent", border: "1px solid #c9a227", borderRadius: 8, color: "#c9a227", cursor: "pointer" }}>📅 Upcoming ko invite bhejo</button>
       </div>
       {tab === "slots" && (<div>
       <p style={{ margin: "0 0 14px" }}>Booking dates: <input type="date" value={cfg.fromDate || ""} onChange={(e) => setCfg({ ...cfg, fromDate: e.target.value })} style={box} /> se <input type="date" value={cfg.toDate || ""} onChange={(e) => setCfg({ ...cfg, toDate: e.target.value })} style={box} /> tak (normal + urgent dono)</p>

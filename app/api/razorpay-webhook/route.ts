@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/db";
-import { markPaid } from "@/lib/payments";
+import { markPaid, realEmail } from "@/lib/payments";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
@@ -24,6 +24,6 @@ export async function POST(req: Request) {
   if (ev.event !== "payment_link.paid") return NextResponse.json({ ok: true });
   const pl = ev.payload.payment_link.entity, pay = ev.payload.payment?.entity;
   const bid = String(pl.reference_id || "");
-  await markPaid(bid, pl.id, pay?.id || null, pay?.email || pl.customer?.email || "", pay?.contact || pl.customer?.contact || "");
+  await markPaid(bid, pl.id, pay?.id || null, realEmail(pl.customer?.email, pay?.email) || pay?.email || "", pay?.contact || pl.customer?.contact || "");
   return NextResponse.json({ ok: true });
 }

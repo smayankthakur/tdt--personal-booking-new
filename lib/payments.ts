@@ -1,6 +1,11 @@
 import { db } from "./db";
 import { sendPaymentReceived } from "./mailer";
 import { slotMs } from "./slots";
+import { resumeToken } from "./session";
+
+/** Razorpay fills "void@razorpay.com" when the customer skips email at checkout — treat that as no email. */
+export const realEmail = (...xs: (string | null | undefined)[]) =>
+  xs.map((x) => String(x || "").trim()).find((x) => /^\S+@\S+\.\S+$/.test(x) && !/@razorpay\.com$/i.test(x)) || "";
 
 const auth = () => "Basic " + Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
 const rz = async (path: string) => (await fetch(`https://api.razorpay.com/v1/${path}`, { headers: { Authorization: auth() }, cache: "no-store" })).json();
@@ -21,7 +26,13 @@ export async function markPaid(bid: string, plinkId: string, paymentId: string |
     }
     return d;
   });
-  if (order && email) await sendPaymentReceived({ email, bid, tier: order.tier }).catch((e) => console.error("payment-received mail failed", e));
+  const to = realEmail(email);
+  if (order && to) {
+    // Personal 24-hour form link (same signed token as the admin "Form link banao" button).
+    const site = String(order.origin || process.env.SITE_URL || "https://booking.thedivinetarotonline.com").replace(/\/$/, "");
+    const formLink = `${site}/api/resume?t=${resumeToken(bid)}`;
+    await sendPaymentReceived({ email: to, bid, tier: order.tier, formLink }).catch((e) => console.error("payment-received mail failed", e));
+  }
 }
 
 /** Asks Razorpay directly whether this order's payment link is paid — works even if the webhook never arrives. */
@@ -30,7 +41,7 @@ export async function verifyWithRazorpay(bid: string, plinkId: string) {
   if (pl?.status !== "paid") return false;
   const pid: string | null = pl.payments?.[0]?.payment_id || null;
   const p = pid ? await rz(`payments/${pid}`) : null;
-  await markPaid(bid, plinkId, pid, p?.email || pl.customer?.email || "", p?.contact || pl.customer?.contact || "");
+  await markPaid(bid, plinkId, pid, realEmail(pl.customer?.email, p?.email) || p?.email || "", p?.contact || pl.customer?.contact || "");
   return true;
 }
 

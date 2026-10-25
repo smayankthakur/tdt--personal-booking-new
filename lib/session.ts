@@ -43,7 +43,7 @@ export function razorpayReturnOk(q: URLSearchParams) {
   return same(sig, crypto.createHmac("sha256", secret).update(body).digest("hex"));
 }
 
-/** Admin-only, 24-hour link to reopen a paid customer's form (e.g. they changed phone). Never emailed automatically. */
+/** 24-hour link to reopen a paid customer's form: emailed with the payment receipt, or made by the admin. */
 export const resumeToken = (bid: string, exp = Date.now() + 864e5) => `${bid}.${exp}.${mac(`rs:${bid}:${exp}`)}`;
 export function openResume(t: string): string | null {
   const [bid, exp, sig] = t.split(".");

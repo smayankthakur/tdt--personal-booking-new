@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { CFG_DOC, db, getCfg } from "@/lib/db";
-import { createMeet } from "@/lib/calendar";
+import { createMeet, sendInvite } from "@/lib/calendar";
+import { slotMs } from "@/lib/slots";
 import { sendClientConfirmation } from "@/lib/mailer";
 import { originOf, resumeToken } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
@@ -29,6 +30,17 @@ export async function POST(req: Request) {
     const o = await db.doc(`orders/${body.resume}`).get();
     if (!o.exists || o.data()!.status !== "paid" || o.data()!.formDone) return NextResponse.json({ error: "Yeh order paid + form-baaki nahi hai." }, { status: 400 });
     return NextResponse.json({ link: `${originOf(req)}/api/resume?t=${resumeToken(body.resume)}` });
+  }
+  if (body.inviteUpcoming) { // Google Calendar invite for upcoming bookings made before invites were switched on
+    const snap = await db.collection("bookings").where("status", "==", "confirmed").get();
+    const todo = snap.docs.filter((d) => { const [dt, tm] = d.id.split("T"); return tm && slotMs(dt, tm) > Date.now() && d.data().eventId && !d.data().inviteSentAt; });
+    const out: string[] = [];
+    for (const d of todo) {
+      const b = d.data() as any;
+      try { await sendInvite(b.eventId, { email: b.email, bid: b.bid, phone: b.phone, tier: b.tier }); await d.ref.update({ inviteSentAt: Date.now() }); out.push(`${d.id.replace("T", " ")} ✓`); }
+      catch (e: any) { out.push(`${d.id.replace("T", " ")} ✗ ${String(e?.message || e).slice(0, 120)}`); }
+    }
+    return NextResponse.json({ result: out.length ? `Calendar invite bheja: ${out.join(" · ")}` : "Koi pending upcoming booking nahi hai." });
   }
   const { slot } = body, ref = db.doc(`bookings/${slot}`), s = await ref.get();
   if (!s.exists) return NextResponse.json({ error: "booking nahi mili" }, { status: 404 });

@@ -102,15 +102,42 @@ export async function sendOwnerNotification(sub: Record<string, any>, photos: { 
   });
 }
 
-/** Payment receipt. Deliberately has NO form link: the form opens only on the page Razorpay returns to after payment. */
-export async function sendPaymentReceived(b: { email: string; bid: string; tier?: string }) {
+/** Payment receipt + a personal 24-hour form link, so a customer who loses the payment page (Instagram browser,
+ *  UPI app switch, closed tab) can still open the form from any phone/browser. */
+export async function sendPaymentReceived(b: { email: string; bid: string; tier?: string; formLink?: string | null }) {
   const when = b.tier === "urgent" ? "48 ghante ke andar" : "7 se 10 din ke andar";
+  const btn = b.formLink
+    ? `<p style="text-align:center;margin:26px 0"><a href="${b.formLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Reading Form Bharein</a><br/><span style="font-size:12px;color:#555">Yeh link sirf aapke liye hai aur 24 ghante tak valid hai.</span></p>`
+    : "";
   await send({
-    from: from(), to: b.email, subject: "Payment received - The Divine Tarot",
+    from: from(), to: b.email, subject: "Payment received - fill your reading form - The Divine Tarot",
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
       <h2 style="color:#6d28d9">Namaste</h2>
-      <p>Aapka payment receive ho gaya hai${b.tier === "urgent" ? " (<b>Urgent booking</b>)" : ""}. Payment ke baad jo page khula hai, usi par <b>reading form bharein</b> (2-3 minute).</p>
-      <p>Form submit karte hi aapka <b>appointment slot (${when}), Google Meet link aur schedule</b> isi email par aa jayega.</p>
-      <p style="background:#fff4e5;padding:12px 16px;border-radius:6px;font-size:14px">Page band ho gaya? Usi phone/browser se booking page dobara kholein — form wahin mil jayega. Na mile toh WhatsApp karein <b>+91 88281 16545</b> aur yeh Booking ID bhejein: <b>${b.bid}</b></p></div>`,
+      <p>Aapka payment receive ho gaya hai${b.tier === "urgent" ? " (<b>Urgent booking</b>)" : ""}. Ab apna <b>reading form bharein</b> (2-3 minute).</p>
+      ${btn}
+      <p>Form submit karte hi aapka <b>appointment slot (${when}), Google Meet link aur schedule</b> isi email par aa jayega, aur Google Calendar invite bhi milega.</p>
+      <p style="background:#fff4e5;padding:12px 16px;border-radius:6px;font-size:14px">Koi dikkat ho toh WhatsApp karein <b>+91 88281 16545</b> aur yeh Booking ID bhejein: <b>${b.bid}</b></p></div>`,
+  });
+}
+
+/** Sent by /api/cron/reminders: "morning" = day-of reminder, "soon" = 2–3 hours before the slot. */
+export async function sendReminder(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; kind: "morning" | "soon" }) {
+  const { day, range } = prettySlot(b.date, b.time);
+  const head = b.kind === "soon" ? "Aapki reading thodi der mein shuru hogi" : "Aaj aapki reading hai";
+  const meet = b.meetLink
+    ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink}</span></p>`
+    : `<p style="background:#fff4e5;padding:12px 16px;border-radius:6px">Meet link ke liye WhatsApp karein: +91 88281 16545</p>`;
+  await send({
+    from: from(), to: b.email,
+    subject: `Reminder: ${b.kind === "soon" ? "your reading starts at" : "your reading is today at"} ${range.split(" – ")[0]} IST - The Divine Tarot`,
+    html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
+      <h2 style="color:#6d28d9">Namaste ${esc(b.name || "")}</h2>
+      <p><b>${head}.</b></p>
+      <div style="background:#f6f3fb;border-left:3px solid #6d28d9;padding:14px 20px;margin:20px 0;line-height:1.8">
+        <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>Booking ID:</b> ${b.bid}
+      </div>
+      ${meet}
+      <p style="font-size:14px;line-height:1.7"><b>Slot time par sirf 5 minute wait kiya jayega.</b> Stable network aur headphones ke saath, isi email id (${esc(b.email)}) se join karein.</p>
+      <p style="font-size:13px;color:#666;margin-top:28px">Contact: thedivinetarothindi@gmail.com | +91 88281 16545</p></div>`,
   });
 }
