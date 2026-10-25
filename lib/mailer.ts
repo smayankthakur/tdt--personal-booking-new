@@ -120,19 +120,18 @@ export async function sendPaymentReceived(b: { email: string; bid: string; tier?
   });
 }
 
-/** Sent by /api/cron/reminders: "morning" = day-of reminder, "soon" = 2–3 hours before the slot. */
-export async function sendReminder(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; kind: "morning" | "soon" }) {
+/** Sent once by /api/cron/reminders, about 3 hours before the slot. */
+export async function sendReminder(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null }) {
   const { day, range } = prettySlot(b.date, b.time);
-  const head = b.kind === "soon" ? "Aapki reading thodi der mein shuru hogi" : "Aaj aapki reading hai";
   const meet = b.meetLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink}</span></p>`
     : `<p style="background:#fff4e5;padding:12px 16px;border-radius:6px">Meet link ke liye WhatsApp karein: +91 88281 16545</p>`;
   await send({
     from: from(), to: b.email,
-    subject: `Reminder: ${b.kind === "soon" ? "your reading starts at" : "your reading is today at"} ${range.split(" – ")[0]} IST - The Divine Tarot`,
+    subject: `Reminder: your reading starts at ${range.split(" – ")[0]} IST today - The Divine Tarot`,
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
       <h2 style="color:#6d28d9">Namaste ${esc(b.name || "")}</h2>
-      <p><b>${head}.</b></p>
+      <p><b>Aapki reading lagbhag 3 ghante mein shuru hogi.</b></p>
       <div style="background:#f6f3fb;border-left:3px solid #6d28d9;padding:14px 20px;margin:20px 0;line-height:1.8">
         <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>Booking ID:</b> ${b.bid}
       </div>

@@ -1,10 +1,10 @@
-# Hourly: emails customers whose reading starts in the next 3 hours (so the reminder lands 2–3 h before).
+# Every 15 min: emails each customer ONCE, about 3 hours before their reading (Meet link included).
 # Needs the repo secret CRON_SECRET (same value as the CRON_SECRET env var on Vercel):
 # GitHub → repo → Settings → Secrets and variables → Actions → New repository secret.
 name: Reading reminders
 on:
   schedule:
-    - cron: "7 * * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 jobs:
   remind:
@@ -14,4 +14,4 @@ jobs:
       - name: Send due reminders
         run: |
           curl -fsS -m 90 -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "https://booking.thedivinetarotonline.com/api/cron/reminders?mode=soon"
+            "https://booking.thedivinetarotonline.com/api/cron/reminders"
