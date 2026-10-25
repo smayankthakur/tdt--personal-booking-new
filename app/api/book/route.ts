@@ -15,6 +15,10 @@ const NO_SLOTS = "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545."
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const tier: Tier = body?.tier === "urgent" ? "urgent" : "standard";
+  // Email asked on the site before payment (Razorpay often stores "void@razorpay.com"): receipt + form link go here.
+  const customerEmail = String(body?.email || "").trim().toLowerCase().slice(0, 200);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customerEmail) || /@razorpay\.com$/.test(customerEmail))
+    return NextResponse.json({ error: "Sahi email likhein — form ka link isi par aayega.", code: "email" }, { status: 400 });
   const origin = originOf(req); // always return the customer to the domain they are actually on
 
   const bid = randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase(), ref = db.doc(`orders/${bid}`);
@@ -35,7 +39,7 @@ export async function POST(req: Request) {
     });
     if (!heldSlot) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
   }
-  await ref.set({ status: "created", tier, amount: priceFor(tier), heldSlot, origin, createdAt: Date.now() });
+  await ref.set({ status: "created", tier, amount: priceFor(tier), heldSlot, origin, customerEmail, createdAt: Date.now() });
 
   const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
   const r = await fetch("https://api.razorpay.com/v1/payment_links", {
@@ -45,6 +49,7 @@ export async function POST(req: Request) {
       reference_id: bid,
       description: tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs) — The Divine Tarot" : `Personal Call Reading${priceFor(tier) < Number(process.env.PRICE_INR || 8500) ? " (Diwali Offer)" : ""} — The Divine Tarot`,
       expire_by: Math.floor(Date.now() / 1000) + 30 * 60, notes: { bid, tier },
+      customer: { email: customerEmail }, notify: { email: false, sms: false }, // prefill checkout; we send our own mails
       // No booking ID in our own URL: Razorpay adds its signed parameters and /api/pay-return verifies them.
       callback_url: `${origin}/api/pay-return`, callback_method: "get",
     }),

@@ -1,17 +1,11 @@
 "use client";
-import { useState } from "react";
+import { usePay } from "./PayGate";
 
-/** CTA that goes straight to the Razorpay payment page (creates the payment link, then redirects). */
+/** CTA: asks the customer's email, then creates the payment link and opens Razorpay. */
 export default function PayButton({ label, tier = "standard", className = "btn gold", tabIndex }: { label: string; tier?: "standard" | "urgent"; className?: string; tabIndex?: number }) {
-  const [busy, setBusy] = useState(false);
-  async function go() {
-    setBusy(true);
-    try {
-      const j = await (await fetch("/api/book", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tier }) })).json();
-      if (j.url) { window.location.href = j.url; return; }
-      alert(j.error || "Payment page nahi khul paya. Dobara try karein.");
-    } catch { alert("Network error. Dobara try karein."); }
-    setBusy(false);
-  }
-  return <button type="button" className={className} onClick={go} disabled={busy} tabIndex={tabIndex}>{busy ? "Payment page khul raha hai…" : label}</button>;
+  const { start, busy, modal } = usePay(tier);
+  return (<>
+    <button type="button" className={className} onClick={start} disabled={busy} tabIndex={tabIndex}>{busy ? "Payment page khul raha hai…" : label}</button>
+    {modal}
+  </>);
 }

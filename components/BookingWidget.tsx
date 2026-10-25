@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { usePay } from "./PayGate";
 
 const fmt = (n: { date: string; time: string }) => {
   const d = new Date(n.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -9,7 +10,7 @@ const fmt = (n: { date: string; time: string }) => {
 
 export default function BookingWidget({ price, tier = "standard" }: { price: string; tier?: "standard" | "urgent" }) {
   const urgent = tier === "urgent";
-  const [err, setErr] = useState(""), [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
   // undefined = checking, null = nothing free
   const [next, setNext] = useState<{ date: string; time: string } | null | undefined>(undefined);
 
@@ -21,22 +22,13 @@ export default function BookingWidget({ price, tier = "standard" }: { price: str
     fetch(`/api/slots?tier=${tier}`, { cache: "no-store" }).then((r) => r.json()).then((j) => setNext(j.available ? j.next : null)).catch(() => setNext(null));
   }, [urgent, tier]);
 
-  async function pay() {
-    setErr(""); setBusy(true);
-    try {
-      const j = await (await fetch("/api/book", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tier }) })).json();
-      if (j.url) { window.location.href = j.url; return; }
-      setErr(j.error || "Kuch galat hua. Dobara try karein.");
-      if (j.code === "no_slots") setNext(null);
-    } catch { setErr("Network error. Dobara try karein."); }
-    setBusy(false);
-  }
+  const { start, busy, modal } = usePay(tier, () => setNext(null));
 
   const off = !urgent && next === null; // urgent: always clickable; if no slot is free, the reason is shown on click
   return (
     <div>
       <ol style={{ textAlign: "left", fontSize: 14, lineHeight: 1.9, margin: "0 0 16px 18px" }}>
-        <li>Pehle payment karein</li>
+        <li>Apni email dein aur payment karein</li>
         <li>Payment ke baad ek form open hoga — fill karke submit karein</li>
         <li>Form submit karte hi aapka slot ({urgent ? "48 ghante ke andar" : "7–10 din ke andar"}), Google Meet link aur schedule aapki email par aa jayega</li>
       </ol>
@@ -46,8 +38,9 @@ export default function BookingWidget({ price, tier = "standard" }: { price: str
           : "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545."}
       </p>}
       {err && <p style={{ color: "#f66" }}>{err}</p>}
-      <button className="btn gold" disabled={busy || off} onClick={pay} style={{ width: "100%", justifyContent: "center" }}>
+      <button className="btn gold" disabled={busy || off} onClick={start} style={{ width: "100%", justifyContent: "center" }}>
         {busy ? "Payment page khul raha hai…" : urgent ? "Book Now" : `Pay ${price} & Book`}
       </button>
+      {modal}
     </div>);
 }

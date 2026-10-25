@@ -19,14 +19,14 @@ export async function markPaid(bid: string, plinkId: string, paymentId: string |
     if (d.status !== "created") return null; // already handled
     // Urgent: keep the slot that was held during payment reserved for this customer until the form is filled.
     const hRef = d.heldSlot ? db.doc(`bookings/${d.heldSlot}`) : null, h = hRef ? await tx.get(hRef) : null;
-    tx.update(ref, { status: "paid", paymentId, email, phone, paidAt });
+    tx.update(ref, { status: "paid", paymentId, email: realEmail(d.customerEmail, email) || email, phone, paidAt });
     if (hRef && h?.exists && h.data()!.bid === bid && h.data()!.status === "held") {
       const [sd, st] = String(d.heldSlot).split("T");
       tx.update(hRef, { holdUntil: slotMs(sd, st) });
     }
     return d;
   });
-  const to = realEmail(email);
+  const to = realEmail(order?.customerEmail, email); // email typed on our site first, then Razorpay's
   if (order && to) {
     // Personal 24-hour form link (same signed token as the admin "Form link banao" button).
     const site = String(order.origin || process.env.SITE_URL || "https://booking.thedivinetarotonline.com").replace(/\/$/, "");

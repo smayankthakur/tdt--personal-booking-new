@@ -1007,3 +1007,12 @@ footer a {
 .otp-link { background: none; border: 0; padding: 4px 0; color: var(--ivory-dim); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
 .person.req .person-head { cursor: default; }
 .person.req .person-head small { color: var(--gold); }
+
+/* Email step before payment */
+.pg-back { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: rgba(8,5,14,.72); backdrop-filter: blur(4px); animation: popIn .2s; }
+.pg-card { position: relative; width: 100%; max-width: 420px; background: var(--panel); border: 1px solid var(--gold); border-radius: 18px; padding: 24px 22px 18px; color: var(--ivory); text-align: left; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.pg-card h3 { margin: 0 0 8px; font-size: 20px; color: var(--gold-soft); padding-right: 24px; }
+.pg-card p { margin: 0 0 12px; font-size: 14px; line-height: 1.55; color: var(--ivory-dim); }
+.pg-card p b { color: var(--ivory); }
+.pg-x { position: absolute; top: 10px; right: 12px; background: none; border: 0; color: var(--ivory-dim); font-size: 26px; line-height: 1; cursor: pointer; }
+.pg-note { text-align: center; font-size: 12px !important; margin: 10px 0 0 !important; }
