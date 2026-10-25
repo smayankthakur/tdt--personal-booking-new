@@ -996,3 +996,14 @@ footer a {
 .rf-remind > b { display: block; font-size: 16px; color: #ffcf4d; margin-bottom: 8px; }
 .rf-remind p { margin: 0 0 8px; font-size: 14.5px; }
 .rf-remind .btn { margin-top: 6px; padding: 10px 20px; font-size: 14px; border-color: #f59e0b; color: #ffcf4d; }
+
+/* OTP verification (email + WhatsApp) */
+.otp-row { display: flex; gap: 8px; align-items: stretch; margin-top: 6px; }
+.otp-row .rf-in { flex: 1; min-width: 0; }
+.otp-btn { white-space: nowrap; padding: 10px 14px; font-size: 13px; }
+.otp-code { letter-spacing: 6px; font-weight: 600; max-width: 180px; }
+.otp-badge { display: inline-flex; align-items: center; padding: 0 12px; border-radius: 10px; color: #7ee2a8; border: 1px solid rgba(126,226,168,.45); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.otp.ok .rf-in { border-color: rgba(126,226,168,.55); }
+.otp-link { background: none; border: 0; padding: 4px 0; color: var(--ivory-dim); font: inherit; font-size: 12px; text-decoration: underline; cursor: pointer; }
+.person.req .person-head { cursor: default; }
+.person.req .person-head small { color: var(--gold); }

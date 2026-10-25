@@ -1,4 +1,4 @@
-import { getApps, initializeApp, cert } from "firebase-admin/app";
+import { getApps, initializeApp, cert, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { DEFAULT_CFG, type Cfg } from "./slots";
 
@@ -24,6 +24,8 @@ function real(): Firestore {
   if (!_db) { if (!getApps().length) initializeApp({ credential: credential() }); _db = getFirestore(); }
   return _db;
 }
+/** The initialised firebase-admin app (for firebase-admin/auth etc.). */
+export function adminApp(): App { real(); return getApps()[0]; }
 export const db = new Proxy({} as Firestore, {
   get: (_t, prop) => { const v = (real() as any)[prop]; return typeof v === "function" ? v.bind(real()) : v; },
 });

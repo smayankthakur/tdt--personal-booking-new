@@ -8,7 +8,9 @@ export const COOKIE = "tdt_bk";
 const BID = /^[A-Za-z0-9]{8,20}$/;
 const key = () => process.env.FORM_SECRET || process.env.RAZORPAY_KEY_SECRET || "";
 const mac = (s: string) => crypto.createHmac("sha256", key()).update(s).digest("base64url");
-const same = (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+/** HMAC with the form secret (also used to hash email OTPs). */
+export const sign = (s: string) => mac(s);
+export const same = (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
 export function originOf(req: Request) {
   const host = req.headers.get("x-forwarded-host") || req.headers.get("host") || new URL(req.url).host;

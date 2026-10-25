@@ -5,6 +5,7 @@ import { freeSlots } from "@/lib/freeSlots";
 import { isTaken } from "@/lib/slots";
 import { sendClientConfirmation, sendOwnerNotification } from "@/lib/mailer";
 import { bidFrom } from "@/lib/session";
+import { e164, needsPartner } from "@/lib/concerns";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 30;
 
 const MAX_PHOTO = 1.4 * 1024 * 1024; // client compresses first; Vercel body limit is ~4.5MB for all 3
@@ -31,6 +32,17 @@ export async function POST(req: Request) {
   if (!p1.name || p1.phone.replace(/\D/g, "").length < 10 || !p1.place || !concern || concern === "Other: ")
     return NextResponse.json({ error: "Zaroori (*) sawal bharein." }, { status: 400 });
 
+  // Website form: email + WhatsApp must be OTP-verified, and partner reasons need the partner's name + photo.
+  // (The mobile app posts with the x-tdt-booking header and has its own flow, so these rules don't apply to it.)
+  const web = !req.headers.get("x-tdt-booking");
+  const hasFile = (k: string) => { const x = f.get(k); return x instanceof File && x.size > 0; };
+  if (web) {
+    if (b.verifiedEmail !== email) return NextResponse.json({ error: "Pehle apni email OTP se verify karein.", code: "verify_email" }, { status: 400 });
+    if (!b.verifiedPhone || b.verifiedPhone !== e164(p1.phone)) return NextResponse.json({ error: "Pehle apna WhatsApp number OTP se verify karein.", code: "verify_phone" }, { status: 400 });
+    if (needsPartner(S(f, "concern")) && (!S(f, "name2") || !hasFile("photo2")))
+      return NextResponse.json({ error: "Aapki wajah partner ke baare mein hai — partner ka naam aur ek clear photo zaroori hai.", code: "partner" }, { status: 400 });
+  }
+
   const photos: { filename: string; content: Buffer; contentType: string }[] = [];
   for (const k of PHOTOS) {
     const file = f.get(k);
@@ -48,7 +60,7 @@ export async function POST(req: Request) {
     "Date of birth (D/M/Y)": dob("dob").filter(Boolean).join(" / "), "Place of birth": p1.place, "Birth time": tob("tob"),
     "2nd person name": S(f, "name2"), "2nd DOB": dob("dob2").filter(Boolean).join(" / "), "2nd birth time": tob("tob2"), "2nd place": S(f, "place2"),
     "3rd person name": S(f, "name3"), "3rd DOB": dob("dob3").filter(Boolean).join(" / "), "3rd birth time": tob("tob3"), "3rd place": S(f, "place3"),
-    "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
+    "Verified": web ? "Email ✓ · WhatsApp ✓ (OTP)" : "App booking", "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
   };
 
   // Slot is AUTO-ASSIGNED and claimed atomically. Standard: earliest free slot on day 7–10 after payment (later only if full).

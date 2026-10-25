@@ -3,14 +3,10 @@ import { useEffect, useRef, useState } from "react";
 import DateField from "./form/DateField";
 import ClockField from "./form/ClockField";
 import FileDrop, { photoStore } from "./form/FileDrop";
+import { EmailVerify, PhoneVerify } from "./form/Verify";
+import { CONCERNS, needsPartner } from "@/lib/concerns";
 
-const CONCERNS: [string, string][] = [
-  ["💍", "Aapki Shaadi nahi horahi?"], ["💼", "Career ko lekar Tension hai"], ["🔀", "Third Party situation main stuck hai"],
-  ["💭", "Partner ki current feelings or actions jaanne hai"], ["🤝", "Partner ke sath reunion ya reconcilation ka pata lagana hai"],
-  ["🕉️", "Apni Spritual Journey Jaanni haii"], ["🧭", "Aapna Life Purpose Jaanna hai"], ["💰", "Financial tension bohot hai"],
-  ["🧿", "Black magic ka Doubt hai"], ["🩺", "Health ko lekar pareshan hai"], ["👶", "Bacha kab hoga?"], ["❤️", "Current Ya Ex Partner se Shaadi hogi?"],
-];
-const STEPS = ["Aap", "Doosre log", "Wajah"];
+const STEPS = ["Aap", "Wajah", "Doosre log"];
 const fmtD = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const gcalLink = (d: string, t: string, meet: string | null) => {
   const s = Date.parse(`${d}T${t}:00+05:30`), u = (ms: number) => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -23,20 +19,20 @@ const fmtT = (t: string) => { const [h, m] = t.split(":").map(Number); return `$
 function Field({ label, req, hint, children }: { label: string; req?: boolean; hint?: string; children: React.ReactNode }) {
   return <div className="rf-field"><label className="rf-label">{label}{req && <b> *</b>}</label>{hint && <p className="rf-hint">{hint}</p>}{children}</div>;
 }
-function Person({ n, on, toggle }: { n: "2" | "3"; on: boolean; toggle: () => void }) {
+function Person({ n, on, toggle, req }: { n: "2" | "3"; on: boolean; toggle: () => void; req?: boolean }) {
   const ord = n === "2" ? "Second Person / Partner" : "Third Person / Third Party";
   return (
-    <div className={`person${on ? " open" : ""}`}>
-      <button type="button" className="person-head" onClick={toggle}><span className="plus">{on ? "−" : "+"}</span><div><b>{ord}</b><small>Optional — love life ya family ke liye</small></div></button>
+    <div className={`person${on ? " open" : ""}${req ? " req" : ""}`}>
+      <button type="button" className="person-head" onClick={req ? undefined : toggle} aria-disabled={req || undefined}><span className="plus">{on ? "−" : "+"}</span><div><b>{ord}{req && " *"}</b><small>{req ? "Zaroori — aapki wajah partner ke baare mein hai. Partner ka naam aur photo dein." : "Optional — love life ya family ke liye"}</small></div></button>
       {on && (
         <div className="person-body">
           <div className="rf-2">
-          <Field label="Naam"><input className="rf-in" name={"name" + n} /></Field>
+          <Field label="Naam" req={req}><input className="rf-in" name={"name" + n} /></Field>
           <Field label="Place of Birth"><input className="rf-in" name={"place" + n} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
           <Field label="Date of Birth" hint="Pata ho toh, warna skip."><DateField p={"dob" + n} /></Field>
           <Field label="Birth Time" hint="Pata ho toh, warna skip."><ClockField p={"tob" + n} /></Field>
           </div>
-          <Field label="One Clear Photo"><FileDrop name={"photo" + n} /></Field>
+          <Field label="One Clear Photo" req={req}><FileDrop name={"photo" + n} /></Field>
         </div>)}
     </div>);
 }
@@ -47,7 +43,8 @@ export default function ReadingForm() {
   // Slot is auto-assigned (earliest free one). undefined = loading, null = nothing free.
   const [next, setNext] = useState<{ date: string; time: string } | null | undefined>(undefined);
   const [step, setStep] = useState(0), [concern, setConcern] = useState(""), [p2, setP2] = useState(false), [p3, setP3] = useState(false);
-  const [photo1, setPhoto1] = useState(false);
+  const [photo1, setPhoto1] = useState(false), [emailOk, setEmailOk] = useState(false), [phoneOk, setPhoneOk] = useState(false);
+  const partner = needsPartner(concern);
   const formRef = useRef<HTMLFormElement>(null);
   const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setNext(j.next ?? null)).catch(() => setNext(null));
   useEffect(() => { if (bk?.status === "paid" && !bk.formDone && next === undefined) loadSlots(); }, [bk]);
@@ -69,24 +66,28 @@ export default function ReadingForm() {
     if (!next) return bad("Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545.");
     if (s === 0) {
       if (!val("name")) return bad("Apna poora naam likhein.");
-      if (val("phone").replace(/\D/g, "").length < 10) return bad("Sahi WhatsApp number likhein.");
-      if (!/^\S+@\S+\.\S+$/.test(val("email"))) return bad("Sahi email likhein.");
+      if (!phoneOk) return bad("Apna WhatsApp number OTP se verify karein.");
+      if (!emailOk) return bad("Apni email OTP se verify karein.");
       if (!val("place")) return bad("Place of Birth likhein.");
       if (!photo1) return bad("Apni ek clear photo upload karein.");
     }
-    if (s === 2 && (!concern || (concern === "Other" && !val("concernOther")))) return bad("Reading ki wajah chunein.");
+    if (s === 1 && (!concern || (concern === "Other" && !val("concernOther")))) return bad("Reading ki wajah chunein.");
+    if (s === 2 && partner) {
+      if (!val("name2")) return bad("Partner ka naam likhein.");
+      if (!photoStore.photo2) return bad("Partner ki ek clear photo upload karein.");
+    }
     return true;
   }
   const go = (d: number) => { if (d < 0 || valid(step)) { setStep(step + d); window.scrollTo({ top: 0, behavior: "smooth" }); } };
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault(); if (!valid(2)) return; setBusy(true);
+    e.preventDefault(); if (!valid(0) || !valid(1) || !valid(2)) return; setBusy(true);
     const fd = new FormData(e.currentTarget);
     for (const k of ["photo1", "photo2", "photo3"]) if (photoStore[k]) fd.set(k, photoStore[k]);
     try {
       const j = await (await fetch("/api/form", { method: "POST", body: fd })).json();
       if (j.ok) { setDone(j); window.scrollTo({ top: 0, behavior: "smooth" }); }
-      else { setErr(j.error || "Kuch galat hua. Dobara try karein."); if (j.code === "no_slots") loadSlots(); }
+      else { setErr(j.error || "Kuch galat hua. Dobara try karein."); if (j.code === "no_slots") loadSlots(); if (j.code === "verify_email" || j.code === "verify_phone") setStep(0); }
     } catch { setErr("Network error. Dobara try karein."); }
     setBusy(false);
   }
@@ -140,8 +141,8 @@ export default function ReadingForm() {
         <h2 className="rf-sec first">Aapki Details</h2>
         <div className="rf-2">
         <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={bk.name} autoComplete="name" /></Field>
-        <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga."><input className="rf-in" name="phone" type="tel" defaultValue={bk.phone} autoComplete="tel" /></Field>
-        <Field label="Email ID" req hint="Google Meet link aur schedule isi email par aayega — aap doosri email bhi likh sakte hain."><input className="rf-in" name="email" type="email" defaultValue={/@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} placeholder="aapka@email.com" autoComplete="email" /></Field>
+        <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga. SMS OTP se verify karein."><PhoneVerify defaultValue={bk.phone} onChange={setPhoneOk} /></Field>
+        <Field label="Email ID" req hint="Google Meet link aur schedule isi email par aayega. Email OTP se verify karein."><EmailVerify defaultValue={/@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} onChange={setEmailOk} /></Field>
         <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
         <Field label="Date of Birth" hint="Pata ho toh chunein, warna skip."><DateField p="dob" /></Field>
         <Field label="Birth Time" hint="Pata ho toh clock se chunein, warna skip."><ClockField p="tob" /></Field>
@@ -150,20 +151,20 @@ export default function ReadingForm() {
       </div>
 
       <div className={S(1)}>
-        <h2 className="rf-sec first">Kisi Aur Ke Baare Mein? <small>(optional)</small></h2>
-        <p className="rf-hint">Sirf unhi logon ki reading hogi jinki details yahan doge. Nahi chahiye toh seedha Next dabayein.</p>
-        <Person n="2" on={p2} toggle={() => { if (p2) delete photoStore.photo2; setP2(!p2); }} />
-        <Person n="3" on={p3} toggle={() => { if (p3) delete photoStore.photo3; setP3(!p3); }} />
-      </div>
-
-      <div className={S(2)}>
         <h2 className="rf-sec first">Reading Book Karne Ki Wajah <b>*</b></h2>
         <div className="concerns">
           {[...CONCERNS, ["✍️", "Other"] as [string, string]].map(([ic, c]) => (
-            <label key={c} className={concern === c ? "on" : ""}><input type="radio" name="concern" value={c} checked={concern === c} onChange={() => setConcern(c)} /><span>{ic}</span>{c === "Other" ? "Other (khud likhein)" : c}</label>))}
+            <label key={c} className={concern === c ? "on" : ""}><input type="radio" name="concern" value={c} checked={concern === c} onChange={() => { setConcern(c); if (needsPartner(c)) setP2(true); }} /><span>{ic}</span>{c === "Other" ? "Other (khud likhein)" : c}</label>))}
         </div>
         {concern === "Other" && <input className="rf-in" name="concernOther" placeholder="Apni wajah likhein" style={{ marginTop: 10 }} />}
         <Field label="Kuch aur batana chahte hain? (optional)"><textarea className="rf-in" name="notes" rows={3} placeholder="Jaise: date/time ka koi hissa pata nahi, ya kuch aur." /></Field>
+      </div>
+
+      <div className={S(2)}>
+        <h2 className="rf-sec first">Kisi Aur Ke Baare Mein? <small>{partner ? "(partner zaroori)" : "(optional)"}</small></h2>
+        <p className="rf-hint">Sirf unhi logon ki reading hogi jinki details yahan doge. {partner ? "Aapki wajah partner ke baare mein hai, isliye partner ka naam aur photo zaroori hai. Third person optional hai." : "Nahi chahiye toh seedha Submit dabayein."}</p>
+        <Person n="2" on={p2 || partner} req={partner} toggle={() => { if (p2) delete photoStore.photo2; setP2(!p2); }} />
+        <Person n="3" on={p3} toggle={() => { if (p3) delete photoStore.photo3; setP3(!p3); }} />
       </div>
 
       {step === STEPS.length - 1 && <p className="rf-hint" style={{ marginTop: 14 }}>Submit karke aap hamari <a href="https://thedivinetarotonline.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Privacy Policy</a> se sahmat hain. Aapki details aur photos sirf reading ke liye use hoti hain.</p>}

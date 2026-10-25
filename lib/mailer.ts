@@ -120,6 +120,18 @@ export async function sendPaymentReceived(b: { email: string; bid: string; tier?
   });
 }
 
+/** 6-digit email verification code for the reading form (valid 10 minutes). */
+export async function sendOtpEmail(email: string, code: string) {
+  await send({
+    from: from(), to: email, subject: `${code} - your verification code - The Divine Tarot`,
+    html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
+      <h2 style="color:#6d28d9">Namaste</h2>
+      <p>Reading form mein apni email verify karne ke liye yeh code daalein:</p>
+      <p style="font-size:32px;letter-spacing:8px;font-weight:700;text-align:center;background:#f6f3fb;padding:16px;border-radius:8px">${code}</p>
+      <p style="font-size:13px;color:#666">Yeh code 10 minute tak valid hai. Agar aapne yeh request nahi ki, toh is email ko ignore karein.</p></div>`,
+  });
+}
+
 /** Sent once by /api/cron/reminders, about 3 hours before the slot. */
 export async function sendReminder(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null }) {
   const { day, range } = prettySlot(b.date, b.time);
