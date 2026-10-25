@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import DateField from "./form/DateField";
 import ClockField from "./form/ClockField";
 import FileDrop, { photoStore } from "./form/FileDrop";
-import { EmailVerify, PhoneVerify } from "./form/Verify";
+import { EmailVerify } from "./form/Verify";
 import { CONCERNS, needsPartner } from "@/lib/concerns";
 
 const STEPS = ["Aap", "Wajah", "Doosre log"];
@@ -43,7 +43,7 @@ export default function ReadingForm() {
   // Slot is auto-assigned (earliest free one). undefined = loading, null = nothing free.
   const [next, setNext] = useState<{ date: string; time: string } | null | undefined>(undefined);
   const [step, setStep] = useState(0), [concern, setConcern] = useState(""), [p2, setP2] = useState(false), [p3, setP3] = useState(false);
-  const [photo1, setPhoto1] = useState(false), [emailOk, setEmailOk] = useState(false), [phoneOk, setPhoneOk] = useState(false);
+  const [photo1, setPhoto1] = useState(false), [emailOk, setEmailOk] = useState(false);
   const partner = needsPartner(concern);
   const formRef = useRef<HTMLFormElement>(null);
   const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setNext(j.next ?? null)).catch(() => setNext(null));
@@ -66,7 +66,7 @@ export default function ReadingForm() {
     if (!next) return bad("Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545.");
     if (s === 0) {
       if (!val("name")) return bad("Apna poora naam likhein.");
-      if (!phoneOk) return bad("Apna WhatsApp number OTP se verify karein.");
+      if (val("phone").replace(/\D/g, "").length < 10) return bad("Sahi WhatsApp number likhein.");
       if (!emailOk) return bad("Apni email OTP se verify karein.");
       if (!val("place")) return bad("Place of Birth likhein.");
       if (!photo1) return bad("Apni ek clear photo upload karein.");
@@ -87,7 +87,7 @@ export default function ReadingForm() {
     try {
       const j = await (await fetch("/api/form", { method: "POST", body: fd })).json();
       if (j.ok) { setDone(j); window.scrollTo({ top: 0, behavior: "smooth" }); }
-      else { setErr(j.error || "Kuch galat hua. Dobara try karein."); if (j.code === "no_slots") loadSlots(); if (j.code === "verify_email" || j.code === "verify_phone") setStep(0); }
+      else { setErr(j.error || "Kuch galat hua. Dobara try karein."); if (j.code === "no_slots") loadSlots(); if (j.code === "verify_email") setStep(0); }
     } catch { setErr("Network error. Dobara try karein."); }
     setBusy(false);
   }
@@ -141,7 +141,7 @@ export default function ReadingForm() {
         <h2 className="rf-sec first">Aapki Details</h2>
         <div className="rf-2">
         <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={bk.name} autoComplete="name" /></Field>
-        <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga. SMS OTP se verify karein."><PhoneVerify defaultValue={bk.phone} onChange={setPhoneOk} /></Field>
+        <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga."><input className="rf-in" name="phone" type="tel" defaultValue={bk.phone} autoComplete="tel" /></Field>
         <Field label="Email ID" req hint="Google Meet link aur schedule isi email par aayega. Email OTP se verify karein."><EmailVerify defaultValue={/@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} onChange={setEmailOk} /></Field>
         <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
         <Field label="Date of Birth" hint="Pata ho toh chunein, warna skip."><DateField p="dob" /></Field>
