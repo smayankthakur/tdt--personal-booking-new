@@ -3,8 +3,8 @@ import { useRef, useState } from "react";
 const pad = (n: number) => String(n).padStart(2, "0");
 
 /** Analog clock popover (drag or tap the face: hour, then minute). Writes hidden inputs <p>h/<p>min/<p>ap; leave empty to skip. */
-export default function ClockField({ p }: { p: string }) {
-  const [h, setH] = useState(0), [m, setM] = useState(0), [ap, setAp] = useState("AM"), [open, setOpen] = useState(false), [mode, setMode] = useState<"h" | "m">("h");
+export default function ClockField({ p, init }: { p: string; init?: { h?: string; min?: string; ap?: string } }) {
+  const [h, setH] = useState(Number(init?.h) || 0), [m, setM] = useState(Number(init?.min) || 0), [ap, setAp] = useState(init?.ap === "PM" ? "PM" : "AM"), [open, setOpen] = useState(false), [mode, setMode] = useState<"h" | "m">("h");
   const svg = useRef<SVGSVGElement>(null), drag = useRef(false);
   const angle = mode === "h" ? (h % 12) * 30 : m * 6, R = 84;
   const pt = (deg: number, r: number) => [100 + r * Math.sin((deg * Math.PI) / 180), 100 - r * Math.cos((deg * Math.PI) / 180)];

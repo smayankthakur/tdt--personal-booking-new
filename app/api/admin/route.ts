@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { CFG_DOC, db, getCfg } from "@/lib/db";
 import { createMeet, sendInvite } from "@/lib/calendar";
 import { slotMs } from "@/lib/slots";
-import { sendClientConfirmation } from "@/lib/mailer";
-import { originOf, resumeToken } from "@/lib/session";
+import { sendClientConfirmation, sendEditLink } from "@/lib/mailer";
+import { editUntil } from "@/lib/formEdit";
+import { editToken, originOf, resumeToken } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 const ENV = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN", "SMTP_HOST", "SMTP_USER", "SMTP_PASS", "OWNER_EMAIL"];
 import { adminFrom } from "@/lib/adminAuth";
@@ -32,6 +33,19 @@ export async function POST(req: Request) {
     const o = await db.doc(`orders/${body.resume}`).get();
     if (!o.exists || o.data()!.status !== "paid" || o.data()!.formDone) return NextResponse.json({ error: "Yeh order paid + form-baaki nahi hai." }, { status: 400 });
     return NextResponse.json({ link: `${originOf(req)}/api/resume?t=${resumeToken(body.resume)}` });
+  }
+  if (body.sendEditLinks) { // customers whose form was submitted in the last 24 h (window still open) get their edit link once
+    const now = Date.now(), os = await db.collection("orders").where("formAt", ">=", now - 24 * 3600e3).get(), out: string[] = [];
+    for (const d of os.docs) {
+      const o = d.data() as any, until = editUntil(o.formAt, o.slot);
+      if (!o.formDone || until < now + 30 * 60e3) continue;
+      const ref = db.doc(`bookings/${o.slot}`), b = (await ref.get()).data() as any;
+      if (!b || b.bid !== d.id || b.status !== "confirmed" || b.editLinkSentAt) continue;
+      const [date, time] = String(o.slot).split("T");
+      try { await sendEditLink({ name: b.name, email: b.email, date, time, editUntil: until, editLink: `${originOf(req)}/api/edit?t=${editToken(d.id, until)}` }); await ref.update({ editLinkSentAt: Date.now() }); out.push(`${o.slot.replace("T", " ")} ✓`); }
+      catch (e: any) { out.push(`${o.slot.replace("T", " ")} ✗ ${String(e?.message || e).slice(0, 100)}`); }
+    }
+    return NextResponse.json({ result: out.length ? `Edit link bheja: ${out.join(" · ")}` : "Koi pending customer nahi (pichhle 24 ghante)." });
   }
   if (body.inviteUpcoming) { // Google Calendar invite for upcoming bookings made before invites were switched on
     const snap = await db.collection("bookings").where("status", "==", "confirmed").get();

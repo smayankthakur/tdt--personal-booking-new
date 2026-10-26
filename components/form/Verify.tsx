@@ -18,9 +18,9 @@ function Shell({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 }
 
 /** Email field + 6-digit code sent by our server (SMTP). */
-export function EmailVerify({ defaultValue, onChange }: { defaultValue?: string; onChange: (verified: boolean) => void }) {
+export function EmailVerify({ defaultValue, onChange, preVerified }: { defaultValue?: string; onChange: (verified: boolean) => void; preVerified?: boolean }) {
   const [email, setEmail] = useState(defaultValue || ""), [sentTo, setSentTo] = useState(""), [code, setCode] = useState("");
-  const [ok, setOk] = useState(false), [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [err, setErr] = useState("");
+  const [ok, setOk] = useState(!!(preVerified && defaultValue)), [busy, setBusy] = useState(false), [msg, setMsg] = useState(""), [err, setErr] = useState("");
   const [sugg, setSugg] = useState(""), [asTyped, setAsTyped] = useState("");
   const [left, setLeft] = useCountdown();
   const set = (v: boolean) => { setOk(v); onChange(v); };
@@ -50,7 +50,7 @@ export function EmailVerify({ defaultValue, onChange }: { defaultValue?: string;
     <Shell ok={ok}>
       <div className="otp-row">
         <input className="rf-in" name="email" type="email" value={email} placeholder="aapka@email.com" autoComplete="email"
-          onChange={(e) => { setEmail(e.target.value); setSugg(""); if (ok || sentTo) { set(false); setSentTo(""); setMsg(""); } }} readOnly={ok} />
+          onChange={(e) => { setEmail(e.target.value); setSugg(""); if (preVerified && defaultValue && e.target.value.trim().toLowerCase() === defaultValue.toLowerCase()) { set(true); setSentTo(""); return; } if (ok || sentTo) { set(false); setSentTo(""); setMsg(""); } }} readOnly={ok && !preVerified} />
         {ok ? <span className="otp-badge">✓ Verified</span>
           : <button type="button" className="btn ghost otp-btn" onClick={() => send()} disabled={busy || left > 0}>{left > 0 ? `${left}s` : sentTo ? "Resend" : "OTP bhejein"}</button>}
       </div>

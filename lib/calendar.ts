@@ -78,3 +78,17 @@ export async function sendInvite(eventId: string, b: { email: string; bid: strin
   })).json();
   if (!res?.id) throw new Error(`Calendar: ${res?.error?.message || "invite nahi gaya"}`);
 }
+
+/** Customer changed their email while editing the form: swap the guest on the event and send the invite to the new address. */
+export async function changeGuest(eventId: string, oldEmail: string, newEmail: string) {
+  const access = await googleToken();
+  const cur = await (await fetch(`${EVENTS}/${encodeURIComponent(eventId)}`, { headers: { Authorization: `Bearer ${access}` } })).json();
+  if (!cur?.id) throw new Error(`Calendar: ${cur?.error?.message || "event nahi mila"}`);
+  const o = oldEmail.toLowerCase(), n = newEmail.toLowerCase();
+  const attendees = (cur.attendees || []).filter((a: any) => String(a.email).toLowerCase() !== o);
+  if (!attendees.some((a: any) => String(a.email).toLowerCase() === n)) attendees.push({ email: n });
+  const res = await (await fetch(`${EVENTS}/${encodeURIComponent(eventId)}?sendUpdates=all`, {
+    method: "PATCH", headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" }, body: JSON.stringify({ attendees }),
+  })).json();
+  if (!res?.id) throw new Error(`Calendar: ${res?.error?.message || "guest update nahi hua"}`);
+}

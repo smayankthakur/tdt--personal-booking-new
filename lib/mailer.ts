@@ -49,7 +49,12 @@ export function gcalLink(date: string, time: string, meet: string | null) {
 }
 
 /** Sent to the customer right after the form is submitted: schedule + Meet link. */
-export async function sendClientConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null }) {
+const until = (ms?: number) => ms ? new Date(ms).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+/** "Form mein galti? Edit karein" box (only while the edit window is open). */
+const editBox = (link?: string | null, ms?: number) => !link ? "" :
+  `<div style="border:1px dashed #6d28d9;border-radius:8px;padding:12px 16px;margin:18px 0;font-size:14px;line-height:1.6">✏️ Form mein kuch galat bhar diya? <b>${until(ms)} tak</b> aap form edit kar sakte hain (slot same rahega).<br/><a href="${link}" style="color:#6d28d9;font-weight:600">Form edit karein →</a></div>`;
+
+export async function sendClientConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; editLink?: string | null; editUntil?: number; updated?: boolean }) {
   const { day, range } = prettySlot(b.date, b.time);
   const meet = b.meetLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink}</span></p>`
@@ -60,11 +65,12 @@ export async function sendClientConfirmation(b: { name: string; email: string; b
     attachments: [{ filename: "reading.ics", content: ics(b.bid, b.date, b.time, b.meetLink), contentType: "text/calendar; method=PUBLISH" }],
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
       <h2 style="color:#6d28d9">Namaste ${esc(b.name)}</h2>
-      <p>Aapka payment aur form mil gaya hai. Aapki Personal Reading confirm ho chuki hai.</p>
+      <p>${b.updated ? "Aapka form update ho gaya hai." : "Aapka payment aur form mil gaya hai."} Aapki Personal Reading confirm ho chuki hai.</p>
       <div style="background:#f6f3fb;border-left:3px solid #6d28d9;padding:14px 20px;margin:20px 0;line-height:1.8">
         <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>Call:</b> Google Meet (40 min)<br/><b>Booking ID:</b> ${b.bid}
       </div>
       ${meet}
+      ${editBox(b.editLink, b.editUntil)}
       <div style="background:#fff4e5;border:2px solid #f59e0b;border-radius:8px;padding:14px 18px;margin:22px 0;line-height:1.7">
         <b style="font-size:16px">⏰ Please set a reminder in your calendar or clock so you don't miss your consultation.</b><br/>
         Abhi apne phone ke Calendar ya Alarm mein reminder laga lein. <b>Hum alag se koi reminder call ya message nahi karte.</b><br/>
@@ -99,6 +105,41 @@ export async function sendOwnerNotification(sub: Record<string, any>, photos: { 
     html: `<div style="font-family:Arial,sans-serif;max-width:640px"><h3>${day} · ${range}</h3>
       <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "<b style='color:#c00'>NOT CREATED — create manually</b>"}<br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}</p>
       <table>${rows}</table><p>Photos attached: ${photos.length}</p></div>`,
+  });
+}
+
+/** One-off mail to customers who booked before form editing existed: their personal edit link. */
+export async function sendEditLink(b: { name: string; email: string; date: string; time: string; editLink: string; editUntil: number }) {
+  const { day, range } = prettySlot(b.date, b.time);
+  await send({
+    from: from(), to: b.email, subject: `Edit your reading form (till ${until(b.editUntil)}) - The Divine Tarot`,
+    html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
+      <h2 style="color:#6d28d9">Namaste ${esc(b.name || "")}</h2>
+      <p>Aapki Personal Reading <b>${day}, ${range}</b> ke liye confirm hai.</p>
+      <p>Ab aap apna reading form <b>${until(b.editUntil)} tak</b> edit kar sakte hain — naam, birth details, partner details, wajah ya photo. Slot aur Google Meet link same rahenge.</p>
+      <p style="text-align:center;margin:26px 0"><a href="${b.editLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Form edit karein</a></p>
+      <p style="font-size:13px;color:#666">Kuch badalna nahi hai toh is email ko ignore karein. Contact: +91 88281 16545</p></div>`,
+  });
+}
+
+/** Owner copy when a customer edits their form: what changed (old → new) + any new photos. */
+export async function sendOwnerUpdate(sub: { bid: string; tier?: string; date: string; time: string; name: string; email: string }, before: Record<string, string>, after: Record<string, string>, photos: { filename: string; content: Buffer; contentType: string }[], meetLink: string | null) {
+  const to = (process.env.OWNER_EMAIL || process.env.SMTP_USER || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const { day, range } = prettySlot(sub.date, sub.time);
+  const keys = Array.from(new Set([...Object.keys(after), ...Object.keys(before)])).filter((k) => k !== "Edited");
+  const changed = keys.filter((k) => (before[k] || "") !== (after[k] || ""));
+  const td = "padding:4px 12px 4px 0;vertical-align:top";
+  const diff = changed.map((k) => `<tr><td style="${td};color:#555">${esc(k)}</td><td style="${td};color:#999;text-decoration:line-through">${esc(before[k] || "—")}</td><td style="${td}"><b>${esc(after[k] || "—")}</b></td></tr>`).join("");
+  const all = Object.entries(after).filter(([, v]) => v).map(([k, v]) => `<tr><td style="${td};color:#555">${esc(k)}</td><td style="padding:4px 0"><b>${esc(String(v))}</b></td></tr>`).join("");
+  await send({
+    from: from(), to, replyTo: sub.email,
+    subject: `${sub.tier === "urgent" ? "⚡ URGENT " : ""}UPDATED reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
+    attachments: photos,
+    html: `<div style="font-family:Arial,sans-serif;max-width:680px"><h3 style="color:#b45309">✏️ Customer ne form edit kiya · ${day} · ${range}</h3>
+      <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "-"}<br/>Booking ID: ${sub.bid}</p>
+      <h4>Kya badla (${changed.length})</h4>${changed.length ? `<table><tr><th align="left">Sawal</th><th align="left">Pehle</th><th align="left">Ab</th></tr>${diff}</table>` : "<p>Koi text change nahi (sirf photo).</p>"}
+      <p>Nayi photos attached: ${photos.length}${photos.length ? "" : " (purani photos pichhle email mein hain)"}</p>
+      <h4>Poora form (ab)</h4><table>${all}</table></div>`,
   });
 }
 

@@ -45,6 +45,14 @@ export function razorpayReturnOk(q: URLSearchParams) {
   return same(sig, crypto.createHmac("sha256", secret).update(body).digest("hex"));
 }
 
+/** Personal link to EDIT a submitted form (valid until the edit window closes, see lib/formEdit.ts). */
+export const editToken = (bid: string, exp: number) => `${bid}.${exp}.${mac(`ed:${bid}:${exp}`)}`;
+export function openEdit(t: string): string | null {
+  const [bid, exp, sig] = String(t || "").split(".");
+  if (!bid || !exp || !sig || !key() || !BID.test(bid) || Number(exp) < Date.now()) return null;
+  return same(sig, mac(`ed:${bid}:${exp}`)) ? bid : null;
+}
+
 /** 24-hour link to reopen a paid customer's form: emailed with the payment receipt, or made by the admin. */
 export const resumeToken = (bid: string, exp = Date.now() + 864e5) => `${bid}.${exp}.${mac(`rs:${bid}:${exp}`)}`;
 export function openResume(t: string): string | null {

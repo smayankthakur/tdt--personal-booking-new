@@ -47,6 +47,11 @@ export default function Admin() {
     const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify({ inviteUpcoming: true }) });
     const j = await r.json(); setNote(j.result || j.error || "Kuch galat hua"); load();
   };
+  const editLinks = async () => {
+    setNote("Pichhle 24 ghante wale customers ko edit link bheja ja raha hai…");
+    const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify({ sendEditLinks: true }) });
+    const j = await r.json(); setNote(j.result || j.error || "Kuch galat hua"); load();
+  };
   const save = async () => {
     const r = await fetch("/api/admin", { method: "PUT", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
     setMsg(r.ok ? "Saved ✓ — naye slots turant live" : "Save nahi hua");
@@ -77,6 +82,7 @@ export default function Admin() {
         <span style={{ alignSelf: "center", fontSize: 12, opacity: 0.7 }}>{who}</span>
         <button onClick={logout} style={{ padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>Logout</button>
         <button onClick={invite} title="Jin upcoming bookings ko abhi tak Google Calendar invite nahi gaya, unhe bhejein" style={{ padding: "6px 12px", background: "transparent", border: "1px solid #c9a227", borderRadius: 8, color: "#c9a227", cursor: "pointer" }}>📅 Upcoming ko invite bhejo</button>
+        <button onClick={editLinks} title="Jinhone pichhle 24 ghante mein form bhara, unhe form edit ka link email karein (ek baar)" style={{ padding: "6px 12px", background: "transparent", border: "1px solid #8b5cf6", borderRadius: 8, color: "#8b5cf6", cursor: "pointer" }}>✏️ Edit link bhejo (24h)</button>
       </div>
       {tab === "slots" && (<div>
       <p style={{ margin: "0 0 14px" }}>Booking dates: <input type="date" value={cfg.fromDate || ""} onChange={(e) => setCfg({ ...cfg, fromDate: e.target.value })} style={box} /> se <input type="date" value={cfg.toDate || ""} onChange={(e) => setCfg({ ...cfg, toDate: e.target.value })} style={box} /> tak (normal + urgent dono)</p>
@@ -142,6 +148,7 @@ export default function Admin() {
               {a["Concern"] && <span style={{ color: "#c9a227" }}>· {a["Concern"]}</span>}
               {b.calendarOk === false && <span style={{ color: "#f66" }}>⚠ Meet link nahi bana</span>}
               {b.clientMailOk === false && <span style={{ color: "#f66" }}>⚠ client mail fail</span>}
+              {b.edits ? <span style={{ color: "#8b5cf6" }}>✏️ Edited{b.edits > 1 ? ` ×${b.edits}` : ""}</span> : null}
             </div>
             {open && (
               <div style={{ margin: "10px 0 4px 22px", padding: 14, border: "1px solid #555", borderRadius: 10 }}>

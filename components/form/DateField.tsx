@@ -6,9 +6,9 @@ const WD = ["M", "T", "W", "T", "F", "S", "S"];
 type V = { d: string; m: string; y: string };
 
 /** Calendar popover for dates of birth. Writes hidden inputs <p>d/<p>m/<p>y. "Nahi pata" switches to manual boxes (11 / 00 allowed). */
-export default function DateField({ p, onChange }: { p: string; onChange?: (complete: boolean) => void }) {
-  const [v, setV] = useState<V>({ d: "", m: "", y: "" }), [open, setOpen] = useState(false), [manual, setManual] = useState(false), [years, setYears] = useState(false);
-  const [view, setView] = useState({ y: 1995, m: 0 });
+export default function DateField({ p, onChange, init }: { p: string; onChange?: (complete: boolean) => void; init?: Partial<V> }) {
+  const [v, setV] = useState<V>({ d: init?.d || "", m: init?.m || "", y: init?.y || "" }), [open, setOpen] = useState(false), [manual, setManual] = useState(false), [years, setYears] = useState(false);
+  const [view, setView] = useState({ y: Number(init?.y) > 1900 ? Number(init?.y) : 1995, m: Number(init?.m) >= 1 && Number(init?.m) <= 12 ? Number(init?.m) - 1 : 0 });
   const set = (n: V) => { setV(n); onChange?.(!!(n.d && n.m && n.y)); };
   const nowY = new Date().getFullYear();
   const cells = useMemo(() => {

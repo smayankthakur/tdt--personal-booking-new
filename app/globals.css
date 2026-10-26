@@ -1020,3 +1020,5 @@ footer a {
 .pg-sugg b { color: var(--gold-soft); word-break: break-all; }
 .pg-sugg > div { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .pg-sugg .btn { padding: 8px 14px; font-size: 13px; width: auto; }
+.rf-edit { margin: 18px 0 6px; padding: 12px 14px; border: 1px dashed var(--violet-light); border-radius: 12px; text-align: left; font-size: 14px; }
+.rf-edit p { margin: 0 0 10px; }

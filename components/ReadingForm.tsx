@@ -19,7 +19,9 @@ const fmtT = (t: string) => { const [h, m] = t.split(":").map(Number); return `$
 function Field({ label, req, hint, children }: { label: string; req?: boolean; hint?: string; children: React.ReactNode }) {
   return <div className="rf-field"><label className="rf-label">{label}{req && <b> *</b>}</label>{hint && <p className="rf-hint">{hint}</p>}{children}</div>;
 }
-function Person({ n, on, toggle, req }: { n: "2" | "3"; on: boolean; toggle: () => void; req?: boolean }) {
+type Raw = Record<string, string>;
+function Person({ n, on, toggle, req, init, keepPhoto }: { n: "2" | "3"; on: boolean; toggle: () => void; req?: boolean; init?: Raw; keepPhoto?: boolean }) {
+  const r = init || {};
   const ord = n === "2" ? "Second Person / Partner" : "Third Person / Third Party";
   return (
     <div className={`person${on ? " open" : ""}${req ? " req" : ""}`}>
@@ -27,12 +29,12 @@ function Person({ n, on, toggle, req }: { n: "2" | "3"; on: boolean; toggle: () 
       {on && (
         <div className="person-body">
           <div className="rf-2">
-          <Field label="Naam" req={req}><input className="rf-in" name={"name" + n} /></Field>
-          <Field label="Place of Birth"><input className="rf-in" name={"place" + n} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
-          <Field label="Date of Birth" hint="Pata ho toh, warna skip."><DateField p={"dob" + n} /></Field>
-          <Field label="Birth Time" hint="Pata ho toh, warna skip."><ClockField p={"tob" + n} /></Field>
+          <Field label="Naam" req={req}><input className="rf-in" name={"name" + n} defaultValue={r["name" + n]} /></Field>
+          <Field label="Place of Birth"><input className="rf-in" name={"place" + n} defaultValue={r["place" + n]} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
+          <Field label="Date of Birth" hint="Pata ho toh, warna skip."><DateField p={"dob" + n} init={{ d: r[`dob${n}d`], m: r[`dob${n}m`], y: r[`dob${n}y`] }} /></Field>
+          <Field label="Birth Time" hint="Pata ho toh, warna skip."><ClockField p={"tob" + n} init={{ h: r[`tob${n}h`], min: r[`tob${n}min`], ap: r[`tob${n}ap`] }} /></Field>
           </div>
-          <Field label="One Clear Photo" req={req}><FileDrop name={"photo" + n} /></Field>
+          <Field label="One Clear Photo" req={req && !keepPhoto} hint={keepPhoto ? "Pehle wali photo rahegi — badalni ho tabhi nayi upload karein." : undefined}><FileDrop name={"photo" + n} /></Field>
         </div>)}
     </div>);
 }
@@ -44,6 +46,23 @@ export default function ReadingForm() {
   const [next, setNext] = useState<{ date: string; time: string } | null | undefined>(undefined);
   const [step, setStep] = useState(0), [concern, setConcern] = useState(""), [p2, setP2] = useState(false), [p3, setP3] = useState(false);
   const [photo1, setPhoto1] = useState(false), [emailOk, setEmailOk] = useState(false);
+  // Edit mode: a submitted form can be changed for 24 h (closes 3 h before the slot); bk.edit carries the saved answers.
+  const [editing, setEditing] = useState(false), [note, setNote] = useState("");
+  const raw: Raw = (editing && bk?.edit?.raw) || {};
+  const refresh = () => fetch("/api/booking", { cache: "no-store" }).then((r) => r.json()).then((j) => setBk(j)).catch(() => {});
+  const startEdit = () => {
+    const r: Raw = bk.edit.raw || {};
+    for (const k of ["photo1", "photo2", "photo3"]) delete photoStore[k];
+    setConcern(r.concern || ""); setP2(!!r.name2); setP3(!!r.name3); setEmailOk(true); setPhoto1(false);
+    setStep(0); setErr(""); setDone(null); setEditing(true); window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  useEffect(() => { // link from the email: /form#edit
+    if (!bk?.formDone) return;
+    const h = window.location.hash;
+    if (h === "#edit" && bk.edit) startEdit();
+    if (h === "#edit-expired" || (h === "#edit" && !bk.edit)) setNote("Form edit karne ka time khatam ho gaya hai. Badlav ke liye WhatsApp karein +91 88281 16545.");
+    if (h) window.history.replaceState(null, "", "/form");
+  }, [bk?.formDone]);
   const partner = needsPartner(concern);
   const formRef = useRef<HTMLFormElement>(null);
   const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setNext(j.next ?? null)).catch(() => setNext(null));
@@ -63,18 +82,18 @@ export default function ReadingForm() {
   const bad = (m: string) => { setErr(m); setShake((s) => s + 1); return false; };
   function valid(s: number) {
     setErr("");
-    if (!next) return bad("Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545.");
+    if (!next && !editing) return bad("Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545.");
     if (s === 0) {
       if (!val("name")) return bad("Apna poora naam likhein.");
       if (val("phone").replace(/\D/g, "").length < 10) return bad("Sahi WhatsApp number likhein.");
       if (!emailOk) return bad("Apni email OTP se verify karein.");
       if (!val("place")) return bad("Place of Birth likhein.");
-      if (!photo1) return bad("Apni ek clear photo upload karein.");
+      if (!photo1 && !editing) return bad("Apni ek clear photo upload karein.");
     }
     if (s === 1 && (!concern || (concern === "Other" && !val("concernOther")))) return bad("Reading ki wajah chunein.");
     if (s === 2 && partner) {
       if (!val("name2")) return bad("Partner ka naam likhein.");
-      if (!photoStore.photo2) return bad("Partner ki ek clear photo upload karein.");
+      if (!photoStore.photo2 && !(editing && bk.edit?.hadPartner)) return bad("Partner ki ek clear photo upload karein.");
     }
     return true;
   }
@@ -83,11 +102,12 @@ export default function ReadingForm() {
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault(); if (!valid(0) || !valid(1) || !valid(2)) return; setBusy(true);
     const fd = new FormData(e.currentTarget);
+    if (editing) fd.set("mode", "edit");
     for (const k of ["photo1", "photo2", "photo3"]) if (photoStore[k]) fd.set(k, photoStore[k]);
     try {
       const j = await (await fetch("/api/form", { method: "POST", body: fd })).json();
-      if (j.ok) { setDone(j); window.scrollTo({ top: 0, behavior: "smooth" }); }
-      else { setErr(j.error || "Kuch galat hua. Dobara try karein."); if (j.code === "no_slots") loadSlots(); if (j.code === "verify_email") setStep(0); }
+      if (j.ok) { setDone(j); setEditing(false); refresh(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+      else { setErr(j.error || "Kuch galat hua. Dobara try karein."); if (j.code === "no_slots") loadSlots(); if (j.code === "verify_email") setStep(0); if (j.code === "edit_closed") { setEditing(false); refresh(); } }
     } catch { setErr("Network error. Dobara try karein."); }
     setBusy(false);
   }
@@ -98,15 +118,17 @@ export default function ReadingForm() {
   if (bk.status === "created") return <div className="rf-card"><h1>Payment abhi tak nahi mila</h1><p>Agar payment ho chuka hai toh page refresh karein. Nahi hua hai toh dobara payment karein.</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>Payment page par jayein</a></div>;
   if (bk.status !== "paid") return <div className="rf-card"><h1>Payment nahi mila</h1><a className="btn gold" href="/#book">Wapas jayein</a></div>;
 
-  if (bk.formDone || done) {
+  if ((bk.formDone || done) && !editing) {
     const dd = done?.date || bk.date, tt = done?.time || bk.time, meet = done?.meetLink || bk.meetLink;
     return (
       <div className="rf-card rf-success">
         <svg className="ok-tick" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M14 27l8 8 16-17" /></svg>
-        <h1>Appointment Confirmed</h1>
+        <h1>{done?.edited ? "Form Update Ho Gaya" : "Appointment Confirmed"}</h1>
         {dd && <div className="rf-slot"><span>Aapka slot</span><b>{fmtD(dd)} · {fmtT(tt)} IST</b></div>}
         <p>Aapka form mil gaya hai. <b>Google Meet link aur schedule aapki email par bhej diya gaya hai</b> — spam folder bhi check kar lein.</p>
         {meet && <a className="btn gold" href={meet} target="_blank" rel="noopener noreferrer">Google Meet Link</a>}
+        {bk.edit && <div className="rf-edit"><p>Form mein kuch galat bhar diya? <b>{new Date(bk.edit.until).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} tak</b> edit kar sakte hain. Slot same rahega.</p><button type="button" className="btn ghost" onClick={startEdit}>✏️ Form edit karein</button></div>}
+        {note && <p className="rf-err">{note}</p>}
         <div className="rf-remind">
           <b>⏰ Please set a reminder in your calendar or clock so you don't miss your consultation.</b>
           <p>Abhi apne phone ke Calendar ya Alarm mein reminder laga lein. <b>Hum alag se koi reminder call ya message nahi karte.</b></p>
@@ -119,35 +141,36 @@ export default function ReadingForm() {
 
   const S = (i: number) => `step${step === i ? " active" : ""}`;
   return (
-    <form ref={formRef} className="rf-card" onSubmit={submit} noValidate>
-      <div className="rf-badge">✓ Payment received{bk.tier === "urgent" ? " · ⚡ Urgent" : ""}{bid ? ` · ID ${bid}` : ""}</div>
-      <h1>Personal Reading Form</h1>
+    <form key={editing ? "edit" : "new"} ref={formRef} className="rf-card" onSubmit={submit} noValidate>
+      <div className="rf-badge">{editing ? "✏️ Edit mode" : "✓ Payment received"}{bk.tier === "urgent" ? " · ⚡ Urgent" : ""}{bid ? ` · ID ${bid}` : ""}</div>
+      <h1>{editing ? "Form Edit Karein" : "Personal Reading Form"}</h1>
+      {editing && <p className="rf-hint">Jo badalna hai badlein aur neeche <b>Update</b> dabayein. Slot aur Google Meet link same rahenge. <button type="button" className="otp-link" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button></p>}
       <div className="stepper">
         <div className="stepper-bar"><i style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }} /></div>
         {STEPS.map((s, i) => <div key={s} className={`stepper-dot${i <= step ? " on" : ""}`}><span>{i < step ? "✓" : i + 1}</span><small>{s}</small></div>)}
       </div>
 
       <div className="rf-slot">
-        <span>Aapka slot</span>
-        {next === undefined ? <b>Slot dhoondh rahe hain…</b>
+        <span>Aapka slot{editing ? " (same rahega)" : ""}</span>
+        {editing && bk.date ? <b>{fmtD(bk.date)} · {fmtT(bk.time)} IST</b> : next === undefined ? <b>Slot dhoondh rahe hain…</b>
           : next ? <b>{fmtD(next.date)} · {fmtT(next.time)} IST</b>
           : <b className="rf-err">Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545 (Booking ID {bid}).</b>}
       </div>
-      {next && <p className="rf-hint">{bk.tier === "urgent"
+      {next && !editing && <p className="rf-hint">{bk.tier === "urgent"
         ? "⚡ Urgent booking: 48 ghante ke andar ka slot aapke liye rakha gaya hai."
         : "Aapka appointment payment ke 7–10 din ke andar ka sabse pehla khaali slot hai."} Form submit karte hi final slot aur Google Meet link email par aa jayega.</p>}
 
       <div className={S(0)}>
         <h2 className="rf-sec first">Aapki Details</h2>
         <div className="rf-2">
-        <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={bk.name} autoComplete="name" /></Field>
-        <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga."><input className="rf-in" name="phone" type="tel" defaultValue={bk.phone} autoComplete="tel" /></Field>
-        <Field label="Email ID" req hint="Google Meet link aur schedule isi email par aayega. Email OTP se verify karein."><EmailVerify defaultValue={/@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} onChange={setEmailOk} /></Field>
-        <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
-        <Field label="Date of Birth" hint="Pata ho toh chunein, warna skip."><DateField p="dob" /></Field>
-        <Field label="Birth Time" hint="Pata ho toh clock se chunein, warna skip."><ClockField p="tob" /></Field>
+        <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={editing ? raw.name : bk.name} autoComplete="name" /></Field>
+        <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga."><input className="rf-in" name="phone" type="tel" defaultValue={editing ? raw.phone : bk.phone} autoComplete="tel" /></Field>
+        <Field label="Email ID" req hint="Google Meet link aur schedule isi email par aayega. Email OTP se verify karein."><EmailVerify key={editing ? "edit" : "new"} defaultValue={editing ? raw.email : /@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} preVerified={editing} onChange={setEmailOk} /></Field>
+        <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" defaultValue={raw.place} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
+        <Field label="Date of Birth" hint="Pata ho toh chunein, warna skip."><DateField p="dob" init={{ d: raw.dobd, m: raw.dobm, y: raw.doby }} /></Field>
+        <Field label="Birth Time" hint="Pata ho toh clock se chunein, warna skip."><ClockField p="tob" init={{ h: raw.tobh, min: raw.tobmin, ap: raw.tobap }} /></Field>
         </div>
-        <Field label="Your One Clear Photo" req hint="Face reading analysis ke liye."><FileDrop name="photo1" onChange={setPhoto1} /></Field>
+        <Field label="Your One Clear Photo" req={!editing} hint={editing ? "Pehle wali photo rahegi — badalni ho tabhi nayi upload karein." : "Face reading analysis ke liye."}><FileDrop name="photo1" onChange={setPhoto1} /></Field>
       </div>
 
       <div className={S(1)}>
@@ -156,15 +179,15 @@ export default function ReadingForm() {
           {[...CONCERNS, ["✍️", "Other"] as [string, string]].map(([ic, c]) => (
             <label key={c} className={concern === c ? "on" : ""}><input type="radio" name="concern" value={c} checked={concern === c} onChange={() => { setConcern(c); if (needsPartner(c)) setP2(true); }} /><span>{ic}</span>{c === "Other" ? "Other (khud likhein)" : c}</label>))}
         </div>
-        {concern === "Other" && <input className="rf-in" name="concernOther" placeholder="Apni wajah likhein" style={{ marginTop: 10 }} />}
-        <Field label="Kuch aur batana chahte hain? (optional)"><textarea className="rf-in" name="notes" rows={3} placeholder="Jaise: date/time ka koi hissa pata nahi, ya kuch aur." /></Field>
+        {concern === "Other" && <input className="rf-in" name="concernOther" defaultValue={raw.concernOther} placeholder="Apni wajah likhein" style={{ marginTop: 10 }} />}
+        <Field label="Kuch aur batana chahte hain? (optional)"><textarea className="rf-in" name="notes" defaultValue={raw.notes} rows={3} placeholder="Jaise: date/time ka koi hissa pata nahi, ya kuch aur." /></Field>
       </div>
 
       <div className={S(2)}>
         <h2 className="rf-sec first">Kisi Aur Ke Baare Mein? <small>{partner ? "(partner zaroori)" : "(optional)"}</small></h2>
         <p className="rf-hint">Sirf unhi logon ki reading hogi jinki details yahan doge. {partner ? "Aapki wajah partner ke baare mein hai, isliye partner ka naam aur photo zaroori hai. Third person optional hai." : "Nahi chahiye toh seedha Submit dabayein."}</p>
-        <Person n="2" on={p2 || partner} req={partner} toggle={() => { if (p2) delete photoStore.photo2; setP2(!p2); }} />
-        <Person n="3" on={p3} toggle={() => { if (p3) delete photoStore.photo3; setP3(!p3); }} />
+        <Person n="2" init={raw} keepPhoto={editing && bk.edit?.hadPartner} on={p2 || partner} req={partner} toggle={() => { if (p2) delete photoStore.photo2; setP2(!p2); }} />
+        <Person n="3" init={raw} keepPhoto={editing && !!raw.name3} on={p3} toggle={() => { if (p3) delete photoStore.photo3; setP3(!p3); }} />
       </div>
 
       {step === STEPS.length - 1 && <p className="rf-hint" style={{ marginTop: 14 }}>Submit karke aap hamari <a href="https://thedivinetarotonline.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Privacy Policy</a> se sahmat hain. Aapki details aur photos sirf reading ke liye use hoti hain.</p>}
@@ -172,8 +195,8 @@ export default function ReadingForm() {
       <div className="rf-nav">
         {step > 0 && <button type="button" className="btn ghost" onClick={() => go(-1)}>← Back</button>}
         {step < STEPS.length - 1
-          ? <button type="button" className="btn gold" style={{ marginLeft: "auto" }} onClick={() => go(1)}>Next →</button>
-          : <button className="btn gold" disabled={busy || !next} style={{ marginLeft: "auto" }}>{busy ? "Submit ho raha hai…" : "Submit & Confirm ✦"}</button>}
+          ? <button key="next" type="button" className="btn gold" style={{ marginLeft: "auto" }} onClick={(e) => { e.preventDefault(); go(1); }}>Next →</button>
+          : <button key="submit" type="submit" className="btn gold" disabled={busy || (!next && !editing)} style={{ marginLeft: "auto" }}>{busy ? "Submit ho raha hai…" : editing ? "Update karein ✦" : "Submit & Confirm ✦"}</button>}
       </div>
     </form>);
 }
