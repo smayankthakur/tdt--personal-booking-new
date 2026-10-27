@@ -15,6 +15,11 @@ const NO_SLOTS = "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545."
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const tier: Tier = body?.tier === "urgent" ? "urgent" : "standard";
+  // The customer's email, asked in the app before paying (as on the website): the "payment received" mail and the form
+  // link go to it, and it prefills Razorpay Checkout. Optional so older app versions keep working.
+  const customerEmail = String(body?.email || "").trim().toLowerCase().slice(0, 200);
+  if (customerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customerEmail))
+    return NextResponse.json({ error: "Sahi email likhein — form ka link isi par aayega.", code: "email" }, { status: 400 });
   if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET)
     return NextResponse.json({ error: "Payment abhi available nahi hai." }, { status: 503 });
 
@@ -37,7 +42,7 @@ export async function POST(req: Request) {
     if (!heldSlot) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
   }
   const amount = priceFor(tier);
-  await ref.set({ status: "created", tier, amount, heldSlot, origin: "app", createdAt: Date.now() });
+  await ref.set({ status: "created", tier, amount, heldSlot, origin: "app", createdAt: Date.now(), ...(customerEmail ? { customerEmail } : {}) });
 
   const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
   const r = await fetch("https://api.razorpay.com/v1/orders", {
@@ -53,5 +58,5 @@ export async function POST(req: Request) {
   await ref.update({ plinkId: order.id });
   const description = tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs)"
     : `Personal Call Reading${amount < Number(process.env.PRICE_INR || 8500) ? " (Diwali Offer)" : ""}`;
-  return NextResponse.json({ bid, token: sealBid(bid), orderId: order.id, amount: amount * 100, currency: "INR", keyId: process.env.RAZORPAY_KEY_ID, tier, description });
+  return NextResponse.json({ bid, token: sealBid(bid), orderId: order.id, amount: amount * 100, currency: "INR", keyId: process.env.RAZORPAY_KEY_ID, tier, description, email: customerEmail || null });
 }

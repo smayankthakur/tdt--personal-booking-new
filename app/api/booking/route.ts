@@ -22,7 +22,7 @@ export async function GET(req: Request) {
   // Form can be edited for a while after submitting: send the saved answers so the form can be prefilled.
   let edit = null;
   const until = done ? editUntil(d.formAt, d.slot) : 0;
-  if (until > Date.now() && !req.headers.get("x-tdt-booking")) {
+  if (until > Date.now()) { // website (cookie) and app (x-tdt-booking header) alike
     const b = (await db.doc(`bookings/${d.slot}`).get()).data();
     if (b?.bid === bid) {
       const raw = b.raw || rawFromAnswers(b.answers);

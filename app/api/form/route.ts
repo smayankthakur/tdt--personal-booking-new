@@ -29,7 +29,6 @@ export async function POST(req: Request) {
   let cur: any = null;
   if (editing) {
     if (S(f, "mode") !== "edit") return NextResponse.json({ error: "Form pehle hi submit ho chuka hai." }, { status: 409 });
-    if (req.headers.get("x-tdt-booking")) return NextResponse.json({ error: "Edit sirf website se ho sakta hai." }, { status: 409 });
     if (editUntil(b.formAt, b.slot) < Date.now()) return NextResponse.json({ error: "Form edit karne ka time khatam ho gaya. Badlav ke liye WhatsApp karein +91 88281 16545.", code: "edit_closed" }, { status: 409 });
     cur = (await db.doc(`bookings/${b.slot}`).get()).data();
     if (!cur || cur.bid !== bid) return NextResponse.json({ error: "Booking nahi mili." }, { status: 404 });
@@ -77,7 +76,7 @@ export async function POST(req: Request) {
     "Date of birth (D/M/Y)": dob("dob").filter(Boolean).join(" / "), "Place of birth": p1.place, "Birth time": tob("tob"),
     "2nd person name": S(f, "name2"), "2nd DOB": dob("dob2").filter(Boolean).join(" / "), "2nd birth time": tob("tob2"), "2nd place": S(f, "place2"),
     "3rd person name": S(f, "name3"), "3rd DOB": dob("dob3").filter(Boolean).join(" / "), "3rd birth time": tob("tob3"), "3rd place": S(f, "place3"),
-    "Verified": web ? "Email ✓ (OTP)" : "App booking", "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
+    "Verified": web ? "Email ✓ (OTP)" : "Email ✓ (OTP) · App booking", "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
   };
 
   // Raw field values (form names) so the form can be prefilled when the customer edits it later.
