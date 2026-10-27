@@ -3,6 +3,7 @@ import { randomInt } from "crypto";
 import { db } from "@/lib/db";
 import { sendOtpEmail } from "@/lib/mailer";
 import { bidFrom, same, sign } from "@/lib/session";
+import { editUntil } from "@/lib/formEdit";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
 const TTL = 10 * 60 * 1000, COOLDOWN = 45 * 1000, MAX_SENDS_PER_HOUR = 5, MAX_TRIES = 5;
@@ -22,7 +23,9 @@ export async function POST(req: Request) {
   const email = String(body?.email || "").trim().toLowerCase().slice(0, 200);
   if (!EMAIL.test(email)) return err("Sahi email likhein.");
   const orderRef = db.doc(`orders/${bid}`), o = await orderRef.get();
-  if (!o.exists || o.data()!.status !== "paid" || o.data()!.formDone) return err("Yeh booking form ke liye open nahi hai.", 409);
+  // Open for a paid booking whose form is pending, or submitted but still inside its edit window.
+  const od = o.data() || {};
+  if (!o.exists || od.status !== "paid" || (od.formDone && editUntil(od.formAt, od.slot) < Date.now())) return err("Yeh booking form ke liye open nahi hai.", 409);
   const ref = db.doc(`otps/${bid}`), now = Date.now();
 
   if (body?.action === "send") {

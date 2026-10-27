@@ -5,6 +5,7 @@ import ClockField from "./form/ClockField";
 import FileDrop, { photoStore } from "./form/FileDrop";
 import { EmailVerify } from "./form/Verify";
 import { CONCERNS, needsPartner } from "@/lib/concerns";
+import { MAX_WORDS, WORD_FIELDS, limitWords, wordCount } from "@/lib/words";
 
 const STEPS = ["Aap", "Wajah", "Doosre log"];
 const fmtD = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -48,12 +49,22 @@ export default function ReadingForm() {
   const [photo1, setPhoto1] = useState(false), [emailOk, setEmailOk] = useState(false);
   // Edit mode: a submitted form can be changed for 24 h (closes 3 h before the slot); bk.edit carries the saved answers.
   const [editing, setEditing] = useState(false), [note, setNote] = useState("");
+  // 25-word cap on every free-text answer: extra words are cut while typing; notes / "Other" show a counter.
+  const [words, setWords] = useState<Record<string, number>>({});
+  const capWords = (e: React.FormEvent<HTMLFormElement>) => {
+    const t = e.target as HTMLInputElement;
+    if (!WORD_FIELDS.includes(t.name)) return;
+    if (wordCount(t.value) > MAX_WORDS) t.value = limitWords(t.value);
+    setWords((w) => ({ ...w, [t.name]: wordCount(t.value) }));
+  };
+  const Count = ({ n }: { n: string }) => <p className="rf-hint" style={{ textAlign: "right", margin: "4px 0 0" }}>{words[n] || 0}/{MAX_WORDS} shabd</p>;
   const raw: Raw = (editing && bk?.edit?.raw) || {};
   const refresh = () => fetch("/api/booking", { cache: "no-store" }).then((r) => r.json()).then((j) => setBk(j)).catch(() => {});
   const startEdit = () => {
     const r: Raw = bk.edit.raw || {};
     for (const k of ["photo1", "photo2", "photo3"]) delete photoStore[k];
-    setConcern(r.concern || ""); setP2(!!r.name2); setP3(!!r.name3); setEmailOk(true); setPhoto1(false);
+    setConcern(r.concern || ""); setP2(!!r.name2); setP3(!!r.name3); setEmailOk(!!bk.edit.emailVerified); setPhoto1(false);
+    setWords({ notes: wordCount(r.notes || ""), concernOther: wordCount(r.concernOther || "") });
     setStep(0); setErr(""); setDone(null); setEditing(true); window.scrollTo({ top: 0, behavior: "smooth" });
   };
   useEffect(() => { // link from the email: /form#edit
@@ -141,7 +152,7 @@ export default function ReadingForm() {
 
   const S = (i: number) => `step${step === i ? " active" : ""}`;
   return (
-    <form key={editing ? "edit" : "new"} ref={formRef} className="rf-card" onSubmit={submit} noValidate>
+    <form key={editing ? "edit" : "new"} ref={formRef} className="rf-card" onSubmit={submit} onInput={capWords} noValidate>
       <div className="rf-badge">{editing ? "✏️ Edit mode" : "✓ Payment received"}{bk.tier === "urgent" ? " · ⚡ Urgent" : ""}{bid ? ` · ID ${bid}` : ""}</div>
       <h1>{editing ? "Form Edit Karein" : "Personal Reading Form"}</h1>
       {editing && <p className="rf-hint">Jo badalna hai badlein aur neeche <b>Update</b> dabayein. Slot aur Google Meet link same rahenge. <button type="button" className="otp-link" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button></p>}
@@ -165,7 +176,7 @@ export default function ReadingForm() {
         <div className="rf-2">
         <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={editing ? raw.name : bk.name} autoComplete="name" /></Field>
         <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga."><input className="rf-in" name="phone" type="tel" defaultValue={editing ? raw.phone : bk.phone} autoComplete="tel" /></Field>
-        <Field label="Email ID" req hint="Google Meet link aur schedule isi email par aayega. Email OTP se verify karein."><EmailVerify key={editing ? "edit" : "new"} defaultValue={editing ? raw.email : /@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} preVerified={editing} onChange={setEmailOk} /></Field>
+        <Field label="Email ID" req hint="Google Meet link aur schedule isi email par aayega. Email OTP se verify karein."><EmailVerify key={editing ? "edit" : "new"} defaultValue={editing ? raw.email : /@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} preVerified={editing && !!bk.edit?.emailVerified} onChange={setEmailOk} /></Field>
         <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" defaultValue={raw.place} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
         <Field label="Date of Birth" hint="Pata ho toh chunein, warna skip."><DateField p="dob" init={{ d: raw.dobd, m: raw.dobm, y: raw.doby }} /></Field>
         <Field label="Birth Time" hint="Pata ho toh clock se chunein, warna skip."><ClockField p="tob" init={{ h: raw.tobh, min: raw.tobmin, ap: raw.tobap }} /></Field>
@@ -179,8 +190,8 @@ export default function ReadingForm() {
           {[...CONCERNS, ["✍️", "Other"] as [string, string]].map(([ic, c]) => (
             <label key={c} className={concern === c ? "on" : ""}><input type="radio" name="concern" value={c} checked={concern === c} onChange={() => { setConcern(c); if (needsPartner(c)) setP2(true); }} /><span>{ic}</span>{c === "Other" ? "Other (khud likhein)" : c}</label>))}
         </div>
-        {concern === "Other" && <input className="rf-in" name="concernOther" defaultValue={raw.concernOther} placeholder="Apni wajah likhein" style={{ marginTop: 10 }} />}
-        <Field label="Kuch aur batana chahte hain? (optional)"><textarea className="rf-in" name="notes" defaultValue={raw.notes} rows={3} placeholder="Jaise: date/time ka koi hissa pata nahi, ya kuch aur." /></Field>
+        {concern === "Other" && <><input className="rf-in" name="concernOther" defaultValue={raw.concernOther} placeholder={`Apni wajah likhein (max ${MAX_WORDS} shabd)`} style={{ marginTop: 10 }} /><Count n="concernOther" /></>}
+        <Field label="Kuch aur batana chahte hain? (optional)"><textarea className="rf-in" name="notes" defaultValue={raw.notes} rows={3} placeholder={`Jaise: date/time ka koi hissa pata nahi, ya kuch aur. (max ${MAX_WORDS} shabd)`} /><Count n="notes" /></Field>
       </div>
 
       <div className={S(2)}>

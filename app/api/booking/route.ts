@@ -26,7 +26,8 @@ export async function GET(req: Request) {
     const b = (await db.doc(`bookings/${d.slot}`).get()).data();
     if (b?.bid === bid) {
       const raw = b.raw || rawFromAnswers(b.answers);
-      edit = { until, raw: { ...raw, email: b.email || raw.email }, hadPartner: !!(raw.name2 || "").trim() };
+      const em = String(b.email || raw.email || "").toLowerCase();
+      edit = { until, raw: { ...raw, email: em }, hadPartner: !!(raw.name2 || "").trim(), emailVerified: !!em && d.verifiedEmail === em };
     }
   }
   return NextResponse.json({ bid, tier: d.tier || "standard", status: d.status, formDone: done, email: d.email || "", phone: d.phone || "", date, time, meetLink, edit });
