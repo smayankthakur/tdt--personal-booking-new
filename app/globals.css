@@ -1033,3 +1033,13 @@ footer a {
 .vq-topics input { display: none; }
 .vq-topics span { display: inline-block; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--panel-line); font-size: 13px; }
 .vq-topics input:checked + span { border-color: var(--gold); background: rgba(201,162,39,.12); }
+
+/* Price + coupon in the pre-payment popup */
+.pg-price { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 12px 0 6px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.04); }
+.pg-price span { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--ivory-dim); }
+.pg-price b { font-size: 20px; color: var(--gold-soft); }
+.pg-price s { font-size: 14px; color: var(--ivory-dim); font-weight: 400; margin-right: 4px; }
+.pg-price small { font-size: 12px; color: var(--ivory-dim); }
+.pg-coupon { display: flex; gap: 8px; margin-top: 6px; }
+.pg-coupon .rf-in { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: .08em; }
+.pg-coupon .btn { width: auto; padding: 8px 14px; font-size: 13px; }

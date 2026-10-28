@@ -98,6 +98,8 @@ export async function POST(req: Request) {
     "Verified": web ? "Email ✓ (OTP)" : "Email ✓ (OTP) · App booking", "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
   };
 
+  if (b.amount) answers["Price paid"] = `₹${Number(b.amount).toLocaleString("en-IN")}${b.offerName ? ` · ${b.offerName}` : ""}${b.coupon ? ` · coupon ${b.coupon} (−₹${b.discount})` : ""}`;
+
   // Raw field values (form names) so the form can be prefilled when the customer edits it later.
   const raw: Record<string, string> = {};
   f.forEach((v, k) => { if (typeof v === "string" && k !== "mode" && !(video && /^(name|place|dob|tob)[23]|^concern|^notes/.test(k))) raw[k] = v.trim().slice(0, k === "notes" ? 2000 : 300); });

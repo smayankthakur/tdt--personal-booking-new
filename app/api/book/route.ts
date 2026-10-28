@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
-import { HOLD_MS, isTaken, priceFor, type Tier, parseTier } from "@/lib/slots";
+import { HOLD_MS, isTaken, type Tier, parseTier } from "@/lib/slots";
+import { quote } from "@/lib/pricing";
 import { originOf } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
@@ -12,6 +13,9 @@ const NO_SLOTS = "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545."
 // Step 1 of the flow: payment FIRST. Nobody can pay unless a slot is actually free.
 // Standard: the earliest free slot from day 7 after payment (day 7–10) is assigned when the form is submitted.
 // Urgent: an available slot within 48 h is held BEFORE payment, so nobody pays ₹17,000 for a slot that doesn't exist.
+const describe = (tier: Tier, offerName: string | null, coupon: string | null) =>
+  `${tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs)" : tier === "video" ? "Video Call Reading (30 min, 3 questions)" : "Personal Call Reading"}${offerName ? ` (${offerName})` : ""}${coupon ? ` · coupon ${coupon}` : ""}`;
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const tier: Tier = parseTier(body?.tier);
@@ -20,6 +24,9 @@ export async function POST(req: Request) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customerEmail) || /@razorpay\.com$/.test(customerEmail))
     return NextResponse.json({ error: "Sahi email likhein — form ka link isi par aayega.", code: "email" }, { status: 400 });
   const origin = originOf(req); // always return the customer to the domain they are actually on
+  // Price (regular / seasonal offer) and any coupon are computed on the server from /admin's settings.
+  const q = await quote(tier, body?.coupon);
+  if ("error" in q) return NextResponse.json({ error: q.error, code: "coupon" }, { status: 400 });
 
   const bid = randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase(), ref = db.doc(`orders/${bid}`);
   let heldSlot: string | null = null;
@@ -39,15 +46,15 @@ export async function POST(req: Request) {
     });
     if (!heldSlot) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
   }
-  await ref.set({ status: "created", tier, amount: priceFor(tier), heldSlot, origin, customerEmail, createdAt: Date.now() });
+  await ref.set({ status: "created", tier, amount: q.final, regularPrice: q.regular, offerName: q.offerName, coupon: q.coupon, discount: q.discount, heldSlot, origin, customerEmail, createdAt: Date.now() });
 
   const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
   const r = await fetch("https://api.razorpay.com/v1/payment_links", {
     method: "POST", headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      amount: priceFor(tier) * 100, currency: "INR", accept_partial: false,
+      amount: q.final * 100, currency: "INR", accept_partial: false,
       reference_id: bid,
-      description: tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs) — The Divine Tarot" : tier === "video" ? "Video Call Reading (30 min, 3 questions) — The Divine Tarot" : `Personal Call Reading${priceFor(tier) < Number(process.env.PRICE_INR || 8500) ? " (Diwali Offer)" : ""} — The Divine Tarot`,
+      description: `${describe(tier, q.offerName, q.coupon)} — The Divine Tarot`,
       expire_by: Math.floor(Date.now() / 1000) + 30 * 60, notes: { bid, tier },
       customer: { email: customerEmail }, notify: { email: false, sms: false }, // prefill checkout; we send our own mails
       // No booking ID in our own URL: Razorpay adds its signed parameters and /api/pay-return verifies them.

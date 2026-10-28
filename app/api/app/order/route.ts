@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
-import { HOLD_MS, isTaken, priceFor, type Tier, parseTier } from "@/lib/slots";
+import { HOLD_MS, isTaken, type Tier, parseTier } from "@/lib/slots";
+import { quote } from "@/lib/pricing";
 import { sealBid } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
@@ -41,8 +42,10 @@ export async function POST(req: Request) {
     });
     if (!heldSlot) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
   }
-  const amount = priceFor(tier);
-  await ref.set({ status: "created", tier, amount, heldSlot, origin: "app", createdAt: Date.now(), ...(customerEmail ? { customerEmail } : {}) });
+  const q = await quote(tier, body?.coupon); // server-side price: regular / seasonal offer / coupon (from /admin)
+  if ("error" in q) { if (heldSlot) await db.doc(`bookings/${heldSlot}`).delete().catch(() => {}); return NextResponse.json({ error: q.error, code: "coupon" }, { status: 400 }); }
+  const amount = q.final;
+  await ref.set({ status: "created", tier, amount, regularPrice: q.regular, offerName: q.offerName, coupon: q.coupon, discount: q.discount, heldSlot, origin: "app", createdAt: Date.now(), ...(customerEmail ? { customerEmail } : {}) });
 
   const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
   const r = await fetch("https://api.razorpay.com/v1/orders", {
@@ -57,6 +60,7 @@ export async function POST(req: Request) {
   }
   await ref.update({ plinkId: order.id });
   const description = tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs)" : tier === "video" ? "Video Call Reading (30 min, 3 questions)"
-    : `Personal Call Reading${amount < Number(process.env.PRICE_INR || 8500) ? " (Diwali Offer)" : ""}`;
-  return NextResponse.json({ bid, token: sealBid(bid), orderId: order.id, amount: amount * 100, currency: "INR", keyId: process.env.RAZORPAY_KEY_ID, tier, description, email: customerEmail || null });
+    : "Personal Call Reading";
+  const label = `${description}${q.offerName ? ` (${q.offerName})` : ""}${q.coupon ? ` · coupon ${q.coupon}` : ""}`;
+  return NextResponse.json({ bid, token: sealBid(bid), orderId: order.id, amount: amount * 100, currency: "INR", keyId: process.env.RAZORPAY_KEY_ID, tier, description: label, regular: q.regular, coupon: q.coupon, discount: q.discount, email: customerEmail || null });
 }

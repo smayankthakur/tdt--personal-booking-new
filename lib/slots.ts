@@ -1,4 +1,3 @@
-import { OFFER, REGULAR_PRICE, URGENT_PRICE, VIDEO_PRICE, offerActive } from "./offer";
 export type DayCfg = { on: boolean; start: string; end: string };
 export type Tier = "standard" | "urgent" | "video";
 /** standard = 40-min voice call (7–10 days) · urgent = 40-min voice call within 48 h · video = 30-min Google Meet VIDEO call,
@@ -39,11 +38,7 @@ export const DEFAULT_CFG: Cfg = {
 export const LEAD_MS = 12 * 3600 * 1000; // standard: never closer than 12h
 export const HOLD_MS = 35 * 60 * 1000;   // urgent slot held while the customer is on the payment page (link expires in 30 min)
 
-/** Price charged right now (server side). Standard drops to the festival offer price while the offer is on. */
-export const priceFor = (tier: Tier) =>
-  tier === "urgent" ? Number(process.env.PRICE_URGENT_INR || URGENT_PRICE)
-    : tier === "video" ? Number(process.env.PRICE_VIDEO_INR || VIDEO_PRICE)
-    : offerActive() ? OFFER.price : Number(process.env.PRICE_INR || REGULAR_PRICE);
+// Prices, seasonal offer and coupons: lib/pricing.ts (editable from /admin).
 
 const mins = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
 export const istNow = () => new Date(Date.now() + 330 * 60000);

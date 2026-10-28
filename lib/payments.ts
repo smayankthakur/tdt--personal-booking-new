@@ -1,3 +1,4 @@
+import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./db";
 import { sendPaymentReceived } from "./mailer";
 import { slotMs } from "./slots";
@@ -19,7 +20,9 @@ export async function markPaid(bid: string, plinkId: string, paymentId: string |
     if (d.status !== "created") return null; // already handled
     // Urgent: keep the slot that was held during payment reserved for this customer until the form is filled.
     const hRef = d.heldSlot ? db.doc(`bookings/${d.heldSlot}`) : null, h = hRef ? await tx.get(hRef) : null;
+    const cRef = d.coupon ? db.doc(`coupons/${d.coupon}`) : null, c = cRef ? await tx.get(cRef) : null;
     tx.update(ref, { status: "paid", paymentId, email: realEmail(d.customerEmail, email) || email, phone, paidAt });
+    if (cRef && c?.exists) tx.update(cRef, { used: FieldValue.increment(1) }); // a coupon counts as used only once paid
     if (hRef && h?.exists && h.data()!.bid === bid && h.data()!.status === "held") {
       const [sd, st] = String(d.heldSlot).split("T");
       tx.update(hRef, { holdUntil: slotMs(sd, st) });

@@ -5,7 +5,7 @@ const td = { padding: "3px 14px 3px 0", opacity: 0.7, verticalAlign: "top", whit
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function Admin() {
-  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"book" | "pay" | "slots">("book"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
+  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"book" | "pay" | "slots" | "price">("book"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
   const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [who, setWho] = useState(""), [busy, setBusy] = useState(false);
   const SKEY = "tdt_admin";
   useEffect(() => { // keep the session across refreshes in this tab only
@@ -30,6 +30,20 @@ export default function Admin() {
     if (!r.ok) return setMsg("Load nahi hua");
     const j = await r.json(); setCfg(j.cfg); setRows(j.bookings); setOrders(j.orders || []); setMissing(j.missingEnv || []); setMsg("");
   };
+  // ---- Prices, seasonal offer, coupons (/api/admin/pricing) ----
+  const TIERS = [["standard", "Voice Call (40 min)"], ["urgent", "Urgent Voice (48 hrs)"], ["video", "Video Call (30 min)"]] as const;
+  const [pricing, setPricing] = useState<any>(null), [coupons, setCoupons] = useState<any[]>([]), [pmsg, setPmsg] = useState(""), [delCode, setDelCode] = useState("");
+  const [nc, setNc] = useState<any>({ code: "", type: "percent", value: "", tiers: ["standard", "urgent", "video"], expires: "", maxUses: "" });
+  const papi = (method: string, body?: object, q = "") => fetch(`/api/admin/pricing${q}`, { method, headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => { if (r.status === 401) logout(); return r.json(); });
+  const loadPricing = async () => { const j = await papi("GET"); if (j.pricing) { setPricing(j.pricing); setCoupons(j.coupons || []); } };
+  const savePricing = async () => { setPmsg("Save ho raha hai…"); const j = await papi("PUT", pricing); setPmsg(j.ok ? "Saved ✓ — website par 1 minute ke andar dikhega" : j.error || "Save nahi hua"); if (j.pricing) setPricing(j.pricing); };
+  const createCoupon = async () => { setPmsg(""); const j = await papi("POST", { ...nc, value: Number(nc.value), maxUses: nc.maxUses ? Number(nc.maxUses) : null, expires: nc.expires || null }); if (j.ok) { setPmsg(`Coupon ${j.coupon.code} ban gaya ✓`); setNc({ ...nc, code: "", value: "", maxUses: "", expires: "" }); loadPricing(); } else setPmsg(j.error || "Coupon nahi bana"); };
+  const deleteCoupon = async (code: string) => { const j = await papi("DELETE", undefined, `?code=${encodeURIComponent(code)}`); setDelCode(""); setPmsg(j.ok ? `Coupon ${code} delete ho gaya` : j.error || "Delete nahi hua"); loadPricing(); };
+  const setPrice = (t: string, v: string) => setPricing({ ...pricing, prices: { ...pricing.prices, [t]: v } });
+  const setOffer = (o: object) => setPricing({ ...pricing, offer: { ...pricing.offer, ...o } });
+  const setOfferPrice = (t: string, v: string) => setOffer({ prices: { ...pricing.offer.prices, [t]: v === "" ? null : v } });
+  const today = new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
+
   const retry = async (slot: string) => {
     setNote("Try ho raha hai…");
     const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify({ slot }) });
@@ -76,14 +90,63 @@ export default function Admin() {
   return (
     <div style={{ maxWidth: 900, margin: "40px auto", padding: 20 }}>
       <div style={{ display: "flex", gap: 8, margin: "0 0 20px", borderBottom: "1px solid #555", flexWrap: "wrap" }}>
-        {([["book", `Confirmed bookings (${rows.length})`], ["pay", `Payment status (${orders.length})`], ["slots", "Slots settings"]] as const).map(([k, l]) => (
-          <button key={k} onClick={() => setTab(k)} style={{ padding: "10px 16px", background: "transparent", border: 0, borderBottom: tab === k ? "2px solid #c9a227" : "2px solid transparent", color: tab === k ? "#c9a227" : "inherit", font: "inherit", fontWeight: tab === k ? 700 : 400, cursor: "pointer" }}>{l}</button>))}
+        {([["book", `Confirmed bookings (${rows.length})`], ["pay", `Payment status (${orders.length})`], ["slots", "Slots settings"], ["price", "Price & Offers"]] as const).map(([k, l]) => (
+          <button key={k} onClick={() => { setTab(k); if (k === "price") loadPricing(); }} style={{ padding: "10px 16px", background: "transparent", border: 0, borderBottom: tab === k ? "2px solid #c9a227" : "2px solid transparent", color: tab === k ? "#c9a227" : "inherit", font: "inherit", fontWeight: tab === k ? 700 : 400, cursor: "pointer" }}>{l}</button>))}
         <button onClick={load} style={{ marginLeft: "auto", padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>↻ Refresh</button>
         <span style={{ alignSelf: "center", fontSize: 12, opacity: 0.7 }}>{who}</span>
         <button onClick={logout} style={{ padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>Logout</button>
         <button onClick={invite} title="Jin upcoming bookings ko abhi tak Google Calendar invite nahi gaya, unhe bhejein" style={{ padding: "6px 12px", background: "transparent", border: "1px solid #c9a227", borderRadius: 8, color: "#c9a227", cursor: "pointer" }}>📅 Upcoming ko invite bhejo</button>
         <button onClick={editLinks} title="Jinhone pichhle 24 ghante mein form bhara, unhe form edit ka link email karein (ek baar)" style={{ padding: "6px 12px", background: "transparent", border: "1px solid #8b5cf6", borderRadius: 8, color: "#8b5cf6", cursor: "pointer" }}>✏️ Edit link bhejo (24h)</button>
       </div>
+      {tab === "price" && (<div>
+      {!pricing ? <p>Load ho raha hai…</p> : (<>
+        <h3>Reading prices (₹)</h3>
+        <table style={{ borderCollapse: "collapse" }}><tbody>
+          <tr><td style={td}></td><td style={td}>Regular price</td><td style={td}>Seasonal offer price <small>(khaali = offer nahi)</small></td></tr>
+          {TIERS.map(([t, l]) => (
+            <tr key={t}><td style={td}>{l}</td>
+              <td style={{ padding: "4px 12px 4px 0" }}><input type="number" min={100} value={pricing.prices[t] ?? ""} onChange={(e) => setPrice(t, e.target.value)} style={{ ...box, width: 120 }} /></td>
+              <td style={{ padding: "4px 0" }}><input type="number" min={100} value={pricing.offer.prices?.[t] ?? ""} onChange={(e) => setOfferPrice(t, e.target.value)} style={{ ...box, width: 120 }} placeholder="—" /></td></tr>))}
+        </tbody></table>
+        <h3 style={{ marginTop: 24 }}>Seasonal discount / offer</h3>
+        <p><label><input type="checkbox" checked={!!pricing.offer.on} onChange={(e) => setOffer({ on: e.target.checked })} /> Offer chalu hai</label></p>
+        <p style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          Naam: <input value={pricing.offer.name || ""} onChange={(e) => setOffer({ name: e.target.value })} placeholder="Diwali Offer" style={{ ...box, width: 180 }} />
+          Se: <input type="date" value={pricing.offer.from || ""} onChange={(e) => setOffer({ from: e.target.value })} style={box} />
+          Tak: <input type="date" value={pricing.offer.until || ""} onChange={(e) => setOffer({ until: e.target.value })} style={box} />
+        </p>
+        <p style={{ fontSize: 13, opacity: 0.7 }}>Offer sirf in dates ke beech (India time) lagta hai, aur sirf un readings par jinka offer price bhara hai. End date ke baad regular price apne aap lag jaata hai.</p>
+        <button className="btn gold" onClick={savePricing}>Save prices &amp; offer</button>
+
+        <h3 style={{ marginTop: 32 }}>Coupons</h3>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", border: "1px solid #555", borderRadius: 10, padding: 12 }}>
+          <input value={nc.code} onChange={(e) => setNc({ ...nc, code: e.target.value.toUpperCase().replace(/\s/g, "") })} placeholder="CODE (jaise SAVE10)" style={{ ...box, width: 170 }} />
+          <select value={nc.type} onChange={(e) => setNc({ ...nc, type: e.target.value })} style={box}><option value="percent">% off</option><option value="flat">₹ off</option></select>
+          <input type="number" value={nc.value} onChange={(e) => setNc({ ...nc, value: e.target.value })} placeholder={nc.type === "percent" ? "10" : "500"} style={{ ...box, width: 90 }} />
+          {TIERS.map(([t, l]) => <label key={t} style={{ fontSize: 13 }}><input type="checkbox" checked={nc.tiers.includes(t)} onChange={(e) => setNc({ ...nc, tiers: e.target.checked ? [...nc.tiers, t] : nc.tiers.filter((x: string) => x !== t) })} /> {l}</label>)}
+          <span style={{ fontSize: 13 }}>Expiry:</span><input type="date" min={today} value={nc.expires} onChange={(e) => setNc({ ...nc, expires: e.target.value })} style={box} />
+          <input type="number" min={1} value={nc.maxUses} onChange={(e) => setNc({ ...nc, maxUses: e.target.value })} placeholder="Max uses (khaali = unlimited)" style={{ ...box, width: 210 }} />
+          <button className="btn gold" onClick={createCoupon} disabled={!nc.code || !nc.value}>+ Coupon banao</button>
+        </div>
+        {pmsg && <p style={{ border: "1px solid #555", borderRadius: 8, padding: 10, fontSize: 14 }}>{pmsg}</p>}
+        {!coupons.length ? <p style={{ opacity: 0.7 }}>Abhi koi coupon nahi hai.</p> : (
+          <table style={{ borderCollapse: "collapse", width: "100%", marginTop: 12, fontSize: 14 }}><tbody>
+            <tr>{["Code", "Discount", "Readings", "Expiry", "Used", ""].map((h) => <td key={h} style={td}>{h}</td>)}</tr>
+            {coupons.map((c) => { const expired = c.expires && c.expires < today, full = c.maxUses && c.used >= c.maxUses; return (
+              <tr key={c.code} style={{ borderTop: "1px solid #555", opacity: expired || full ? 0.55 : 1 }}>
+                <td style={{ padding: "8px 12px 8px 0" }}><b>{c.code}</b>{expired ? " (expired)" : full ? " (limit poori)" : ""}</td>
+                <td>{c.type === "percent" ? `${c.value}%` : `₹${c.value}`} off</td>
+                <td>{(c.tiers || []).map((t: string) => TIERS.find(([k]) => k === t)?.[1]).join(", ")}</td>
+                <td>{c.expires || "—"}</td>
+                <td>{c.used || 0}{c.maxUses ? ` / ${c.maxUses}` : ""}</td>
+                <td style={{ textAlign: "right" }}>{delCode === c.code
+                  ? <><button onClick={() => deleteCoupon(c.code)} style={{ padding: "4px 10px", background: "#c0392b", border: 0, borderRadius: 6, color: "#fff", cursor: "pointer" }}>Pakka delete?</button> <button onClick={() => setDelCode("")} style={{ padding: "4px 10px", background: "transparent", border: "1px solid #555", borderRadius: 6, color: "inherit", cursor: "pointer" }}>Nahi</button></>
+                  : <button onClick={() => setDelCode(c.code)} style={{ padding: "4px 10px", background: "transparent", border: "1px solid #f66", borderRadius: 6, color: "#f66", cursor: "pointer" }}>Delete</button>}</td>
+              </tr>); })}
+          </tbody></table>)}
+        <p style={{ fontSize: 13, opacity: 0.7, marginTop: 12 }}>Coupon offer price ke upar lagta hai. Koi bhi price ₹100 se kam nahi hoti. Coupon ka "used" sirf payment hone par badhta hai.</p>
+      </>)}
+      </div>)}
       {tab === "slots" && (<div>
       <p style={{ margin: "0 0 14px" }}>Booking dates: <input type="date" value={cfg.fromDate || ""} onChange={(e) => setCfg({ ...cfg, fromDate: e.target.value })} style={box} /> se <input type="date" value={cfg.toDate || ""} onChange={(e) => setCfg({ ...cfg, toDate: e.target.value })} style={box} /> tak (normal + urgent dono)</p>
       <h3>Normal booking — days &amp; time (India time)</h3>
@@ -129,7 +192,7 @@ export default function Admin() {
               {o.tier === "urgent" && <b style={{ color: "#c9a227" }}>⚡ Urgent</b>}{o.tier === "video" && <b style={{ color: "#8b5cf6" }}>🎥 Video</b>}
               <span>{o.name || "-"}</span><span>{o.email || "-"}</span><span>{o.phone || "-"}</span>
               {o.slot && <span>Slot {o.slot.replace("T", " ")}</span>}
-              <span style={{ opacity: 0.6 }}>{new Date(o.paidAt || o.createdAt).toLocaleString("en-IN")} · ID {o.bid}{o.paymentId ? ` · ${o.paymentId}` : ""}</span>
+              <span style={{ opacity: 0.6 }}>{new Date(o.paidAt || o.createdAt).toLocaleString("en-IN")} · ID {o.bid}{o.paymentId ? ` · ${o.paymentId}` : ""}{o.amount ? ` · ₹${Number(o.amount).toLocaleString("en-IN")}` : ""}{o.coupon ? ` · 🎟 ${o.coupon}` : ""}</span>
               {o.status === "paid" && !o.formDone && <button onClick={() => resume(o.bid)} style={{ padding: "3px 10px", background: "transparent", border: "1px solid #e8a33d", borderRadius: 6, color: "#e8a33d", cursor: "pointer", fontSize: 13 }}>Form link banao</button>}
             </div>); })}
         </>);

@@ -5,7 +5,8 @@ import BookingWidget from "@/components/BookingWidget";
 import StickyBook from "@/components/StickyBook";
 import PayButton from "@/components/PayButton";
 import ResumeBanner from "@/components/ResumeBanner";
-import { OFFER, REGULAR_PRICE, URGENT_PRICE, VIDEO_PRICE, inr } from "@/lib/offer";
+import { inr } from "@/lib/offer";
+import type { PublicPrice } from "@/lib/pricing";
 
 
 /** Fades an element up into view the first time it scrolls into the viewport. */
@@ -57,7 +58,11 @@ const NAV = [
 ] as const;
 const ASK_URL = "https://reading.thedivinetarotonline.com/";
 
-export default function Landing({ offer }: { offer: boolean }) {
+/** Prices + seasonal offer come from /admin (lib/pricing.ts), passed in by app/page.tsx. */
+type Prices = { standard: PublicPrice; urgent: PublicPrice; video: PublicPrice };
+const untilText = (d?: string | null) => (d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "");
+
+export default function Landing({ pricing }: { pricing: Prices }) {
   const [menu, setMenu] = useState(false); // phone/tablet hamburger menu
   useEffect(() => {
     if (!menu) return;
@@ -65,7 +70,11 @@ export default function Landing({ offer }: { offer: boolean }) {
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, [menu]);
-  const price = inr(offer ? OFFER.price : REGULAR_PRICE), regular = inr(REGULAR_PRICE), urgent = inr(URGENT_PRICE), videoPrice = inr(VIDEO_PRICE);
+  const std = pricing.standard, offer = !!std.offerName;
+  const OFFER = { name: std.offerName || "", price: std.price, untilText: untilText(std.offerUntil) };
+  const price = inr(std.price), regular = inr(std.regular), urgent = inr(pricing.urgent.price), videoPrice = inr(pricing.video.price);
+  const anyOffer = (["standard", "urgent", "video"] as const).find((t) => pricing[t].offerName), offerName = anyOffer ? pricing[anyOffer].offerName : null;
+  const old = (p: PublicPrice) => (p.offerName ? <s className="old-price">{inr(p.regular)}</s> : null);
   return (
     <>
       <ResumeBanner />
@@ -138,7 +147,7 @@ export default function Landing({ offer }: { offer: boolean }) {
             <div className="hero-price">
               <div className="hp-amount">
                 {offer && <s className="old-price">{regular}</s>}
-                <strong>{offer ? OFFER.price : REGULAR_PRICE} <small className="rs-only">Rs only</small></strong>
+                <strong>{std.price} <small className="rs-only">Rs only</small></strong>
               </div>
               <ul className="hp-lines">
                 {offer && <li className="offer-tag">🪔 {OFFER.name}</li>}
@@ -149,8 +158,8 @@ export default function Landing({ offer }: { offer: boolean }) {
             </div>
             <div className="hero-actions">
               <PayButton label={`Book Now — ${price}`} />
-              <PayButton tier="urgent" className="btn ghost" label={`For Urgent Reading (within 48 Hours) = ${URGENT_PRICE}/- Rs only`} />
-              <PayButton tier="video" className="btn ghost" label={`🎥 Video Call Reading (30 min) = ${VIDEO_PRICE}/- Rs only`} />
+              <PayButton tier="urgent" className="btn ghost" label={`For Urgent Reading (within 48 Hours) = ${pricing.urgent.price}/- Rs only`} />
+              <PayButton tier="video" className="btn ghost" label={`🎥 Video Call Reading (30 min) = ${pricing.video.price}/- Rs only`} />
             </div>
             <div className="hero-stats">
               <div>
@@ -201,10 +210,11 @@ export default function Landing({ offer }: { offer: boolean }) {
 
             <Reveal delay={130}>
               <div className="price-card urgent">
+                {pricing.urgent.offerName && <div className="offer-ribbon">🪔 {pricing.urgent.offerName} · Valid till {untilText(pricing.urgent.offerUntil)}</div>}
                 <span className="badge">⚡ Urgent · Within 48 Hours</span>
                 <h3>Urgent Call Reading</h3>
                 <div className="amount">
-                  {urgent}<small>Same 40 min reading — Tarot, Astro, Numero, Face Reading, Kundli Analysis &amp; Psychic</small>
+                  {old(pricing.urgent)}{urgent}<small>Same 40 min reading — Tarot, Astro, Numero, Face Reading, Kundli Analysis &amp; Psychic</small>
                 </div>
 
                 <ul className="feature-list">
@@ -220,10 +230,11 @@ export default function Landing({ offer }: { offer: boolean }) {
 
             <Reveal delay={180}>
               <div className="price-card video">
+                {pricing.video.offerName && <div className="offer-ribbon">🪔 {pricing.video.offerName} · Valid till {untilText(pricing.video.offerUntil)}</div>}
                 <span className="badge">🎥 30 Minutes · Video Call</span>
                 <h3>Video Call Reading</h3>
                 <div className="amount">
-                  {videoPrice}<small>Face-to-face reading on Google Meet video</small>
+                  {old(pricing.video)}{videoPrice}<small>Face-to-face reading on Google Meet video</small>
                 </div>
 
                 <ul className="feature-list">
@@ -270,7 +281,7 @@ export default function Landing({ offer }: { offer: boolean }) {
                     <p>We strictly DO NOT offer any services related to Tantra, Vashikaran, black magic, or any unethical practices. Please do not request such services.</p>
                     <p>We do not provide readings on: legal matters, court cases, share market, lottery, gambling, child gender prediction, or explicit/sexual questions.</p>
                     <p><strong>Appointment timing:</strong> slots run from 12 October to 30 November, every day from 12 PM to 9 PM IST (last slot 9 PM). A standard booking gets the earliest free slot 7–10 days after payment. No appointments are given on festival days (Dussehra, Karwa Chauth, Dhanteras to Bhai Dooj, Chhath Puja and Guru Nanak Jayanti). If you need the reading sooner, book the Urgent reading ({urgent}), which gets a slot within 48 hours of payment.</p>
-                    {offer && <p><strong>{OFFER.name}:</strong> the {price} price applies to payments made till {OFFER.untilText} (IST). After that the regular price of {regular} applies. The Urgent reading is not part of the offer.</p>}
+                    {offerName && <p><strong>{offerName}:</strong> the offer prices shown above apply to payments made till {untilText(pricing[anyOffer!].offerUntil)} (IST). After that the regular prices apply.</p>}
                     <p>Your call takes place on Google Meet at the slot assigned to you — the slot, link and schedule are emailed to you as soon as you submit the form after payment. Please join on time from a stable network; if repeated connection issues occur, the appointment may be cancelled.</p>
                     <p><strong>Late arrival:</strong> we wait a maximum of 5 minutes after your slot starts. If you have not joined the Google Meet by then, the appointment is treated as missed. Once your slot time is over, the appointment cannot be rescheduled, and no refund is given.</p>
                     <p>You may ask about up to 3 people in one reading, only those whose details you submit in the form.</p>

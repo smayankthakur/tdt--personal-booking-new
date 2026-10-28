@@ -1,9 +1,10 @@
 import Landing from "@/components/Landing";
-import { offerActive } from "@/lib/offer";
+import { publicPricing } from "@/lib/pricing";
 
-// Re-rendered every 5 minutes, so the Diwali offer disappears by itself after 30 November.
-export const revalidate = 300;
+// Prices, seasonal offer and coupons are set in /admin. The page re-renders at most every 60 seconds,
+// so a price change shows within a minute (and an offer ends by itself on its end date).
+export const revalidate = 60;
 
-export default function Home() {
-  return <Landing offer={offerActive()} />;
+export default async function Home() {
+  return <Landing pricing={await publicPricing()} />;
 }
