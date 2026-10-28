@@ -1,6 +1,12 @@
-import { OFFER, REGULAR_PRICE, URGENT_PRICE, offerActive } from "./offer";
+import { OFFER, REGULAR_PRICE, URGENT_PRICE, VIDEO_PRICE, offerActive } from "./offer";
 export type DayCfg = { on: boolean; start: string; end: string };
-export type Tier = "standard" | "urgent";
+export type Tier = "standard" | "urgent" | "video";
+/** standard = 40-min voice call (7–10 days) · urgent = 40-min voice call within 48 h · video = 30-min Google Meet VIDEO call,
+ *  one person, up to 3 written questions, slot like standard (7–10 days). All three share the same slot calendar. */
+export const parseTier = (x: unknown): Tier => (x === "urgent" ? "urgent" : x === "video" ? "video" : "standard");
+export const callMinutes = (tier?: string) => (tier === "video" ? 30 : Number(process.env.CALL_MINUTES || 40));
+export const tierLabel = (tier?: string) => (tier === "urgent" ? "URGENT (48 hrs)" : tier === "video" ? "VIDEO CALL (30 min, 3 questions)" : "Standard");
+export const tierTag = (tier?: string) => (tier === "urgent" ? "⚡ URGENT " : tier === "video" ? "🎥 VIDEO " : "");
 export type Cfg = {
   days: Record<string, DayCfg>; duration: number; step: number; advanceDays: number; blocked: string[];
   fromDate: string; toDate: string;                                          // bookings only between these dates (IST, inclusive)
@@ -36,6 +42,7 @@ export const HOLD_MS = 35 * 60 * 1000;   // urgent slot held while the customer 
 /** Price charged right now (server side). Standard drops to the festival offer price while the offer is on. */
 export const priceFor = (tier: Tier) =>
   tier === "urgent" ? Number(process.env.PRICE_URGENT_INR || URGENT_PRICE)
+    : tier === "video" ? Number(process.env.PRICE_VIDEO_INR || VIDEO_PRICE)
     : offerActive() ? OFFER.price : Number(process.env.PRICE_INR || REGULAR_PRICE);
 
 const mins = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };

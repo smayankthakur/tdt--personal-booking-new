@@ -5,7 +5,7 @@ import BookingWidget from "@/components/BookingWidget";
 import StickyBook from "@/components/StickyBook";
 import PayButton from "@/components/PayButton";
 import ResumeBanner from "@/components/ResumeBanner";
-import { OFFER, REGULAR_PRICE, URGENT_PRICE, inr } from "@/lib/offer";
+import { OFFER, REGULAR_PRICE, URGENT_PRICE, VIDEO_PRICE, inr } from "@/lib/offer";
 
 
 /** Fades an element up into view the first time it scrolls into the viewport. */
@@ -65,7 +65,7 @@ export default function Landing({ offer }: { offer: boolean }) {
     window.addEventListener("keydown", esc);
     return () => window.removeEventListener("keydown", esc);
   }, [menu]);
-  const price = inr(offer ? OFFER.price : REGULAR_PRICE), regular = inr(REGULAR_PRICE), urgent = inr(URGENT_PRICE);
+  const price = inr(offer ? OFFER.price : REGULAR_PRICE), regular = inr(REGULAR_PRICE), urgent = inr(URGENT_PRICE), videoPrice = inr(VIDEO_PRICE);
   return (
     <>
       <ResumeBanner />
@@ -150,6 +150,7 @@ export default function Landing({ offer }: { offer: boolean }) {
             <div className="hero-actions">
               <PayButton label={`Book Now — ${price}`} />
               <PayButton tier="urgent" className="btn ghost" label={`For Urgent Reading (within 48 Hours) = ${URGENT_PRICE}/- Rs only`} />
+              <PayButton tier="video" className="btn ghost" label={`🎥 Video Call Reading (30 min) = ${VIDEO_PRICE}/- Rs only`} />
             </div>
             <div className="hero-stats">
               <div>
@@ -174,7 +175,7 @@ export default function Landing({ offer }: { offer: boolean }) {
         <div className="container">
           <Reveal>
             <div className="kicker">Book Now</div>
-            <h2>Voice Call Reading</h2>
+            <h2>Voice &amp; Video Call Reading</h2>
           </Reveal>
 
           <div className="tier-grid">
@@ -214,6 +215,26 @@ export default function Landing({ offer }: { offer: boolean }) {
                 </ul>
 
                 <BookingWidget price={urgent} tier="urgent" />
+              </div>
+            </Reveal>
+
+            <Reveal delay={180}>
+              <div className="price-card video">
+                <span className="badge">🎥 30 Minutes · Video Call</span>
+                <h3>Video Call Reading</h3>
+                <div className="amount">
+                  {videoPrice}<small>Face-to-face reading on Google Meet video</small>
+                </div>
+
+                <ul className="feature-list">
+                  <li>Sirf aapki reading — ek hi person</li>
+                  <li>Sirf 3 specific sawal, form mein likh kar (har sawal 100 characters tak)</li>
+                  <li>Love life, Career ya kisi bhi issue ke baare mein poochein</li>
+                  <li>Appointment payment ke 7–10 din ke andar (12 PM – 9 PM IST) · Google Meet video call</li>
+                  <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
+                </ul>
+
+                <BookingWidget price={videoPrice} tier="video" />
               </div>
             </Reveal>
           </div>

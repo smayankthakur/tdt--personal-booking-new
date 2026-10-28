@@ -126,7 +126,7 @@ export default function Admin() {
           {orders.map((o) => { const [label, col] = st(o); return (
             <div key={o.bid} style={{ borderTop: "1px solid #555", padding: "9px 0", fontSize: 14, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
               <b style={{ color: col, minWidth: 130 }}>{label}</b>
-              {o.tier === "urgent" && <b style={{ color: "#c9a227" }}>⚡ Urgent</b>}
+              {o.tier === "urgent" && <b style={{ color: "#c9a227" }}>⚡ Urgent</b>}{o.tier === "video" && <b style={{ color: "#8b5cf6" }}>🎥 Video</b>}
               <span>{o.name || "-"}</span><span>{o.email || "-"}</span><span>{o.phone || "-"}</span>
               {o.slot && <span>Slot {o.slot.replace("T", " ")}</span>}
               <span style={{ opacity: 0.6 }}>{new Date(o.paidAt || o.createdAt).toLocaleString("en-IN")} · ID {o.bid}{o.paymentId ? ` · ${o.paymentId}` : ""}</span>
@@ -144,7 +144,7 @@ export default function Admin() {
         return (
           <div key={b.slot} style={{ borderTop: "1px solid #555", padding: "10px 0", fontSize: 14, opacity: past ? 0.55 : 1 }}>
             <div onClick={() => setOpenId(open ? "" : b.slot)} style={{ cursor: "pointer", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-              <span>{open ? "▼" : "▶"}</span><b>{d} · {t}</b>{b.tier === "urgent" && <b style={{ color: "#c9a227" }}>⚡ Urgent</b>}<span>{b.name}</span><span>{b.phone}</span>
+              <span>{open ? "▼" : "▶"}</span><b>{d} · {t}</b>{b.tier === "urgent" && <b style={{ color: "#c9a227" }}>⚡ Urgent</b>}{b.tier === "video" && <b style={{ color: "#8b5cf6" }}>🎥 Video</b>}<span>{b.name}</span><span>{b.phone}</span>
               {a["Concern"] && <span style={{ color: "#c9a227" }}>· {a["Concern"]}</span>}
               {b.calendarOk === false && <span style={{ color: "#f66" }}>⚠ Meet link nahi bana</span>}
               {b.clientMailOk === false && <span style={{ color: "#f66" }}>⚠ client mail fail</span>}

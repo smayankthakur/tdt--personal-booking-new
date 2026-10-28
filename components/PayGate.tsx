@@ -12,7 +12,8 @@ const save = (v: string) => { try { localStorage.setItem(KEY, v); } catch {} };
  * Every "Pay / Book" button goes through this: first ask the customer's email (Razorpay often doesn't collect one),
  * then create the payment link with that email and open Razorpay. The email gets the receipt + personal form link.
  */
-export function usePay(tier: "standard" | "urgent", onNoSlots?: () => void) {
+export type PayTier = "standard" | "urgent" | "video";
+export function usePay(tier: PayTier, onNoSlots?: () => void) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [err, setErr] = useState("");
   async function go(email: string) {
     setErr(""); setBusy(true);
@@ -24,11 +25,11 @@ export function usePay(tier: "standard" | "urgent", onNoSlots?: () => void) {
     } catch { setErr("Network error. Dobara try karein."); }
     setBusy(false);
   }
-  const modal = open ? <EmailModal busy={busy} err={err} onClose={() => { if (!busy) { setOpen(false); setErr(""); } }} onSubmit={go} urgent={tier === "urgent"} /> : null;
+  const modal = open ? <EmailModal busy={busy} err={err} onClose={() => { if (!busy) { setOpen(false); setErr(""); } }} onSubmit={go} tier={tier} /> : null;
   return { start: () => { setErr(""); setOpen(true); }, busy, modal };
 }
 
-function EmailModal({ busy, err, onClose, onSubmit, urgent }: { busy: boolean; err: string; onClose: () => void; onSubmit: (email: string) => void; urgent: boolean }) {
+function EmailModal({ busy, err, onClose, onSubmit, tier }: { busy: boolean; err: string; onClose: () => void; onSubmit: (email: string) => void; tier: PayTier }) {
   const [email, setEmail] = useState(load), [local, setLocal] = useState(""), [sugg, setSugg] = useState(""), [asTyped, setAsTyped] = useState("");
   const input = useRef<HTMLInputElement>(null);
   useEffect(() => {
@@ -49,7 +50,7 @@ function EmailModal({ busy, err, onClose, onSubmit, urgent }: { busy: boolean; e
     <div className="pg-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form className="pg-card" onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-labelledby="pg-title">
         <button type="button" className="pg-x" onClick={onClose} aria-label="Close">×</button>
-        <h3 id="pg-title">{urgent ? "⚡ Urgent Reading" : "Personal Reading"} — aapki email</h3>
+        <h3 id="pg-title">{tier === "urgent" ? "⚡ Urgent Reading" : tier === "video" ? "🎥 Video Call Reading" : "Personal Reading"} — aapki email</h3>
         <p>Payment ke baad <b>reading form ka link</b>, aapka <b>slot, Google Meet link</b> aur reminder isi email par aayenge. Dhyan se likhein.</p>
         <input ref={input} className="rf-in" type="email" inputMode="email" autoComplete="email" placeholder="aapka@gmail.com" value={email} onChange={(e) => { setEmail(e.target.value); setSugg(""); }} disabled={busy} />
         {sugg && (

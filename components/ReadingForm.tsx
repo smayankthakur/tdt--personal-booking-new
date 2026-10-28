@@ -4,10 +4,10 @@ import DateField from "./form/DateField";
 import ClockField from "./form/ClockField";
 import FileDrop, { photoStore } from "./form/FileDrop";
 import { EmailVerify } from "./form/Verify";
-import { CONCERNS, needsPartner } from "@/lib/concerns";
+import { CONCERNS, VIDEO_MAX_Q, VIDEO_Q_CHARS, VIDEO_TOPICS, needsPartner } from "@/lib/concerns";
 import { MAX_WORDS, WORD_FIELDS, limitWords, wordCount } from "@/lib/words";
 
-const STEPS = ["Aap", "Wajah", "Doosre log"];
+const VOICE_STEPS = ["Aap", "Wajah", "Doosre log"], VIDEO_STEPS = ["Aap", "Sawal"];
 const fmtD = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const gcalLink = (d: string, t: string, meet: string | null) => {
   const s = Date.parse(`${d}T${t}:00+05:30`), u = (ms: number) => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -53,6 +53,7 @@ export default function ReadingForm() {
   const [words, setWords] = useState<Record<string, number>>({});
   const capWords = (e: React.FormEvent<HTMLFormElement>) => {
     const t = e.target as HTMLInputElement;
+    if (/^q[1-3]$/.test(t.name)) { setWords((w) => ({ ...w, [t.name]: t.value.length })); return; }
     if (!WORD_FIELDS.includes(t.name)) return;
     if (wordCount(t.value) > MAX_WORDS) t.value = limitWords(t.value);
     setWords((w) => ({ ...w, [t.name]: wordCount(t.value) }));
@@ -64,7 +65,7 @@ export default function ReadingForm() {
     const r: Raw = bk.edit.raw || {};
     for (const k of ["photo1", "photo2", "photo3"]) delete photoStore[k];
     setConcern(r.concern || ""); setP2(!!r.name2); setP3(!!r.name3); setEmailOk(!!bk.edit.emailVerified); setPhoto1(false);
-    setWords({ notes: wordCount(r.notes || ""), concernOther: wordCount(r.concernOther || "") });
+    setWords({ notes: wordCount(r.notes || ""), concernOther: wordCount(r.concernOther || ""), q1: (r.q1 || "").length, q2: (r.q2 || "").length, q3: (r.q3 || "").length });
     setStep(0); setErr(""); setDone(null); setEditing(true); window.scrollTo({ top: 0, behavior: "smooth" });
   };
   useEffect(() => { // link from the email: /form#edit
@@ -74,7 +75,9 @@ export default function ReadingForm() {
     if (h === "#edit-expired" || (h === "#edit" && !bk.edit)) setNote("Form edit karne ka time khatam ho gaya hai. Badlav ke liye WhatsApp karein +91 88281 16545.");
     if (h) window.history.replaceState(null, "", "/form");
   }, [bk?.formDone]);
-  const partner = needsPartner(concern);
+  // Video call reading (bk.tier === "video"): one person, up to 3 written questions — steps Aap → Sawal.
+  const video = bk?.tier === "video", STEPS = video ? VIDEO_STEPS : VOICE_STEPS;
+  const partner = !video && needsPartner(concern);
   const formRef = useRef<HTMLFormElement>(null);
   const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setNext(j.next ?? null)).catch(() => setNext(null));
   useEffect(() => { if (bk?.status === "paid" && !bk.formDone && next === undefined) loadSlots(); }, [bk]);
@@ -101,6 +104,13 @@ export default function ReadingForm() {
       if (!val("place")) return bad("Place of Birth likhein.");
       if (!photo1 && !editing) return bad("Apni ek clear photo upload karein.");
     }
+    if (s === 1 && video) {
+      const qs = [1, 2, 3].map((i) => ({ i, text: val(`q${i}`), topic: (formRef.current?.querySelector(`input[name=qt${i}]:checked`) as HTMLInputElement | null)?.value || "" }));
+      if (!qs.some((q) => q.text)) return bad("Kam se kam ek sawal likhein.");
+      const noTopic = qs.find((q) => q.text && !q.topic);
+      if (noTopic) return bad(`Sawal ${noTopic.i} ka topic chunein — Love life, Career ya Koi aur issue.`);
+      return true;
+    }
     if (s === 1 && (!concern || (concern === "Other" && !val("concernOther")))) return bad("Reading ki wajah chunein.");
     if (s === 2 && partner) {
       if (!val("name2")) return bad("Partner ka naam likhein.");
@@ -111,7 +121,7 @@ export default function ReadingForm() {
   const go = (d: number) => { if (d < 0 || valid(step)) { setStep(step + d); window.scrollTo({ top: 0, behavior: "smooth" }); } };
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault(); if (!valid(0) || !valid(1) || !valid(2)) return; setBusy(true);
+    e.preventDefault(); if (!valid(0) || !valid(1) || (!video && !valid(2))) return; setBusy(true);
     const fd = new FormData(e.currentTarget);
     if (editing) fd.set("mode", "edit");
     for (const k of ["photo1", "photo2", "photo3"]) if (photoStore[k]) fd.set(k, photoStore[k]);
@@ -153,7 +163,7 @@ export default function ReadingForm() {
   const S = (i: number) => `step${step === i ? " active" : ""}`;
   return (
     <form key={editing ? "edit" : "new"} ref={formRef} className="rf-card" onSubmit={submit} onInput={capWords} noValidate>
-      <div className="rf-badge">{editing ? "✏️ Edit mode" : "✓ Payment received"}{bk.tier === "urgent" ? " · ⚡ Urgent" : ""}{bid ? ` · ID ${bid}` : ""}</div>
+      <div className="rf-badge">{editing ? "✏️ Edit mode" : "✓ Payment received"}{bk.tier === "urgent" ? " · ⚡ Urgent" : video ? " · 🎥 Video Call (30 min)" : ""}{bid ? ` · ID ${bid}` : ""}</div>
       <h1>{editing ? "Form Edit Karein" : "Personal Reading Form"}</h1>
       {editing && <p className="rf-hint">Jo badalna hai badlein aur neeche <b>Update</b> dabayein. Slot aur Google Meet link same rahenge. <button type="button" className="otp-link" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button></p>}
       <div className="stepper">
@@ -184,6 +194,21 @@ export default function ReadingForm() {
         <Field label="Your One Clear Photo" req={!editing} hint={editing ? "Pehle wali photo rahegi — badalni ho tabhi nayi upload karein." : "Face reading analysis ke liye."}><FileDrop name="photo1" onChange={setPhoto1} /></Field>
       </div>
 
+      {video && (
+      <div className={S(1)}>
+        <h2 className="rf-sec first">Aapke Sawal <small>(max {VIDEO_MAX_Q})</small></h2>
+        <p className="rf-hint">Video call mein <b>sirf aapki</b> reading hogi. Apne {VIDEO_MAX_Q} sawal likhein — har sawal {VIDEO_Q_CHARS} characters tak. Pehla sawal zaroori hai.</p>
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="vq">
+            <label className="rf-label">Sawal {i}{i === 1 && <b> *</b>}</label>
+            <div className="vq-topics">{VIDEO_TOPICS.map((t) => (
+              <label key={t}><input type="radio" name={`qt${i}`} value={t} defaultChecked={raw[`qt${i}`] === t} /><span>{t === "Love life" ? "❤️" : t === "Career" ? "💼" : "🧭"} {t}</span></label>))}</div>
+            <input className="rf-in" name={`q${i}`} maxLength={VIDEO_Q_CHARS} defaultValue={raw[`q${i}`]} placeholder={i === 1 ? "Jaise: Kya meri shaadi is saal hogi?" : "Optional"} />
+            <p className="rf-hint" style={{ textAlign: "right", margin: "4px 0 0" }}>{words[`q${i}`] || 0}/{VIDEO_Q_CHARS}</p>
+          </div>))}
+      </div>)}
+
+      {!video && <>
       <div className={S(1)}>
         <h2 className="rf-sec first">Reading Book Karne Ki Wajah <b>*</b></h2>
         <div className="concerns">
@@ -200,6 +225,7 @@ export default function ReadingForm() {
         <Person n="2" init={raw} keepPhoto={editing && bk.edit?.hadPartner} on={p2 || partner} req={partner} toggle={() => { if (p2) delete photoStore.photo2; setP2(!p2); }} />
         <Person n="3" init={raw} keepPhoto={editing && !!raw.name3} on={p3} toggle={() => { if (p3) delete photoStore.photo3; setP3(!p3); }} />
       </div>
+      </>}
 
       {step === STEPS.length - 1 && <p className="rf-hint" style={{ marginTop: 14 }}>Submit karke aap hamari <a href="https://thedivinetarotonline.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Privacy Policy</a> se sahmat hain. Aapki details aur photos sirf reading ke liye use hoti hain.</p>}
       {err && <p className="rf-err" key={shake} style={{ animation: "shake .4s" }}>{err}</p>}

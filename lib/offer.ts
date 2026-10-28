@@ -7,5 +7,7 @@ export const OFFER = {
 };
 export const REGULAR_PRICE = 8500;
 export const URGENT_PRICE = 17000;
+/** Video call reading: 30 min on Google Meet video, one person, up to 3 written questions. */
+export const VIDEO_PRICE = 7000;
 export const offerActive = (now = Date.now()) => now <= OFFER.until;
 export const inr = (n: number) => "₹" + n.toLocaleString("en-IN");

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
-import { HOLD_MS, isTaken, priceFor, type Tier } from "@/lib/slots";
+import { HOLD_MS, isTaken, priceFor, type Tier, parseTier } from "@/lib/slots";
 import { sealBid } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ const NO_SLOTS = "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545."
 // the form still only opens once the payment is verified (/api/app/verify, or /api/booking asking Razorpay).
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const tier: Tier = body?.tier === "urgent" ? "urgent" : "standard";
+  const tier: Tier = parseTier(body?.tier);
   // The customer's email, asked in the app before paying (as on the website): the "payment received" mail and the form
   // link go to it, and it prefills Razorpay Checkout. Optional so older app versions keep working.
   const customerEmail = String(body?.email || "").trim().toLowerCase().slice(0, 200);
@@ -56,7 +56,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Payment shuru nahi ho paya. Dobara try karein." }, { status: 502 });
   }
   await ref.update({ plinkId: order.id });
-  const description = tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs)"
+  const description = tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs)" : tier === "video" ? "Video Call Reading (30 min, 3 questions)"
     : `Personal Call Reading${amount < Number(process.env.PRICE_INR || 8500) ? " (Diwali Offer)" : ""}`;
   return NextResponse.json({ bid, token: sealBid(bid), orderId: order.id, amount: amount * 100, currency: "INR", keyId: process.env.RAZORPAY_KEY_ID, tier, description, email: customerEmail || null });
 }

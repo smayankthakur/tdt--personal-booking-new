@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       const ref = db.doc(`bookings/${o.slot}`), b = (await ref.get()).data() as any;
       if (!b || b.bid !== d.id || b.status !== "confirmed" || b.editLinkSentAt) continue;
       const [date, time] = String(o.slot).split("T");
-      try { await sendEditLink({ name: b.name, email: b.email, date, time, editUntil: until, editLink: `${originOf(req)}/api/edit?t=${editToken(d.id, until)}` }); await ref.update({ editLinkSentAt: Date.now() }); out.push(`${o.slot.replace("T", " ")} ✓`); }
+      try { await sendEditLink({ name: b.name, email: b.email, date, time, tier: o.tier, editUntil: until, editLink: `${originOf(req)}/api/edit?t=${editToken(d.id, until)}` }); await ref.update({ editLinkSentAt: Date.now() }); out.push(`${o.slot.replace("T", " ")} ✓`); }
       catch (e: any) { out.push(`${o.slot.replace("T", " ")} ✗ ${String(e?.message || e).slice(0, 100)}`); }
     }
     return NextResponse.json({ result: out.length ? `Edit link bheja: ${out.join(" · ")}` : "Koi pending customer nahi (pichhle 24 ghante)." });

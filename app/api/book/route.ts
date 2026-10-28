@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
-import { HOLD_MS, isTaken, priceFor, type Tier } from "@/lib/slots";
+import { HOLD_MS, isTaken, priceFor, type Tier, parseTier } from "@/lib/slots";
 import { originOf } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ const NO_SLOTS = "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545."
 // Urgent: an available slot within 48 h is held BEFORE payment, so nobody pays ₹17,000 for a slot that doesn't exist.
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const tier: Tier = body?.tier === "urgent" ? "urgent" : "standard";
+  const tier: Tier = parseTier(body?.tier);
   // Email asked on the site before payment (Razorpay often stores "void@razorpay.com"): receipt + form link go here.
   const customerEmail = String(body?.email || "").trim().toLowerCase().slice(0, 200);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customerEmail) || /@razorpay\.com$/.test(customerEmail))
@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     body: JSON.stringify({
       amount: priceFor(tier) * 100, currency: "INR", accept_partial: false,
       reference_id: bid,
-      description: tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs) — The Divine Tarot" : `Personal Call Reading${priceFor(tier) < Number(process.env.PRICE_INR || 8500) ? " (Diwali Offer)" : ""} — The Divine Tarot`,
+      description: tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs) — The Divine Tarot" : tier === "video" ? "Video Call Reading (30 min, 3 questions) — The Divine Tarot" : `Personal Call Reading${priceFor(tier) < Number(process.env.PRICE_INR || 8500) ? " (Diwali Offer)" : ""} — The Divine Tarot`,
       expire_by: Math.floor(Date.now() / 1000) + 30 * 60, notes: { bid, tier },
       customer: { email: customerEmail }, notify: { email: false, sms: false }, // prefill checkout; we send our own mails
       // No booking ID in our own URL: Razorpay adds its signed parameters and /api/pay-return verifies them.

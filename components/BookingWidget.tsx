@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { usePay } from "./PayGate";
+import { usePay, type PayTier } from "./PayGate";
 
 const fmt = (n: { date: string; time: string }) => {
   const d = new Date(n.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -8,7 +8,7 @@ const fmt = (n: { date: string; time: string }) => {
   return `${d}, ${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 };
 
-export default function BookingWidget({ price, tier = "standard" }: { price: string; tier?: "standard" | "urgent" }) {
+export default function BookingWidget({ price, tier = "standard" }: { price: string; tier?: PayTier }) {
   const urgent = tier === "urgent";
   const [err, setErr] = useState("");
   // undefined = checking, null = nothing free
@@ -29,7 +29,7 @@ export default function BookingWidget({ price, tier = "standard" }: { price: str
     <div>
       <ol style={{ textAlign: "left", fontSize: 14, lineHeight: 1.9, margin: "0 0 16px 18px" }}>
         <li>Apni email dein aur payment karein</li>
-        <li>Payment ke baad ek form open hoga — fill karke submit karein</li>
+        <li>Payment ke baad ek form open hoga — {tier === "video" ? "apne 3 sawal likh kar" : "fill karke"} submit karein</li>
         <li>Form submit karte hi aapka slot ({urgent ? "48 ghante ke andar" : "7–10 din ke andar"}), Google Meet link aur schedule aapki email par aa jayega</li>
       </ol>
       {!urgent && <p style={{ fontSize: 13, margin: "0 0 12px", color: next ? "#7ee2a8" : "var(--ivory-dim)" }}>
@@ -39,7 +39,7 @@ export default function BookingWidget({ price, tier = "standard" }: { price: str
       </p>}
       {err && <p style={{ color: "#f66" }}>{err}</p>}
       <button className="btn gold" disabled={busy || off} onClick={start} style={{ width: "100%", justifyContent: "center" }}>
-        {busy ? "Payment page khul raha hai…" : urgent ? "Book Now" : `Pay ${price} & Book`}
+        {busy ? "Payment page khul raha hai…" : urgent ? "Book Now" : tier === "video" ? `Pay ${price} & Book Video Call` : `Pay ${price} & Book`}
       </button>
       {modal}
     </div>);

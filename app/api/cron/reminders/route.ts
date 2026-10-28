@@ -37,7 +37,7 @@ export async function GET(req: Request) {
     if (!claimed) continue;
     const b = d.data(), [date, time] = d.id.split("T");
     try {
-      await sendReminder({ name: b.name, email: b.email, bid: b.bid, date, time, meetLink: b.meetLink || null });
+      await sendReminder({ name: b.name, email: b.email, bid: b.bid, date, time, meetLink: b.meetLink || null, tier: b.tier });
       out.push(`${d.id} ✓`);
     } catch (e: any) { // release the claim so the next run (15 min later) retries
       await d.ref.update({ reminderAt: FieldValue.delete(), reminderErr: String(e?.message || e).slice(0, 300) });

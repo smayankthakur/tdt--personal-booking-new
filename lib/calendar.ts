@@ -1,4 +1,4 @@
-import { slotMs } from "./slots";
+import { callMinutes, slotMs, tierLabel, tierTag } from "./slots";
 
 /** Customer + the owner accounts that must be on every event (override with CALENDAR_GUESTS, comma-separated). */
 const guests = (customer: string) =>
@@ -23,14 +23,14 @@ async function googleToken() {
 /** What the CUSTOMER sees in the Google Calendar invite (they now receive it). */
 const describe = (bid: string, phone: string, tier?: string) =>
   [
-    "Aapki Personal Reading — The Divine Tarot.",
+    tier === "video" ? "Aapki Video Call Reading (30 min) — The Divine Tarot. Camera on rakhein, achhi roshni mein baithein. Sirf aapki reading, form wale 3 sawal." : "Aapki Personal Reading — The Divine Tarot.",
     "Slot time par upar diye gaye Google Meet link se join karein (isi email id se). Headphones lagayein.",
     "Sirf 5 minute wait kiya jayega — uske baad appointment miss maani jayegi. Koi refund / reschedule nahi.",
     "Contact / WhatsApp: +91 88281 16545",
     "",
     `Booking ID: ${bid}`,
     `WhatsApp: ${phone}`,
-    `Type: ${tier === "urgent" ? "URGENT (48 hrs)" : "Standard"}`,
+    `Type: ${tierLabel(tier)}`,
   ].join("\n");
 
 /**
@@ -42,13 +42,13 @@ const describe = (bid: string, phone: string, tier?: string) =>
 export async function createMeet(key: string, b: { name: string; email: string; bid: string; phone: string; tier?: string }) {
   const [date, time] = key.split("T");
   const access = await googleToken();
-  const start = slotMs(date, time), end = start + Number(process.env.CALL_MINUTES || 40) * 60000;
+  const start = slotMs(date, time), end = start + callMinutes(b.tier) * 60000;
   const iso = (ms: number) => new Date(ms + 330 * 60000).toISOString().slice(0, 19) + "+05:30";
   const res = await (await fetch(`${EVENTS}?conferenceDataVersion=1&sendUpdates=all`, {
     method: "POST",
     headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      summary: `${b.tier === "urgent" ? "⚡ URGENT " : ""}Personal Reading — ${b.name}`,
+      summary: `${tierTag(b.tier)}Personal Reading — ${b.name}`,
       description: describe(b.bid, b.phone, b.tier),
       start: { dateTime: iso(start), timeZone: "Asia/Kolkata" }, end: { dateTime: iso(end), timeZone: "Asia/Kolkata" },
       attendees: guests(b.email).map((email) => ({ email })),

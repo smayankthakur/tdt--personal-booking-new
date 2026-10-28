@@ -24,3 +24,7 @@ export function e164(raw: string): string {
   if (d.length === 11 && d.startsWith("0")) return "+91" + d.slice(1);
   return d ? "+" + d : "";
 }
+
+/** Video call reading: one person, up to 3 written questions (100 characters each), each tagged with a topic. */
+export const VIDEO_TOPICS = ["Love life", "Career", "Koi aur issue"];
+export const VIDEO_Q_CHARS = 100, VIDEO_MAX_Q = 3;

@@ -952,7 +952,8 @@ footer a {
 @media (max-width: 720px) { .rf-2 { grid-template-columns: 1fr; } .concerns { grid-template-columns: 1fr 1fr; } .rf-card { padding: 18px 16px; } }
 
 /* ---------- two booking options + resume banner ---------- */
-.tier-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; align-items: stretch; max-width: 1000px; margin: 0 auto 32px; }
+.tier-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; align-items: stretch; max-width: 1200px; margin: 0 auto 32px; }
+@media (max-width: 1100px) { .tier-grid { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 860px) { .tier-grid { grid-template-columns: 1fr; } }
 .book-notes-grid.single { grid-template-columns: 1fr; max-width: 1000px; }
 .price-card.urgent { border-color: rgba(201,162,39,.55); background: linear-gradient(160deg, rgba(201,162,39,.10), var(--panel) 55%); }
@@ -1022,3 +1023,13 @@ footer a {
 .pg-sugg .btn { padding: 8px 14px; font-size: 13px; width: auto; }
 .rf-edit { margin: 18px 0 6px; padding: 12px 14px; border: 1px dashed var(--violet-light); border-radius: 12px; text-align: left; font-size: 14px; }
 .rf-edit p { margin: 0 0 10px; }
+
+/* Video call reading */
+.price-card.video { border-color: rgba(139,92,246,.55); background: linear-gradient(160deg, rgba(139,92,246,.12), var(--panel) 55%); }
+.price-card.video .badge { background: rgba(139,92,246,.18); }
+.vq { margin: 16px 0; padding: 12px 14px; border: 1px solid var(--panel-line); border-radius: 12px; }
+.vq-topics { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 10px; }
+.vq-topics label { cursor: pointer; }
+.vq-topics input { display: none; }
+.vq-topics span { display: inline-block; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--panel-line); font-size: 13px; }
+.vq-topics input:checked + span { border-color: var(--gold); background: rgba(201,162,39,.12); }
