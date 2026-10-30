@@ -143,6 +143,17 @@ export default function ReadingForm() {
 
   if ((bk.formDone || done) && !editing) {
     const dd = done?.date || bk.date, tt = done?.time || bk.time, meet = done?.meetLink || bk.meetLink;
+    // One form per payment: once submitted it can only be EDITED inside the edit window. After that this page offers a
+    // NEW booking (new payment + new form) — the old booking is never reopened.
+    const past = !!dd && Date.parse(`${dd}T${tt}:00+05:30`) + 40 * 60000 < Date.now();
+    const newBooking = <a className={`btn ${bk.edit && !past ? "ghost" : "gold"}`} href="/#book" style={{ marginTop: 14 }}>➕ Nayi booking karein</a>;
+    if (past) return (
+      <div className="rf-card rf-success">
+        <h1>Aapki reading ho chuki hai</h1>
+        {dd && <div className="rf-slot"><span>Pichhli booking</span><b>{fmtD(dd)} · {fmtT(tt)} IST</b></div>}
+        <p>Yeh booking poori ho chuki hai. Ek aur reading ke liye nayi booking karein — naya payment aur naya form.</p>
+        {newBooking}
+      </div>);
     return (
       <div className="rf-card rf-success">
         <svg className="ok-tick" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M14 27l8 8 16-17" /></svg>
@@ -152,6 +163,8 @@ export default function ReadingForm() {
         {meet && <a className="btn gold" href={meet} target="_blank" rel="noopener noreferrer">Google Meet Link</a>}
         {bk.edit && <div className="rf-edit"><p>Form mein kuch galat bhar diya? <b>{new Date(bk.edit.until).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} tak</b> edit kar sakte hain. Slot same rahega.</p><button type="button" className="btn ghost" onClick={startEdit}>✏️ Form edit karein</button></div>}
         {note && <p className="rf-err">{note}</p>}
+        {!bk.edit && <p className="rf-hint" style={{ marginTop: 14 }}>Is booking ka form submit ho chuka hai. Ek aur reading chahiye toh nayi booking karein.</p>}
+        {newBooking}
         <div className="rf-remind">
           <b>⏰ Please set a reminder in your calendar or clock so you don't miss your consultation.</b>
           <p>Abhi apne phone ke Calendar ya Alarm mein reminder laga lein. <b>Hum alag se koi reminder call ya message nahi karte.</b></p>
