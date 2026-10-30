@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { adminFrom } from "@/lib/adminAuth";
 import { CODE_RE, MIN_PRICE, TIERS, getPricing, normCode, savePricing, type Coupon, type Pricing } from "@/lib/pricing";
@@ -35,7 +36,9 @@ export async function PUT(req: Request) {
   if (o.on && (!DATE.test(o.from || "") || !DATE.test(o.until || "") || o.from > o.until)) return bad("Offer ki start aur end date sahi bharein.");
   const name = String(o.name || "").trim().slice(0, 40);
   if (o.on && !name) return bad("Offer ka naam likhein (jaise Diwali Offer).");
-  await savePricing({ prices, offer: { on: !!o.on, name, from: o.from || "", until: o.until || "", prices: offerPrices } });
+  const enabled = Object.fromEntries(TIERS.map((t) => [t, b?.enabled?.[t] !== false])) as Pricing["enabled"];
+  await savePricing({ prices, offer: { on: !!o.on, name, from: o.from || "", until: o.until || "", prices: offerPrices }, enabled });
+  revalidatePath("/"); // the landing page shows the new prices / on-off at once
   console.log("pricing saved by", who);
   return NextResponse.json({ ok: true, pricing: await getPricing(true) });
 }

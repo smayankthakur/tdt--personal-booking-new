@@ -75,6 +75,17 @@ export default function Landing({ pricing }: { pricing: Prices }) {
   const price = inr(std.price), regular = inr(std.regular), urgent = inr(pricing.urgent.price), videoPrice = inr(pricing.video.price);
   const anyOffer = (["standard", "urgent", "video"] as const).find((t) => pricing[t].offerName), offerName = anyOffer ? pricing[anyOffer].offerName : null;
   const old = (p: PublicPrice) => (p.offerName ? <s className="old-price">{inr(p.regular)}</s> : null);
+  // Reading types switched on in /admin; the page shows only those (cards, hero buttons, sticky bar).
+  const on = { standard: pricing.standard.enabled, urgent: pricing.urgent.enabled, video: pricing.video.enabled };
+  const count = Number(on.standard) + Number(on.urgent) + Number(on.video);
+  const primary = on.standard ? "standard" : on.video ? "video" : on.urgent ? "urgent" : null; // hero price + sticky bar
+  const HERO = {
+    standard: { mins: "40", kind: "Voice Call Reading", lines: ["40 mins Voice Reading", "Appointment Within 7 - 10 Days"], sticky: "40 min voice call reading" },
+    video: { mins: "30", kind: "Video Call Reading", lines: ["30 mins Video Call (Google Meet)", "Appointment Within 7 - 10 Days"], sticky: "30 min video call reading" },
+    urgent: { mins: "40", kind: "Voice Call Reading", lines: ["40 mins Voice Reading", "Appointment Within 48 Hours"], sticky: "Urgent 40 min voice reading" },
+  } as const;
+  const hp = primary ? pricing[primary] : null, hero = primary ? HERO[primary] : null;
+  const title = (on.standard || on.urgent) && on.video ? <>Voice &amp; Video Call Reading</> : on.video ? <>Video Call Reading</> : <>Voice Call Reading</>;
   return (
     <>
       <ResumeBanner />
@@ -125,7 +136,7 @@ export default function Landing({ pricing }: { pricing: Prices }) {
               alt="Bharti Singh — The Divine Tarot"
               className="hero-media-img"
             />
-            {offer && (
+            {offer && on.standard && (
               <a href="#book" className="diwali-flash" aria-label={`${OFFER.name}: personal reading at just ${price}, valid till ${OFFER.untilText}`}>
                 <b>🪔 {OFFER.name} 🪔</b>
                 <span>Get your Personal Reading <strong>@ Just Rs. {OFFER.price}/- Rs Only</strong></span>
@@ -144,22 +155,23 @@ export default function Landing({ pricing }: { pricing: Prices }) {
               Psychic Ability, Face Analysis, Candle Wax Reading, Kundli Analysis,
               Kundli Milan &amp; a Manifestation Coach.
             </p>
+            {hp && hero ? (
             <div className="hero-price">
               <div className="hp-amount">
-                {offer && <s className="old-price">{regular}</s>}
-                <strong>{std.price} <small className="rs-only">Rs only</small></strong>
+                {hp.offerName && <s className="old-price">{inr(hp.regular)}</s>}
+                <strong>{hp.price} <small className="rs-only">Rs only</small></strong>
               </div>
               <ul className="hp-lines">
-                {offer && <li className="offer-tag">🪔 {OFFER.name}</li>}
-                {offer && <li>Offer Till {OFFER.untilText}</li>}
-                <li>40 mins Voice Reading</li>
-                <li>Appointment Within 7 - 10 Days</li>
+                {hp.offerName && <li className="offer-tag">🪔 {hp.offerName}</li>}
+                {hp.offerName && <li>Offer Till {untilText(hp.offerUntil)}</li>}
+                {hero.lines.map((l) => <li key={l}>{l}</li>)}
               </ul>
             </div>
+            ) : <div className="hero-price closed"><p>Bookings abhi band hain. Jaankari ke liye WhatsApp karein <b>+91 88281 16545</b>.</p></div>}
             <div className="hero-actions">
-              <PayButton label={`Book Now — ${price}`} />
-              <PayButton tier="urgent" className="btn ghost" label={`For Urgent Reading (within 48 Hours) = ${pricing.urgent.price}/- Rs only`} />
-              <PayButton tier="video" className="btn ghost" label={`🎥 Video Call Reading (30 min) = ${pricing.video.price}/- Rs only`} />
+              {on.standard && <PayButton label={`Book Now — ${price}`} />}
+              {on.urgent && <PayButton tier="urgent" className={on.standard ? "btn ghost" : "btn gold"} label={`For Urgent Reading (within 48 Hours) = ${pricing.urgent.price}/- Rs only`} />}
+              {on.video && <PayButton tier="video" className={on.standard || on.urgent ? "btn ghost" : "btn gold"} label={`🎥 Video Call Reading (30 min) = ${pricing.video.price}/- Rs only`} />}
             </div>
             <div className="hero-stats">
               <div>
@@ -167,8 +179,8 @@ export default function Landing({ pricing }: { pricing: Prices }) {
                 <span>Seekers Guided</span>
               </div>
               <div>
-                <strong>40 Min</strong>
-                <span>Voice Call Reading</span>
+                <strong>{hero ? hero.mins : "40"} Min</strong>
+                <span>{hero ? hero.kind : "Call Reading"}</span>
               </div>
               <div>
                 <strong>100%</strong>
@@ -184,11 +196,12 @@ export default function Landing({ pricing }: { pricing: Prices }) {
         <div className="container">
           <Reveal>
             <div className="kicker">Book Now</div>
-            <h2>Voice &amp; Video Call Reading</h2>
+            <h2>{title}</h2>
           </Reveal>
 
-          <div className="tier-grid">
-            <Reveal delay={80}>
+          {count === 0 && <div className="notes-card" style={{ maxWidth: 640, margin: "0 auto 32px", textAlign: "center" }}><p>Abhi koi booking available nahi hai. Jaankari ke liye WhatsApp karein <b>+91 88281 16545</b>.</p></div>}
+          <div className={`tier-grid n${count}`}>
+            {on.standard && <Reveal delay={80}>
               <div className={`price-card${offer ? " offer" : ""}`}>
                 {offer && <div className="offer-ribbon">🪔 {OFFER.name} · Valid till {OFFER.untilText}</div>}
                 <span className="badge">40 Minutes · Voice Call</span>
@@ -206,9 +219,9 @@ export default function Landing({ pricing }: { pricing: Prices }) {
 
                 <BookingWidget price={price} />
               </div>
-            </Reveal>
+            </Reveal>}
 
-            <Reveal delay={130}>
+            {on.urgent && <Reveal delay={130}>
               <div className="price-card urgent">
                 {pricing.urgent.offerName && <div className="offer-ribbon">🪔 {pricing.urgent.offerName} · Valid till {untilText(pricing.urgent.offerUntil)}</div>}
                 <span className="badge">⚡ Urgent · Within 48 Hours</span>
@@ -226,9 +239,9 @@ export default function Landing({ pricing }: { pricing: Prices }) {
 
                 <BookingWidget price={urgent} tier="urgent" />
               </div>
-            </Reveal>
+            </Reveal>}
 
-            <Reveal delay={180}>
+            {on.video && <Reveal delay={180}>
               <div className="price-card video">
                 {pricing.video.offerName && <div className="offer-ribbon">🪔 {pricing.video.offerName} · Valid till {untilText(pricing.video.offerUntil)}</div>}
                 <span className="badge">🎥 30 Minutes · Video Call</span>
@@ -247,7 +260,7 @@ export default function Landing({ pricing }: { pricing: Prices }) {
 
                 <BookingWidget price={videoPrice} tier="video" />
               </div>
-            </Reveal>
+            </Reveal>}
           </div>
 
           <div className="book-notes-grid single">
@@ -360,7 +373,7 @@ export default function Landing({ pricing }: { pricing: Prices }) {
           </span>
         </div>
       </footer>
-      <StickyBook price={price} />
+      {primary && hp && hero && <StickyBook price={inr(hp.price)} tier={primary} label={hero.sticky} />}
     </>
   );
 }

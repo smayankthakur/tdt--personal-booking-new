@@ -1043,3 +1043,10 @@ footer a {
 .pg-coupon { display: flex; gap: 8px; margin-top: 6px; }
 .pg-coupon .rf-in { flex: 1; min-width: 0; text-transform: uppercase; letter-spacing: .08em; }
 .pg-coupon .btn { width: auto; padding: 8px 14px; font-size: 13px; }
+
+/* Reading types switched on/off in /admin: the grid fits however many are shown */
+.tier-grid.n2 { grid-template-columns: 1fr 1fr; max-width: 1000px; }
+.tier-grid.n1 { grid-template-columns: minmax(0, 520px); justify-content: center; }
+.tier-grid.n0 { display: none; }
+@media (max-width: 860px) { .tier-grid.n2, .tier-grid.n1 { grid-template-columns: 1fr; } }
+.hero-price.closed p { margin: 0; color: var(--ivory-dim); }

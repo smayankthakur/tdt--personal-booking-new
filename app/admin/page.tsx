@@ -100,11 +100,14 @@ export default function Admin() {
       </div>
       {tab === "price" && (<div>
       {!pricing ? <p>Load ho raha hai…</p> : (<>
-        <h3>Reading prices (₹)</h3>
+        <h3>Readings: on/off aur prices (₹)</h3>
+        <p style={{ fontSize: 13, opacity: 0.7, marginTop: -6 }}>OFF karne par woh reading website se hat jaati hai (card, buttons, sticky bar) aur uski nayi booking nahi hoti. Pehle se bani bookings par koi asar nahi. "Save" dabana zaroori hai.</p>
         <table style={{ borderCollapse: "collapse" }}><tbody>
-          <tr><td style={td}></td><td style={td}>Regular price</td><td style={td}>Seasonal offer price <small>(khaali = offer nahi)</small></td></tr>
+          <tr><td style={td}></td><td style={td}>Website par</td><td style={td}>Regular price</td><td style={td}>Seasonal offer price <small>(khaali = offer nahi)</small></td></tr>
           {TIERS.map(([t, l]) => (
-            <tr key={t}><td style={td}>{l}</td>
+            <tr key={t} style={{ opacity: pricing.enabled?.[t] === false ? 0.5 : 1 }}><td style={td}>{l}</td>
+              <td style={{ padding: "4px 12px 4px 0" }}><label style={{ display: "inline-flex", gap: 6, alignItems: "center", cursor: "pointer", color: pricing.enabled?.[t] === false ? "#f66" : "#7ee2a8", fontWeight: 600 }}>
+                <input type="checkbox" checked={pricing.enabled?.[t] !== false} onChange={(e) => setPricing({ ...pricing, enabled: { ...pricing.enabled, [t]: e.target.checked } })} />{pricing.enabled?.[t] === false ? "OFF" : "ON"}</label></td>
               <td style={{ padding: "4px 12px 4px 0" }}><input type="number" min={100} value={pricing.prices[t] ?? ""} onChange={(e) => setPrice(t, e.target.value)} style={{ ...box, width: 120 }} /></td>
               <td style={{ padding: "4px 0" }}><input type="number" min={100} value={pricing.offer.prices?.[t] ?? ""} onChange={(e) => setOfferPrice(t, e.target.value)} style={{ ...box, width: 120 }} placeholder="—" /></td></tr>))}
         </tbody></table>
@@ -116,7 +119,8 @@ export default function Admin() {
           Tak: <input type="date" value={pricing.offer.until || ""} onChange={(e) => setOffer({ until: e.target.value })} style={box} />
         </p>
         <p style={{ fontSize: 13, opacity: 0.7 }}>Offer sirf in dates ke beech (India time) lagta hai, aur sirf un readings par jinka offer price bhara hai. End date ke baad regular price apne aap lag jaata hai.</p>
-        <button className="btn gold" onClick={savePricing}>Save prices &amp; offer</button>
+        {pricing.enabled && Object.values(pricing.enabled).every((v) => v === false) && <p style={{ color: "#f66", fontSize: 14 }}>⚠ Saari readings OFF hain — website par "Bookings abhi band hain" dikhega.</p>}
+        <button className="btn gold" onClick={savePricing}>Save on/off, prices &amp; offer</button>
 
         <h3 style={{ marginTop: 32 }}>Coupons</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", border: "1px solid #555", borderRadius: 10, padding: 12 }}>
