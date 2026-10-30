@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     const cur = (await ref.get()).data() || {};
     const sends: number[] = (cur.sends || []).filter((t: number) => now - t < 3600e3);
     if (cur.sentAt && now - cur.sentAt < COOLDOWN) return err(`${Math.ceil((COOLDOWN - (now - cur.sentAt)) / 1000)} second baad dobara bhejein.`, 429);
-    if (sends.length >= MAX_SENDS_PER_HOUR) return err("Bahut zyada OTP bhej diye. Thodi der baad try karein ya WhatsApp karein +91 88281 16545.", 429);
+    if (sends.length >= MAX_SENDS_PER_HOUR) return err("Bahut zyada OTP bhej diye. Thodi der baad dobara try karein.", 429);
     const code = String(randomInt(100000, 1000000));
     await ref.set({ email, hash: hash(bid, email, code), exp: now + TTL, tries: 0, sentAt: now, sends: [...sends, now] });
     try { await sendOtpEmail(email, code); }

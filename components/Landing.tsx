@@ -167,7 +167,7 @@ export default function Landing({ pricing }: { pricing: Prices }) {
                 {hero.lines.map((l) => <li key={l}>{l}</li>)}
               </ul>
             </div>
-            ) : <div className="hero-price closed"><p>Bookings abhi band hain. Jaankari ke liye WhatsApp karein <b>+91 88281 16545</b>.</p></div>}
+            ) : <div className="hero-price closed"><p>Bookings abhi band hain. Jald hi dobara shuru hongi.</p></div>}
             <div className="hero-actions">
               {on.standard && <PayButton label={`Book Now — ${price}`} />}
               {on.urgent && <PayButton tier="urgent" className={on.standard ? "btn ghost" : "btn gold"} label={`For Urgent Reading (within 48 Hours) = ${pricing.urgent.price}/- Rs only`} />}
@@ -199,7 +199,7 @@ export default function Landing({ pricing }: { pricing: Prices }) {
             <h2>{title}</h2>
           </Reveal>
 
-          {count === 0 && <div className="notes-card" style={{ maxWidth: 640, margin: "0 auto 32px", textAlign: "center" }}><p>Abhi koi booking available nahi hai. Jaankari ke liye WhatsApp karein <b>+91 88281 16545</b>.</p></div>}
+          {count === 0 && <div className="notes-card" style={{ maxWidth: 640, margin: "0 auto 32px", textAlign: "center" }}><p>Abhi koi booking available nahi hai. Bookings jald hi dobara shuru hongi.</p></div>}
           <div className={`tier-grid n${count}`}>
             {on.standard && <Reveal delay={80}>
               <div className={`price-card${offer ? " offer" : ""}`}>

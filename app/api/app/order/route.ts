@@ -7,8 +7,8 @@ import { quote } from "@/lib/pricing";
 import { sealBid } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
-const NO_URGENT = "Agle 48 ghante mein koi urgent slot khaali nahi hai. Normal booking karein ya WhatsApp karein: +91 88281 16545.";
-const NO_SLOTS = "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545.";
+const NO_URGENT = "Agle 48 ghante mein koi urgent slot khaali nahi hai. Normal booking karein ya baad mein dobara dekhein.";
+const NO_SLOTS = "Abhi saare slots full hain. Kripya baad mein dobara dekhein.";
 
 // Mobile app (The Divine Tarot app) — step 1: same rules as /api/book, but pays with Razorpay Checkout (an ORDER)
 // inside the app instead of a payment link. Returns the booking token the app sends as the x-tdt-booking header;

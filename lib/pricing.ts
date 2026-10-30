@@ -51,7 +51,7 @@ export const CODE_RE = /^[A-Z0-9-]{3,20}$/;
 /** Checks a coupon for a tier and returns the final amount (never below MIN_PRICE). */
 export async function quote(tier: Tier, rawCode?: unknown): Promise<{ regular: number; price: number; offerName: string | null; coupon: string | null; discount: number; final: number } | { error: string }> {
   const p = await getPricing(), { enabled, ...base } = priceOf(p, tier);
-  if (!enabled) return { error: `${TIER_NAME[tier]} abhi available nahi hai. Doosri reading chunein ya WhatsApp karein +91 88281 16545.` };
+  if (!enabled) return { error: `${TIER_NAME[tier]} abhi available nahi hai. Doosri reading chunein.` };
   const code = normCode(rawCode);
   if (!code) return { ...base, coupon: null, discount: 0, final: base.price };
   if (!CODE_RE.test(code)) return { error: "Yeh coupon code sahi nahi hai." };

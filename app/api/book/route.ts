@@ -7,8 +7,8 @@ import { quote } from "@/lib/pricing";
 import { originOf } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
-const NO_URGENT = "Agle 48 ghante mein koi urgent slot khaali nahi hai. Normal booking karein ya WhatsApp karein: +91 88281 16545.";
-const NO_SLOTS = "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545.";
+const NO_URGENT = "Agle 48 ghante mein koi urgent slot khaali nahi hai. Normal booking karein ya baad mein dobara dekhein.";
+const NO_SLOTS = "Abhi saare slots full hain. Kripya baad mein dobara dekhein.";
 
 // Step 1 of the flow: payment FIRST. Nobody can pay unless a slot is actually free.
 // Standard: the earliest free slot from day 7 after payment (day 7–10) is assigned when the form is submitted.

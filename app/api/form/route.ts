@@ -29,7 +29,7 @@ export async function POST(req: Request) {
   let cur: any = null;
   if (editing) {
     if (S(f, "mode") !== "edit") return NextResponse.json({ error: "Form pehle hi submit ho chuka hai." }, { status: 409 });
-    if (editUntil(b.formAt, b.slot) < Date.now()) return NextResponse.json({ error: "Form edit karne ka time khatam ho gaya. Badlav ke liye WhatsApp karein +91 88281 16545.", code: "edit_closed" }, { status: 409 });
+    if (editUntil(b.formAt, b.slot) < Date.now()) return NextResponse.json({ error: "Form edit karne ka time khatam ho gaya hai.", code: "edit_closed" }, { status: 409 });
     cur = (await db.doc(`bookings/${b.slot}`).get()).data();
     if (!cur || cur.bid !== bid) return NextResponse.json({ error: "Booking nahi mili." }, { status: 404 });
   }
@@ -131,7 +131,7 @@ export async function POST(req: Request) {
   // Urgent: the slot held at payment time (or the next free one within 48 h). The customer never has to pick.
   const tier = parseTier(b.tier);
   const candidates = (await freeSlots({ tier, paidAt: b.paidAt, bid, prefer: b.heldSlot || undefined })).slice(0, 20);
-  const noSlot = () => NextResponse.json({ error: `Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545 (Booking ID ${bid}).`, code: "no_slots" }, { status: 409 });
+  const noSlot = () => NextResponse.json({ error: `Abhi koi slot khaali nahi hai. Aapki booking (ID ${bid}) surakshit hai — hum aapki email par jaankari bhejenge.`, code: "no_slots" }, { status: 409 });
   if (!candidates.length) return noSlot();
   const claimed = await db.runTransaction(async (tx) => {
     const o = await tx.get(orderRef);

@@ -35,7 +35,7 @@ export default function BookingWidget({ price, tier = "standard" }: { price: str
       {!urgent && <p style={{ fontSize: 13, margin: "0 0 12px", color: next ? "#7ee2a8" : "var(--ivory-dim)" }}>
         {next === undefined ? "Slot check ho raha hai…"
           : next ? `✓ ${urgent ? "Urgent slot available" : "Abhi book karne par slot"} — ${fmt(next)} IST`
-          : "Abhi saare slots full hain. WhatsApp karein: +91 88281 16545."}
+          : "Abhi saare slots full hain. Kripya baad mein dobara dekhein."}
       </p>}
       {err && <p style={{ color: "#f66" }}>{err}</p>}
       <button className="btn gold" disabled={busy || off} onClick={start} style={{ width: "100%", justifyContent: "center" }}>

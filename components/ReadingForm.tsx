@@ -72,7 +72,7 @@ export default function ReadingForm() {
     if (!bk?.formDone) return;
     const h = window.location.hash;
     if (h === "#edit" && bk.edit) startEdit();
-    if (h === "#edit-expired" || (h === "#edit" && !bk.edit)) setNote("Form edit karne ka time khatam ho gaya hai. Badlav ke liye WhatsApp karein +91 88281 16545.");
+    if (h === "#edit-expired" || (h === "#edit" && !bk.edit)) setNote("Form edit karne ka time khatam ho gaya hai.");
     if (h) window.history.replaceState(null, "", "/form");
   }, [bk?.formDone]);
   // Video call reading (bk.tier === "video"): one person, up to 3 written questions — steps Aap → Sawal.
@@ -96,7 +96,7 @@ export default function ReadingForm() {
   const bad = (m: string) => { setErr(m); setShake((s) => s + 1); return false; };
   function valid(s: number) {
     setErr("");
-    if (!next && !editing) return bad("Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545.");
+    if (!next && !editing) return bad("Abhi koi slot khaali nahi hai. Aapki booking surakshit hai — hum aapki email par jaankari bhejenge.");
     if (s === 0) {
       if (!val("name")) return bad("Apna poora naam likhein.");
       if (val("phone").replace(/\D/g, "").length < 10) return bad("Sahi WhatsApp number likhein.");
@@ -134,7 +134,7 @@ export default function ReadingForm() {
   }
 
   if (!bk) return <div className="rf-card"><p>Load ho raha hai…</p></div>;
-  if (bk.status === "unknown") return <div className="rf-card"><h1>Pehle payment karein</h1><p>Reading form sirf payment ke baad khulta hai. Agar aapne payment kar diya hai aur form nahi khula, toh WhatsApp karein <b>+91 88281 16545</b> (payment ka screenshot bhejein).</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>Booking page par jayein</a></div>;
+  if (bk.status === "unknown") return <div className="rf-card"><h1>Pehle payment karein</h1><p>Reading form sirf payment ke baad khulta hai. Agar aapne payment kar diya hai, toh payment ke baad aayi email mein diye gaye <b>"Reading Form Bharein"</b> link se form kholein.</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>Booking page par jayein</a></div>;
   if (bk.status === "created" && !waited) return <div className="rf-card"><p>Form load ho raha hai…</p></div>;
   if (bk.status === "created") return <div className="rf-card"><h1>Payment abhi tak nahi mila</h1><p>Agar payment ho chuka hai toh page refresh karein. Nahi hua hai toh dobara payment karein.</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>Payment page par jayein</a></div>;
   if (bk.status !== "paid") return <div className="rf-card"><h1>Payment nahi mila</h1><a className="btn gold" href="/#book">Wapas jayein</a></div>;
@@ -175,7 +175,7 @@ export default function ReadingForm() {
         <span>Aapka slot{editing ? " (same rahega)" : ""}</span>
         {editing && bk.date ? <b>{fmtD(bk.date)} · {fmtT(bk.time)} IST</b> : next === undefined ? <b>Slot dhoondh rahe hain…</b>
           : next ? <b>{fmtD(next.date)} · {fmtT(next.time)} IST</b>
-          : <b className="rf-err">Abhi koi slot khaali nahi hai. WhatsApp karein: +91 88281 16545 (Booking ID {bid}).</b>}
+          : <b className="rf-err">Abhi koi slot khaali nahi hai. Aapki booking (ID {bid}) surakshit hai — hum aapki email par jaankari bhejenge.</b>}
       </div>
       {next && !editing && <p className="rf-hint">{bk.tier === "urgent"
         ? "⚡ Urgent booking: 48 ghante ke andar ka slot aapke liye rakha gaya hai."
