@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { usePay, type PayTier } from "./PayGate";
+import { isQuestionTier, isUrgentTier } from "@/lib/slots";
 
 const fmt = (n: { date: string; time: string }) => {
   const d = new Date(n.date + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
@@ -9,7 +10,7 @@ const fmt = (n: { date: string; time: string }) => {
 };
 
 export default function BookingWidget({ price, tier = "standard" }: { price: string; tier?: PayTier }) {
-  const urgent = tier === "urgent";
+  const urgent = isUrgentTier(tier), questions = isQuestionTier(tier);
   const [err, setErr] = useState("");
   // undefined = checking, null = nothing free
   const [next, setNext] = useState<{ date: string; time: string } | null | undefined>(undefined);
@@ -29,7 +30,7 @@ export default function BookingWidget({ price, tier = "standard" }: { price: str
     <div>
       <ol style={{ textAlign: "left", fontSize: 14, lineHeight: 1.9, margin: "0 0 16px 18px" }}>
         <li>Apni email dein aur payment karein</li>
-        <li>Payment ke baad ek form open hoga — {tier === "video" ? "apne 3 sawal likh kar" : "fill karke"} submit karein</li>
+        <li>Payment ke baad ek form open hoga — {questions ? "apne 3 sawal likh kar" : "fill karke"} submit karein</li>
         <li>Form submit karte hi aapka slot ({urgent ? "48 ghante ke andar" : "7–10 din ke andar"}), Google Meet link aur schedule aapki email par aa jayega</li>
       </ol>
       {!urgent && <p style={{ fontSize: 13, margin: "0 0 12px", color: next ? "#7ee2a8" : "var(--ivory-dim)" }}>

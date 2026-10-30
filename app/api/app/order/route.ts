@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
-import { HOLD_MS, isTaken, type Tier, parseTier } from "@/lib/slots";
+import { HOLD_MS, TIER_INFO, isTaken, isUrgentTier, type Tier, parseTier } from "@/lib/slots";
 import { quote } from "@/lib/pricing";
 import { sealBid } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
@@ -26,9 +26,9 @@ export async function POST(req: Request) {
 
   const bid = randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase(), ref = db.doc(`orders/${bid}`);
   let heldSlot: string | null = null;
-  if (tier === "standard" && !(await freeSlots({ tier })).length)
+  if (!isUrgentTier(tier) && !(await freeSlots({ tier })).length)
     return NextResponse.json({ error: NO_SLOTS, code: "no_slots" }, { status: 409 });
-  if (tier === "urgent") {
+  if (isUrgentTier(tier)) { // urgent readings: a slot within 48 h is held before payment
     const cands = (await freeSlots({ tier })).slice(0, 15);
     if (!cands.length) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
     heldSlot = await db.runTransaction(async (tx) => {
@@ -59,8 +59,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Payment shuru nahi ho paya. Dobara try karein." }, { status: 502 });
   }
   await ref.update({ plinkId: order.id });
-  const description = tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs)" : tier === "video" ? "Video Call Reading (30 min, 3 questions)"
-    : "Personal Call Reading";
+  const description = tier === "standard" ? "Personal Call Reading" : TIER_INFO[tier].name;
   const label = `${description}${q.offerName ? ` (${q.offerName})` : ""}${q.coupon ? ` · coupon ${q.coupon}` : ""}`;
   return NextResponse.json({ bid, token: sealBid(bid), orderId: order.id, amount: amount * 100, currency: "INR", keyId: process.env.RAZORPAY_KEY_ID, tier, description: label, regular: q.regular, coupon: q.coupon, discount: q.discount, email: customerEmail || null });
 }

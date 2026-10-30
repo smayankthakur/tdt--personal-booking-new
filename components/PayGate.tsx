@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { emailTypo } from "@/lib/emailTypo";
+import { TIER_INFO, type Tier } from "@/lib/slots";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const KEY = "tdt_email";
@@ -12,7 +13,7 @@ const save = (v: string) => { try { localStorage.setItem(KEY, v); } catch {} };
  * Every "Pay / Book" button goes through this: first ask the customer's email (Razorpay often doesn't collect one),
  * then create the payment link with that email and open Razorpay. The email gets the receipt + personal form link.
  */
-export type PayTier = "standard" | "urgent" | "video";
+export type PayTier = Tier;
 export function usePay(tier: PayTier, onNoSlots?: () => void) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [err, setErr] = useState("");
   async function go(email: string, coupon?: string) {
@@ -61,7 +62,7 @@ function EmailModal({ busy, err, onClose, onSubmit, tier }: { busy: boolean; err
     <div className="pg-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <form className="pg-card" onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-labelledby="pg-title">
         <button type="button" className="pg-x" onClick={onClose} aria-label="Close">×</button>
-        <h3 id="pg-title">{tier === "urgent" ? "⚡ Urgent Reading" : tier === "video" ? "🎥 Video Call Reading" : "Personal Reading"} — aapki email</h3>
+        <h3 id="pg-title">{tier === "standard" ? "Personal Reading" : TIER_INFO[tier].badge} — aapki email</h3>
         <p>Payment ke baad <b>reading form ka link</b>, aapka <b>slot, Google Meet link</b> aur reminder isi email par aayenge. Dhyan se likhein.</p>
         <input ref={input} className="rf-in" type="email" inputMode="email" autoComplete="email" placeholder="aapka@gmail.com" value={email} onChange={(e) => { setEmail(e.target.value); setSugg(""); }} disabled={busy} />
         {sugg && (

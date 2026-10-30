@@ -23,7 +23,8 @@ async function googleToken() {
 /** What the CUSTOMER sees in the Google Calendar invite (they now receive it). */
 const describe = (bid: string, phone: string, tier?: string) =>
   [
-    tier === "video" ? "Aapki Video Call Reading (30 min) — The Divine Tarot. Camera on rakhein, achhi roshni mein baithein. Sirf aapki reading, form wale 3 sawal." : "Aapki Personal Reading — The Divine Tarot.",
+    tier === "video" ? "Aapki Video Call Reading (30 min) — The Divine Tarot. Camera on rakhein, achhi roshni mein baithein. Sirf aapki reading, form wale 3 sawal."
+      : tier === "q3" || tier === "q3urgent" ? "Aapki 3 Question Call Reading (30 min, voice) — The Divine Tarot. Sirf aapki reading, form wale 3 sawal." : "Aapki Personal Reading — The Divine Tarot.",
     "Slot time par upar diye gaye Google Meet link se join karein (isi email id se). Headphones lagayein.",
     "Sirf 5 minute wait kiya jayega — uske baad appointment miss maani jayegi. Koi refund / reschedule nahi.",
     "Contact / WhatsApp: +91 88281 16545",

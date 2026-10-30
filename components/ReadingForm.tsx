@@ -6,6 +6,7 @@ import FileDrop, { photoStore } from "./form/FileDrop";
 import { EmailVerify } from "./form/Verify";
 import { CONCERNS, VIDEO_MAX_Q, VIDEO_Q_CHARS, VIDEO_TOPICS, needsPartner } from "@/lib/concerns";
 import { MAX_WORDS, WORD_FIELDS, limitWords, wordCount } from "@/lib/words";
+import { TIER_INFO, isQuestionTier, isUrgentTier, parseTier } from "@/lib/slots";
 
 const VOICE_STEPS = ["Aap", "Wajah", "Doosre log"], VIDEO_STEPS = ["Aap", "Sawal"];
 const fmtD = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -76,7 +77,8 @@ export default function ReadingForm() {
     if (h) window.history.replaceState(null, "", "/form");
   }, [bk?.formDone]);
   // Video call reading (bk.tier === "video"): one person, up to 3 written questions — steps Aap → Sawal.
-  const video = bk?.tier === "video", STEPS = video ? VIDEO_STEPS : VOICE_STEPS;
+  // (also the two 3-question voice readings q3 / q3urgent — same form)
+  const video = isQuestionTier(bk?.tier), STEPS = video ? VIDEO_STEPS : VOICE_STEPS;
   const partner = !video && needsPartner(concern);
   const formRef = useRef<HTMLFormElement>(null);
   const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setNext(j.next ?? null)).catch(() => setNext(null));
@@ -163,7 +165,7 @@ export default function ReadingForm() {
   const S = (i: number) => `step${step === i ? " active" : ""}`;
   return (
     <form key={editing ? "edit" : "new"} ref={formRef} className="rf-card" onSubmit={submit} onInput={capWords} noValidate>
-      <div className="rf-badge">{editing ? "✏️ Edit mode" : "✓ Payment received"}{bk.tier === "urgent" ? " · ⚡ Urgent" : video ? " · 🎥 Video Call (30 min)" : ""}{bid ? ` · ID ${bid}` : ""}</div>
+      <div className="rf-badge">{editing ? "✏️ Edit mode" : "✓ Payment received"}{bk.tier && bk.tier !== "standard" ? ` · ${TIER_INFO[parseTier(bk.tier)].badge}` : ""}{bid ? ` · ID ${bid}` : ""}</div>
       <h1>{editing ? "Form Edit Karein" : "Personal Reading Form"}</h1>
       {editing && <p className="rf-hint">Jo badalna hai badlein aur neeche <b>Update</b> dabayein. Slot aur Google Meet link same rahenge. <button type="button" className="otp-link" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button></p>}
       <div className="stepper">
@@ -177,7 +179,7 @@ export default function ReadingForm() {
           : next ? <b>{fmtD(next.date)} · {fmtT(next.time)} IST</b>
           : <b className="rf-err">Abhi koi slot khaali nahi hai. Aapki booking (ID {bid}) surakshit hai — hum aapki email par jaankari bhejenge.</b>}
       </div>
-      {next && !editing && <p className="rf-hint">{bk.tier === "urgent"
+      {next && !editing && <p className="rf-hint">{isUrgentTier(bk.tier)
         ? "⚡ Urgent booking: 48 ghante ke andar ka slot aapke liye rakha gaya hai."
         : "Aapka appointment payment ke 7–10 din ke andar ka sabse pehla khaali slot hai."} Form submit karte hi final slot aur Google Meet link email par aa jayega.</p>}
 
@@ -197,7 +199,7 @@ export default function ReadingForm() {
       {video && (
       <div className={S(1)}>
         <h2 className="rf-sec first">Aapke Sawal <small>(max {VIDEO_MAX_Q})</small></h2>
-        <p className="rf-hint">Video call mein <b>sirf aapki</b> reading hogi. Apne {VIDEO_MAX_Q} sawal likhein — har sawal {VIDEO_Q_CHARS} characters tak. Pehla sawal zaroori hai.</p>
+        <p className="rf-hint">{bk.tier === "video" ? "Video call" : "Is call"} mein <b>sirf aapki</b> reading hogi. Apne {VIDEO_MAX_Q} sawal likhein — har sawal {VIDEO_Q_CHARS} characters tak. Pehla sawal zaroori hai.</p>
         {[1, 2, 3].map((i) => (
           <div key={i} className="vq">
             <label className="rf-label">Sawal {i}{i === 1 && <b> *</b>}</label>

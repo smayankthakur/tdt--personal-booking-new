@@ -1,11 +1,30 @@
 export type DayCfg = { on: boolean; start: string; end: string };
-export type Tier = "standard" | "urgent" | "video";
-/** standard = 40-min voice call (7–10 days) · urgent = 40-min voice call within 48 h · video = 30-min Google Meet VIDEO call,
- *  one person, up to 3 written questions, slot like standard (7–10 days). All three share the same slot calendar. */
-export const parseTier = (x: unknown): Tier => (x === "urgent" ? "urgent" : x === "video" ? "video" : "standard");
-export const callMinutes = (tier?: string) => (tier === "video" ? 30 : Number(process.env.CALL_MINUTES || 40));
-export const tierLabel = (tier?: string) => (tier === "urgent" ? "URGENT (48 hrs)" : tier === "video" ? "VIDEO CALL (30 min, 3 questions)" : "Standard");
-export const tierTag = (tier?: string) => (tier === "urgent" ? "⚡ URGENT " : tier === "video" ? "🎥 VIDEO " : "");
+/**
+ * Reading types. All share ONE slot calendar (a slot is never double-booked across types).
+ *  standard  = 40-min voice call, unlimited questions, up to 3 people, slot day 7–10
+ *  urgent    = same, slot within 48 h (held before payment)
+ *  video     = 30-min Google Meet VIDEO call, one person, 3 written questions, slot day 7–10
+ *  q3        = 30-min voice call, one person, 3 written questions, slot day 7–10
+ *  q3urgent  = same as q3, slot within 48 h (held before payment)
+ * Price and on/off of each type are set in /admin (lib/pricing.ts).
+ */
+export type Tier = "standard" | "urgent" | "video" | "q3" | "q3urgent";
+type Info = { mins: number; urgent: boolean; questions: boolean; video: boolean; name: string; label: string; tag: string; badge: string };
+export const TIER_INFO: Record<Tier, Info> = {
+  standard: { mins: 40, urgent: false, questions: false, video: false, name: "Voice Call (40 min)", label: "Standard", tag: "", badge: "" },
+  urgent: { mins: 40, urgent: true, questions: false, video: false, name: "Urgent Voice Call (48 hrs)", label: "URGENT (48 hrs)", tag: "⚡ URGENT ", badge: "⚡ Urgent" },
+  video: { mins: 30, urgent: false, questions: true, video: true, name: "Video Call (30 min)", label: "VIDEO CALL (30 min, 3 questions)", tag: "🎥 VIDEO ", badge: "🎥 Video Call (30 min)" },
+  q3: { mins: 30, urgent: false, questions: true, video: false, name: "3 Question Voice Call (30 min)", label: "3-QUESTION VOICE CALL (30 min)", tag: "❓ 3Q ", badge: "❓ 3 Sawal · Voice Call (30 min)" },
+  q3urgent: { mins: 30, urgent: true, questions: true, video: false, name: "Urgent 3 Question Voice Call (48 hrs)", label: "URGENT 3-QUESTION VOICE CALL (48 hrs, 30 min)", tag: "⚡❓ URGENT 3Q ", badge: "⚡ Urgent · 3 Sawal · Voice Call (30 min)" },
+};
+export const ALL_TIERS = Object.keys(TIER_INFO) as Tier[];
+export const parseTier = (x: unknown): Tier => (ALL_TIERS.includes(x as Tier) ? (x as Tier) : "standard");
+export const tierInfo = (t?: unknown) => TIER_INFO[parseTier(t)];
+export const isUrgentTier = (t?: unknown) => tierInfo(t).urgent;
+export const isQuestionTier = (t?: unknown) => tierInfo(t).questions;
+export const callMinutes = (tier?: string) => (parseTier(tier) === "standard" || parseTier(tier) === "urgent" ? Number(process.env.CALL_MINUTES || 40) : tierInfo(tier).mins);
+export const tierLabel = (tier?: string) => tierInfo(tier).label;
+export const tierTag = (tier?: string) => tierInfo(tier).tag;
 export type Cfg = {
   days: Record<string, DayCfg>; duration: number; step: number; advanceDays: number; blocked: string[];
   fromDate: string; toDate: string;                                          // bookings only between these dates (IST, inclusive)
@@ -62,7 +81,7 @@ export function daySlots(cfg: Cfg, date: string, days: Record<string, DayCfg> = 
 /** Earliest / latest allowed slot start for a booking paid at `paidAt`. Pure, so it can be unit-tested. */
 export function windowFor(cfg: Cfg, tier: Tier, paidAt: number, now = Date.now()) {
   const from = cfg.fromDate ? slotMs(cfg.fromDate, "00:00") : 0, to = cfg.toDate ? slotMs(cfg.toDate, "23:59") : Infinity;
-  if (tier === "urgent")
+  if (isUrgentTier(tier))
     return { lo: Math.max(from, Math.max(now, paidAt) + cfg.urgentLeadHours * 3600e3), hi: Math.min(to, paidAt + cfg.urgentHours * 3600e3), days: cfg.urgentDays };
   const d0 = istDate(paidAt);
   return {

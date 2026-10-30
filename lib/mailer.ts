@@ -1,5 +1,5 @@
 import nodemailer, { type SendMailOptions } from "nodemailer";
-import { callMinutes, slotMs, tierTag } from "./slots";
+import { callMinutes, isQuestionTier, isUrgentTier, slotMs, tierInfo, tierTag } from "./slots";
 
 function transporter() {
   const { SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS } = process.env;
@@ -56,7 +56,7 @@ const editBox = (link?: string | null, ms?: number) => !link ? "" :
 
 export async function sendClientConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; editLink?: string | null; editUntil?: number; updated?: boolean; tier?: string }) {
   const { day, range } = prettySlot(b.date, b.time, b.tier);
-  const video = b.tier === "video";
+  const video = b.tier === "video", q3 = isQuestionTier(b.tier) && !video;
   const meet = b.meetLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink}</span></p>`
     : `<p style="background:#fff4e5;padding:12px 16px;border-radius:6px">Aapka Google Meet link thodi der mein alag email se bhej diya jayega.</p>`;
@@ -68,7 +68,7 @@ export async function sendClientConfirmation(b: { name: string; email: string; b
       <h2 style="color:#6d28d9">Namaste ${esc(b.name)}</h2>
       <p>${b.updated ? "Aapka form update ho gaya hai." : "Aapka payment aur form mil gaya hai."} Aapki Personal Reading confirm ho chuki hai.</p>
       <div style="background:#f6f3fb;border-left:3px solid #6d28d9;padding:14px 20px;margin:20px 0;line-height:1.8">
-        <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>Call:</b> ${video ? "Google Meet VIDEO call (30 min) — camera on rakhein" : "Google Meet (40 min)"}<br/><b>Booking ID:</b> ${b.bid}
+        <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>Call:</b> ${video ? "Google Meet VIDEO call (30 min) — camera on rakhein" : `Google Meet voice call (${callMinutes(b.tier)} min)`}<br/><b>Booking ID:</b> ${b.bid}
       </div>
       ${meet}
       ${editBox(b.editLink, b.editUntil)}
@@ -86,7 +86,7 @@ export async function sendClientConfirmation(b: { name: string; email: string; b
           <li><b>Hum sirf 5 minute wait karte hain</b> — uske baad appointment miss maani jayegi.</li>
           <li>Slot time nikalne ke baad reschedule nahi hota. Koi refund nahi diya jata.</li>
           <li>Stable network mein rahein; baar-baar call cut hui toh appointment cancel ho sakti hai.</li>
-          <li>${video ? "Video call mein sirf aapki reading hoti hai — form mein likhe 3 sawalon ke jawab. Camera on rakhein aur achhi roshni mein baithein." : "Sirf form mein di gayi details (max 3 log) ki reading hoti hai."}</li>
+          <li>${video ? "Video call mein sirf aapki reading hoti hai — form mein likhe 3 sawalon ke jawab. Camera on rakhein aur achhi roshni mein baithein." : q3 ? "Is call mein sirf aapki reading hoti hai — form mein likhe 3 sawalon ke jawab." : "Sirf form mein di gayi details (max 3 log) ki reading hoti hai."}</li>
         </ul>
       </div>
       <p style="font-size:13px;color:#666;margin-top:28px">Contact: thedivinetarothindi@gmail.com | +91 88281 16545</p></div>`,
@@ -147,8 +147,8 @@ export async function sendOwnerUpdate(sub: { bid: string; tier?: string; date: s
 /** Payment receipt + a personal 24-hour form link, so a customer who loses the payment page (Instagram browser,
  *  UPI app switch, closed tab) can still open the form from any phone/browser. */
 export async function sendPaymentReceived(b: { email: string; bid: string; tier?: string; formLink?: string | null }) {
-  const when = b.tier === "urgent" ? "48 ghante ke andar" : "7 se 10 din ke andar";
-  const kind = b.tier === "urgent" ? " (<b>Urgent booking</b>)" : b.tier === "video" ? " (<b>Video Call Reading, 30 min</b>)" : "";
+  const when = isUrgentTier(b.tier) ? "48 ghante ke andar" : "7 se 10 din ke andar";
+  const kind = b.tier && b.tier !== "standard" ? ` (<b>${tierInfo(b.tier).name}</b>)` : "";
   const btn = b.formLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.formLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Reading Form Bharein</a><br/><span style="font-size:12px;color:#555">Yeh link sirf aapke liye hai aur 24 ghante tak valid hai.</span></p>`
     : "";

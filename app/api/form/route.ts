@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db } from "@/lib/db";
 import { changeGuest, createMeet } from "@/lib/calendar";
 import { freeSlots } from "@/lib/freeSlots";
-import { isTaken, parseTier, tierLabel } from "@/lib/slots";
+import { isQuestionTier, isTaken, parseTier, tierInfo, tierLabel } from "@/lib/slots";
 import { sendClientConfirmation, sendOwnerNotification, sendOwnerUpdate } from "@/lib/mailer";
 import { bidFrom, editToken, originOf } from "@/lib/session";
 import { editUntil } from "@/lib/formEdit";
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
   const dob = (p: string) => [S(f, p + "d"), S(f, p + "m"), S(f, p + "y")];
   const tob = (p: string) => (S(f, p + "h") ? `${S(f, p + "h")}:${S(f, p + "min") || "00"} ${S(f, p + "ap") || "AM"}` : "");
   // Video call reading: one person only, up to 3 written questions (100 characters each) with a topic each.
-  const video = b.tier === "video";
+  const video = isQuestionTier(b.tier); // video, q3, q3urgent: one person + 3 written questions
   const questions: { topic: string; text: string }[] = [];
   if (video) {
     for (let i = 1; i <= VIDEO_MAX_Q; i++) {
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     }
     if (!questions.length) return NextResponse.json({ error: "Kam se kam ek sawal likhein.", code: "q_none" }, { status: 400 });
   }
-  const concern = video ? `Video call — ${questions.length} sawal (${Array.from(new Set(questions.map((q) => q.topic))).join(", ")})`
+  const concern = video ? `${tierInfo(b.tier).name} — ${questions.length} sawal (${Array.from(new Set(questions.map((q) => q.topic))).join(", ")})`
     : S(f, "concern") === "Other" ? `Other: ${S(f, "concernOther")}` : S(f, "concern");
   const p1 = { name: S(f, "name"), phone: S(f, "phone"), place: S(f, "place") };
   if (!p1.name || p1.phone.replace(/\D/g, "").length < 10 || !p1.place || !concern || concern === "Other: ")

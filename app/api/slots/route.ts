@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
+import { parseTier } from "@/lib/slots";
 import { bidFrom } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
@@ -16,6 +17,6 @@ export async function GET(req: Request) {
     const free = await freeSlots({ tier: o.tier || "standard", paidAt: o.paidAt, bid, prefer: o.heldSlot || undefined });
     return NextResponse.json({ next: split(free[0]) });
   }
-  const q = new URL(req.url).searchParams.get("tier"), free = await freeSlots({ tier: q === "standard" || q === "video" ? q : "urgent" });
+  const q = new URL(req.url).searchParams.get("tier"), free = await freeSlots({ tier: q ? parseTier(q) : "urgent" });
   return NextResponse.json({ available: free.length > 0, next: split(free[0]) });
 }

@@ -1050,3 +1050,11 @@ footer a {
 .tier-grid.n0 { display: none; }
 @media (max-width: 860px) { .tier-grid.n2, .tier-grid.n1 { grid-template-columns: 1fr; } }
 .hero-price.closed p { margin: 0; color: var(--ivory-dim); }
+
+/* 4 or 5 reading cards */
+.tier-grid.n4 { grid-template-columns: 1fr 1fr; max-width: 1000px; }
+.tier-grid.n5 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1100px) { .tier-grid.n5 { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 860px) { .tier-grid.n4, .tier-grid.n5 { grid-template-columns: 1fr; } }
+.price-card.q3 { border-color: rgba(126,226,168,.45); background: linear-gradient(160deg, rgba(126,226,168,.08), var(--panel) 55%); }
+.price-card.q3 .badge { background: rgba(126,226,168,.14); }

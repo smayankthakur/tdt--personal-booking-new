@@ -1,13 +1,13 @@
 import { db } from "./db";
 import { OFFER, REGULAR_PRICE, URGENT_PRICE, VIDEO_PRICE } from "./offer";
-import { istDate, type Tier } from "./slots";
+import { ALL_TIERS, TIER_INFO, istDate, type Tier } from "./slots";
 
 /**
  * Prices, seasonal offer and coupons — all editable from /admin (Firestore config/pricing + coupons/{CODE}).
  * Every amount charged is computed HERE on the server; the browser/app never sends an amount.
  */
-export const TIERS: Tier[] = ["standard", "urgent", "video"];
-export const TIER_NAME: Record<Tier, string> = { standard: "Voice Call (40 min)", urgent: "Urgent Voice Call (48 hrs)", video: "Video Call (30 min)" };
+export const TIERS: Tier[] = ALL_TIERS;
+export const TIER_NAME = Object.fromEntries(ALL_TIERS.map((t) => [t, TIER_INFO[t].name])) as Record<Tier, string>;
 export const MIN_PRICE = 100; // nothing is ever charged below ₹100 (offers and coupons included)
 
 export type Offer = { on: boolean; name: string; from: string; until: string; prices: Partial<Record<Tier, number | null>> };
@@ -15,9 +15,11 @@ export type Pricing = { prices: Record<Tier, number>; offer: Offer; enabled: Rec
 export type Coupon = { code: string; type: "percent" | "flat"; value: number; tiers: Tier[]; expires?: string | null; maxUses?: number | null; used: number; createdAt: number; createdBy?: string };
 
 export const DEFAULT_PRICING: Pricing = {
-  prices: { standard: Number(process.env.PRICE_INR || REGULAR_PRICE), urgent: Number(process.env.PRICE_URGENT_INR || URGENT_PRICE), video: Number(process.env.PRICE_VIDEO_INR || VIDEO_PRICE) },
+  prices: { standard: Number(process.env.PRICE_INR || REGULAR_PRICE), urgent: Number(process.env.PRICE_URGENT_INR || URGENT_PRICE), video: Number(process.env.PRICE_VIDEO_INR || VIDEO_PRICE), q3: 4500, q3urgent: 9000 }, // q3 prices = placeholders; admin sets them
   offer: { on: true, name: OFFER.name, from: "2026-10-01", until: istDate(OFFER.until), prices: { standard: OFFER.price } },
-  enabled: { standard: true, urgent: true, video: true }, // admin can switch each reading type off: hidden on the website + refused by the server
+  // admin can switch each reading type off: hidden on the website + refused by the server.
+  // The two 3-question voice readings start OFF until the admin sets their price and switches them on.
+  enabled: { standard: true, urgent: true, video: true, q3: false, q3urgent: false },
 };
 const DOC = "config/pricing";
 let cache: { at: number; p: Pricing } | null = null;
@@ -42,7 +44,7 @@ export function priceOf(p: Pricing, tier: Tier, now = Date.now()) {
 export type PublicPrice = ReturnType<typeof priceOf>;
 export async function publicPricing(): Promise<Record<Tier, PublicPrice>> {
   const p = await getPricing(true).catch(() => DEFAULT_PRICING); // page renders are rare (ISR) — always read fresh
-  return { standard: priceOf(p, "standard"), urgent: priceOf(p, "urgent"), video: priceOf(p, "video") };
+  return Object.fromEntries(ALL_TIERS.map((t) => [t, priceOf(p, t)])) as Record<Tier, PublicPrice>;
 }
 
 export const normCode = (c: unknown) => String(c || "").trim().toUpperCase().replace(/\s+/g, "");

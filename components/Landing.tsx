@@ -59,7 +59,7 @@ const NAV = [
 const ASK_URL = "https://reading.thedivinetarotonline.com/";
 
 /** Prices + seasonal offer come from /admin (lib/pricing.ts), passed in by app/page.tsx. */
-type Prices = { standard: PublicPrice; urgent: PublicPrice; video: PublicPrice };
+type Prices = Record<"standard" | "urgent" | "video" | "q3" | "q3urgent", PublicPrice>;
 const untilText = (d?: string | null) => (d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "");
 
 export default function Landing({ pricing }: { pricing: Prices }) {
@@ -76,16 +76,22 @@ export default function Landing({ pricing }: { pricing: Prices }) {
   const anyOffer = (["standard", "urgent", "video"] as const).find((t) => pricing[t].offerName), offerName = anyOffer ? pricing[anyOffer].offerName : null;
   const old = (p: PublicPrice) => (p.offerName ? <s className="old-price">{inr(p.regular)}</s> : null);
   // Reading types switched on in /admin; the page shows only those (cards, hero buttons, sticky bar).
-  const on = { standard: pricing.standard.enabled, urgent: pricing.urgent.enabled, video: pricing.video.enabled };
-  const count = Number(on.standard) + Number(on.urgent) + Number(on.video);
-  const primary = on.standard ? "standard" : on.video ? "video" : on.urgent ? "urgent" : null; // hero price + sticky bar
+  const on = { standard: pricing.standard.enabled, urgent: pricing.urgent.enabled, video: pricing.video.enabled, q3: pricing.q3.enabled, q3urgent: pricing.q3urgent.enabled };
+  const count = Object.values(on).filter(Boolean).length;
+  const order = ["standard", "q3", "video", "urgent", "q3urgent"] as const;
+  const primary = order.find((t) => on[t]) || null; // hero price + sticky bar
+  const firstBtn = (t: (typeof order)[number]) => primary === t; // the first visible hero button is gold, the rest ghost
   const HERO = {
     standard: { mins: "40", kind: "Voice Call Reading", lines: ["40 mins Voice Reading", "Appointment Within 7 - 10 Days"], sticky: "40 min voice call reading" },
     video: { mins: "30", kind: "Video Call Reading", lines: ["30 mins Video Call (Google Meet)", "Appointment Within 7 - 10 Days"], sticky: "30 min video call reading" },
     urgent: { mins: "40", kind: "Voice Call Reading", lines: ["40 mins Voice Reading", "Appointment Within 48 Hours"], sticky: "Urgent 40 min voice reading" },
+    q3: { mins: "30", kind: "Voice Call · 3 Sawal", lines: ["30 mins Voice Call · 3 Sawal", "Appointment Within 7 - 10 Days"], sticky: "30 min call · 3 sawal" },
+    q3urgent: { mins: "30", kind: "Voice Call · 3 Sawal", lines: ["30 mins Voice Call · 3 Sawal", "Appointment Within 48 Hours"], sticky: "Urgent 30 min call · 3 sawal" },
   } as const;
   const hp = primary ? pricing[primary] : null, hero = primary ? HERO[primary] : null;
-  const title = (on.standard || on.urgent) && on.video ? <>Voice &amp; Video Call Reading</> : on.video ? <>Video Call Reading</> : <>Voice Call Reading</>;
+  const voice = on.standard || on.urgent || on.q3 || on.q3urgent;
+  const title = voice && on.video ? <>Voice &amp; Video Call Reading</> : on.video ? <>Video Call Reading</> : <>Voice Call Reading</>;
+  const q3Price = inr(pricing.q3.price), q3uPrice = inr(pricing.q3urgent.price);
   return (
     <>
       <ResumeBanner />
@@ -170,8 +176,10 @@ export default function Landing({ pricing }: { pricing: Prices }) {
             ) : <div className="hero-price closed"><p>Bookings abhi band hain. Jald hi dobara shuru hongi.</p></div>}
             <div className="hero-actions">
               {on.standard && <PayButton label={`Book Now — ${price}`} />}
-              {on.urgent && <PayButton tier="urgent" className={on.standard ? "btn ghost" : "btn gold"} label={`For Urgent Reading (within 48 Hours) = ${pricing.urgent.price}/- Rs only`} />}
-              {on.video && <PayButton tier="video" className={on.standard || on.urgent ? "btn ghost" : "btn gold"} label={`🎥 Video Call Reading (30 min) = ${pricing.video.price}/- Rs only`} />}
+              {on.urgent && <PayButton tier="urgent" className={firstBtn("urgent") ? "btn gold" : "btn ghost"} label={`For Urgent Reading (within 48 Hours) = ${pricing.urgent.price}/- Rs only`} />}
+              {on.video && <PayButton tier="video" className={firstBtn("video") ? "btn gold" : "btn ghost"} label={`🎥 Video Call Reading (30 min) = ${pricing.video.price}/- Rs only`} />}
+              {on.q3 && <PayButton tier="q3" className={firstBtn("q3") ? "btn gold" : "btn ghost"} label={`❓ 3 Question Call (30 min) = ${pricing.q3.price}/- Rs only`} />}
+              {on.q3urgent && <PayButton tier="q3urgent" className={firstBtn("q3urgent") ? "btn gold" : "btn ghost"} label={`⚡ Urgent 3 Question Call (48 Hours) = ${pricing.q3urgent.price}/- Rs only`} />}
             </div>
             <div className="hero-stats">
               <div>
@@ -259,6 +267,46 @@ export default function Landing({ pricing }: { pricing: Prices }) {
                 </ul>
 
                 <BookingWidget price={videoPrice} tier="video" />
+              </div>
+            </Reveal>}
+            {on.q3 && <Reveal delay={230}>
+              <div className="price-card q3">
+                {pricing.q3.offerName && <div className="offer-ribbon">🪔 {pricing.q3.offerName} · Valid till {untilText(pricing.q3.offerUntil)}</div>}
+                <span className="badge">❓ 30 Minutes · Voice Call · 3 Sawal</span>
+                <h3>3 Question Call Reading</h3>
+                <div className="amount">
+                  {old(pricing.q3)}{q3Price}<small>Voice call on Google Meet — sirf aapke 3 sawal</small>
+                </div>
+
+                <ul className="feature-list">
+                  <li>Sirf aapki reading — ek hi person</li>
+                  <li>Sirf 3 specific sawal, form mein likh kar (har sawal 100 characters tak)</li>
+                  <li>Love life, Career ya kisi bhi issue ke baare mein poochein</li>
+                  <li>Appointment payment ke 7–10 din ke andar (12 PM – 9 PM IST) · Google Meet voice call (30 min)</li>
+                  <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
+                </ul>
+
+                <BookingWidget price={q3Price} tier="q3" />
+              </div>
+            </Reveal>}
+            {on.q3urgent && <Reveal delay={280}>
+              <div className="price-card urgent q3">
+                {pricing.q3urgent.offerName && <div className="offer-ribbon">🪔 {pricing.q3urgent.offerName} · Valid till {untilText(pricing.q3urgent.offerUntil)}</div>}
+                <span className="badge">⚡ Urgent · 3 Sawal · Within 48 Hours</span>
+                <h3>Urgent 3 Question Call</h3>
+                <div className="amount">
+                  {old(pricing.q3urgent)}{q3uPrice}<small>Same 30 min · 3 sawal reading, 48 ghante ke andar</small>
+                </div>
+
+                <ul className="feature-list">
+                  <li>Sirf aapki reading — ek hi person</li>
+                  <li>Sirf 3 specific sawal, form mein likh kar (har sawal 100 characters tak)</li>
+                  <li>Love life, Career ya kisi bhi issue ke baare mein poochein</li>
+                  <li>Appointment payment ke 48 ghante ke andar · Google Meet voice call (30 min)</li>
+                  <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
+                </ul>
+
+                <BookingWidget price={q3uPrice} tier="q3urgent" />
               </div>
             </Reveal>}
           </div>

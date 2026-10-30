@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
-import { HOLD_MS, isTaken, type Tier, parseTier } from "@/lib/slots";
+import { HOLD_MS, TIER_INFO, isTaken, isUrgentTier, type Tier, parseTier } from "@/lib/slots";
 import { quote } from "@/lib/pricing";
 import { originOf } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ const NO_SLOTS = "Abhi saare slots full hain. Kripya baad mein dobara dekhein.";
 // Standard: the earliest free slot from day 7 after payment (day 7–10) is assigned when the form is submitted.
 // Urgent: an available slot within 48 h is held BEFORE payment, so nobody pays ₹17,000 for a slot that doesn't exist.
 const describe = (tier: Tier, offerName: string | null, coupon: string | null) =>
-  `${tier === "urgent" ? "Urgent Personal Call Reading (within 48 hrs)" : tier === "video" ? "Video Call Reading (30 min, 3 questions)" : "Personal Call Reading"}${offerName ? ` (${offerName})` : ""}${coupon ? ` · coupon ${coupon}` : ""}`;
+  `${tier === "standard" ? "Personal Call Reading" : TIER_INFO[tier].name}${offerName ? ` (${offerName})` : ""}${coupon ? ` · coupon ${coupon}` : ""}`;
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
@@ -30,9 +30,9 @@ export async function POST(req: Request) {
 
   const bid = randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase(), ref = db.doc(`orders/${bid}`);
   let heldSlot: string | null = null;
-  if (tier === "standard" && !(await freeSlots({ tier })).length)
+  if (!isUrgentTier(tier) && !(await freeSlots({ tier })).length)
     return NextResponse.json({ error: NO_SLOTS, code: "no_slots" }, { status: 409 });
-  if (tier === "urgent") {
+  if (isUrgentTier(tier)) { // urgent readings: a slot within 48 h is held before payment
     const cands = (await freeSlots({ tier })).slice(0, 15);
     if (!cands.length) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
     heldSlot = await db.runTransaction(async (tx) => {

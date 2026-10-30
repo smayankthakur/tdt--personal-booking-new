@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { slotMs, type Cfg } from "@/lib/slots";
+import { ALL_TIERS, TIER_INFO, slotMs, type Cfg } from "@/lib/slots";
 const td = { padding: "3px 14px 3px 0", opacity: 0.7, verticalAlign: "top", whiteSpace: "nowrap" } as const;
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -31,9 +31,9 @@ export default function Admin() {
     const j = await r.json(); setCfg(j.cfg); setRows(j.bookings); setOrders(j.orders || []); setMissing(j.missingEnv || []); setMsg("");
   };
   // ---- Prices, seasonal offer, coupons (/api/admin/pricing) ----
-  const TIERS = [["standard", "Voice Call (40 min)"], ["urgent", "Urgent Voice (48 hrs)"], ["video", "Video Call (30 min)"]] as const;
+  const TIERS = ALL_TIERS.map((t) => [t, TIER_INFO[t].name] as const);
   const [pricing, setPricing] = useState<any>(null), [coupons, setCoupons] = useState<any[]>([]), [pmsg, setPmsg] = useState(""), [delCode, setDelCode] = useState("");
-  const [nc, setNc] = useState<any>({ code: "", type: "percent", value: "", tiers: ["standard", "urgent", "video"], expires: "", maxUses: "" });
+  const [nc, setNc] = useState<any>({ code: "", type: "percent", value: "", tiers: [...ALL_TIERS], expires: "", maxUses: "" });
   const papi = (method: string, body?: object, q = "") => fetch(`/api/admin/pricing${q}`, { method, headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => { if (r.status === 401) logout(); return r.json(); });
   const loadPricing = async () => { const j = await papi("GET"); if (j.pricing) { setPricing(j.pricing); setCoupons(j.coupons || []); } };
   const savePricing = async () => { setPmsg("Save ho raha hai…"); const j = await papi("PUT", pricing); setPmsg(j.ok ? "Saved ✓ — website par 1 minute ke andar dikhega" : j.error || "Save nahi hua"); if (j.pricing) setPricing(j.pricing); };
@@ -193,7 +193,7 @@ export default function Admin() {
           {orders.map((o) => { const [label, col] = st(o); return (
             <div key={o.bid} style={{ borderTop: "1px solid #555", padding: "9px 0", fontSize: 14, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
               <b style={{ color: col, minWidth: 130 }}>{label}</b>
-              {o.tier === "urgent" && <b style={{ color: "#c9a227" }}>⚡ Urgent</b>}{o.tier === "video" && <b style={{ color: "#8b5cf6" }}>🎥 Video</b>}
+              {o.tier && o.tier !== "standard" && <b style={{ color: o.tier === "video" ? "#8b5cf6" : "#c9a227" }}>{TIER_INFO[o.tier as keyof typeof TIER_INFO]?.badge || o.tier}</b>}
               <span>{o.name || "-"}</span><span>{o.email || "-"}</span><span>{o.phone || "-"}</span>
               {o.slot && <span>Slot {o.slot.replace("T", " ")}</span>}
               <span style={{ opacity: 0.6 }}>{new Date(o.paidAt || o.createdAt).toLocaleString("en-IN")} · ID {o.bid}{o.paymentId ? ` · ${o.paymentId}` : ""}{o.amount ? ` · ₹${Number(o.amount).toLocaleString("en-IN")}` : ""}{o.coupon ? ` · 🎟 ${o.coupon}` : ""}</span>
@@ -211,7 +211,7 @@ export default function Admin() {
         return (
           <div key={b.slot} style={{ borderTop: "1px solid #555", padding: "10px 0", fontSize: 14, opacity: past ? 0.55 : 1 }}>
             <div onClick={() => setOpenId(open ? "" : b.slot)} style={{ cursor: "pointer", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-              <span>{open ? "▼" : "▶"}</span><b>{d} · {t}</b>{b.tier === "urgent" && <b style={{ color: "#c9a227" }}>⚡ Urgent</b>}{b.tier === "video" && <b style={{ color: "#8b5cf6" }}>🎥 Video</b>}<span>{b.name}</span><span>{b.phone}</span>
+              <span>{open ? "▼" : "▶"}</span><b>{d} · {t}</b>{b.tier && b.tier !== "standard" && <b style={{ color: b.tier === "video" ? "#8b5cf6" : "#c9a227" }}>{TIER_INFO[b.tier as keyof typeof TIER_INFO]?.badge || b.tier}</b>}<span>{b.name}</span><span>{b.phone}</span>
               {a["Concern"] && <span style={{ color: "#c9a227" }}>· {a["Concern"]}</span>}
               {b.calendarOk === false && <span style={{ color: "#f66" }}>⚠ Meet link nahi bana</span>}
               {b.clientMailOk === false && <span style={{ color: "#f66" }}>⚠ client mail fail</span>}
