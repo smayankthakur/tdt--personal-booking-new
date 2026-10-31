@@ -1,11 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { ALL_TIERS, TIER_INFO, slotMs, type Cfg } from "@/lib/slots";
-const td = { padding: "3px 14px 3px 0", opacity: 0.7, verticalAlign: "top", whiteSpace: "nowrap" } as const;
+import "./admin.css";
+const td = { padding: "6px 14px 6px 0", color: "#646970", verticalAlign: "top", whiteSpace: "nowrap" } as const;
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function Admin() {
-  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"book" | "pay" | "slots" | "price">("book"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
+  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"book" | "pay" | "slots" | "price" | "tools">("book"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
   const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [who, setWho] = useState(""), [busy, setBusy] = useState(false);
   const SKEY = "tdt_admin";
   useEffect(() => { // keep the session across refreshes in this tab only
@@ -52,9 +53,8 @@ export default function Admin() {
   const resume = async (bid: string) => {
     const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify({ resume: bid }) });
     const j = await r.json();
-    if (j.link) { await navigator.clipboard?.writeText(j.link).catch(() => {}); setNote(`Form link (24 ghante valid, sirf WhatsApp par customer ko bhejein — copy ho gaya): ${j.link}`); }
+    if (j.link) { await navigator.clipboard?.writeText(j.link).catch(() => {}); setNote(`Form link (24 ghante valid, customer ko bhejein — copy ho gaya): ${j.link}`); }
     else setNote(j.error || "Link nahi bana");
-    setTab("book");
   };
   const invite = async () => {
     setNote("Upcoming customers ko Google Calendar invite bheja ja raha hai…");
@@ -74,169 +74,211 @@ export default function Admin() {
   const setDay = (i: number, p: object) => setCfg({ ...cfg!, days: { ...cfg!.days, [i]: { ...day(i), ...p } } });
   const uday = (i: number) => cfg!.urgentDays?.[i] || { on: false, start: "12:00", end: "21:00" };
   const setUday = (i: number, p: object) => setCfg({ ...cfg!, urgentDays: { ...cfg!.urgentDays, [i]: { ...uday(i), ...p } } });
-  const box = { padding: 6, borderRadius: 6, border: "1px solid #888", background: "transparent", color: "inherit" } as const;
+  const box = {} as const; // inputs are styled by the WordPress-like admin stylesheet (.wpa)
+
+  // ---------- WordPress-style admin UI ----------
+  const TYPE = (t?: string) => (t && t !== "standard" ? <span className={`wpa-tag ${t === "video" ? "blue" : "gold"}`}>{TIER_INFO[t as keyof typeof TIER_INFO]?.badge || t}</span> : <span className="wpa-tag">Voice (40 min)</span>);
+  const Notice = ({ kind = "info", children }: { kind?: "info" | "success" | "error" | "warning"; children: React.ReactNode }) => <div className={`wpa-notice ${kind}`}><p>{children}</p></div>;
+  const tone = (m: string) => (/✓|ban gaya|delete ho gaya|Saved/.test(m) ? "success" : /ERROR|nahi|galat|error|fail|⚠/i.test(m) ? "error" : "info") as "success" | "error" | "info";
 
   if (!cfg) return (
-    <div style={{ maxWidth: 360, margin: "80px auto", padding: 20 }}>
-      <h2>Booking Admin</h2>
-      {token ? <p>Load ho raha hai…</p> : (
-        <form onSubmit={signIn}>
-          <input type="email" placeholder="Admin email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} style={{ ...box, width: "100%", marginBottom: 10 }} />
-          <input type="password" placeholder="Password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} style={{ ...box, width: "100%" }} />
-          <button className="btn gold" disabled={busy || !email || !pw} style={{ marginTop: 12 }}>{busy ? "Login ho raha hai…" : "Login"}</button>
-        </form>)}
-      <p>{msg}</p>
-    </div>);
-  return (
-    <div style={{ maxWidth: 900, margin: "40px auto", padding: 20 }}>
-      <div style={{ display: "flex", gap: 8, margin: "0 0 20px", borderBottom: "1px solid #555", flexWrap: "wrap" }}>
-        {([["book", `Confirmed bookings (${rows.length})`], ["pay", `Payment status (${orders.length})`], ["slots", "Slots settings"], ["price", "Price & Offers"]] as const).map(([k, l]) => (
-          <button key={k} onClick={() => { setTab(k); if (k === "price") loadPricing(); }} style={{ padding: "10px 16px", background: "transparent", border: 0, borderBottom: tab === k ? "2px solid #c9a227" : "2px solid transparent", color: tab === k ? "#c9a227" : "inherit", font: "inherit", fontWeight: tab === k ? 700 : 400, cursor: "pointer" }}>{l}</button>))}
-        <button onClick={load} style={{ marginLeft: "auto", padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>↻ Refresh</button>
-        <span style={{ alignSelf: "center", fontSize: 12, opacity: 0.7 }}>{who}</span>
-        <button onClick={logout} style={{ padding: "6px 12px", background: "transparent", border: "1px solid #555", borderRadius: 8, color: "inherit", cursor: "pointer" }}>Logout</button>
-        <button onClick={invite} title="Jin upcoming bookings ko abhi tak Google Calendar invite nahi gaya, unhe bhejein" style={{ padding: "6px 12px", background: "transparent", border: "1px solid #c9a227", borderRadius: 8, color: "#c9a227", cursor: "pointer" }}>📅 Upcoming ko invite bhejo</button>
-        <button onClick={editLinks} title="Jinhone pichhle 24 ghante mein form bhara, unhe form edit ka link email karein (ek baar)" style={{ padding: "6px 12px", background: "transparent", border: "1px solid #8b5cf6", borderRadius: 8, color: "#8b5cf6", cursor: "pointer" }}>✏️ Edit link bhejo (24h)</button>
+    <div className="wpa-login">
+      <div className="wpa-login-box">
+        <div className="wpa-login-logo"><img src="/logo.png" alt="" /><span>The Divine Tarot</span></div>
+        {msg && <div className="wpa-login-error">{msg}</div>}
+        <form onSubmit={signIn} className="wpa-login-form">
+          {token ? <p>Load ho raha hai…</p> : (<>
+            <label>Email Address<input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} /></label>
+            <label>Password<input type="password" autoComplete="current-password" value={pw} onChange={(e) => setPw(e.target.value)} /></label>
+            <div className="wpa-login-row"><span className="wpa-muted">Booking Admin</span><button className="wpa-btn primary large" disabled={busy || !email || !pw}>{busy ? "Logging in…" : "Log In"}</button></div>
+          </>)}
+        </form>
       </div>
-      {tab === "price" && (<div>
-      {!pricing ? <p>Load ho raha hai…</p> : (<>
-        <h3>Readings: on/off aur prices (₹)</h3>
-        <p style={{ fontSize: 13, opacity: 0.7, marginTop: -6 }}>OFF karne par woh reading website se hat jaati hai (card, buttons, sticky bar) aur uski nayi booking nahi hoti. Pehle se bani bookings par koi asar nahi. "Save" dabana zaroori hai.</p>
-        <table style={{ borderCollapse: "collapse" }}><tbody>
-          <tr><td style={td}></td><td style={td}>Website par</td><td style={td}>Regular price</td><td style={td}>Seasonal offer price <small>(khaali = offer nahi)</small></td></tr>
-          {TIERS.map(([t, l]) => (
-            <tr key={t} style={{ opacity: pricing.enabled?.[t] === false ? 0.5 : 1 }}><td style={td}>{l}</td>
-              <td style={{ padding: "4px 12px 4px 0" }}><label style={{ display: "inline-flex", gap: 6, alignItems: "center", cursor: "pointer", color: pricing.enabled?.[t] === false ? "#f66" : "#7ee2a8", fontWeight: 600 }}>
-                <input type="checkbox" checked={pricing.enabled?.[t] !== false} onChange={(e) => setPricing({ ...pricing, enabled: { ...pricing.enabled, [t]: e.target.checked } })} />{pricing.enabled?.[t] === false ? "OFF" : "ON"}</label></td>
-              <td style={{ padding: "4px 12px 4px 0" }}><input type="number" min={100} value={pricing.prices[t] ?? ""} onChange={(e) => setPrice(t, e.target.value)} style={{ ...box, width: 120 }} /></td>
-              <td style={{ padding: "4px 0" }}><input type="number" min={100} value={pricing.offer.prices?.[t] ?? ""} onChange={(e) => setOfferPrice(t, e.target.value)} style={{ ...box, width: 120 }} placeholder="—" /></td></tr>))}
-        </tbody></table>
-        <h3 style={{ marginTop: 24 }}>Seasonal discount / offer</h3>
-        <p><label><input type="checkbox" checked={!!pricing.offer.on} onChange={(e) => setOffer({ on: e.target.checked })} /> Offer chalu hai</label></p>
-        <p style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          Naam: <input value={pricing.offer.name || ""} onChange={(e) => setOffer({ name: e.target.value })} placeholder="Diwali Offer" style={{ ...box, width: 180 }} />
-          Se: <input type="date" value={pricing.offer.from || ""} onChange={(e) => setOffer({ from: e.target.value })} style={box} />
-          Tak: <input type="date" value={pricing.offer.until || ""} onChange={(e) => setOffer({ until: e.target.value })} style={box} />
-        </p>
-        <p style={{ fontSize: 13, opacity: 0.7 }}>Offer sirf in dates ke beech (India time) lagta hai, aur sirf un readings par jinka offer price bhara hai. End date ke baad regular price apne aap lag jaata hai.</p>
-        {pricing.enabled && Object.values(pricing.enabled).every((v) => v === false) && <p style={{ color: "#f66", fontSize: 14 }}>⚠ Saari readings OFF hain — website par "Bookings abhi band hain" dikhega.</p>}
-        <button className="btn gold" onClick={savePricing}>Save on/off, prices &amp; offer</button>
+      <p className="wpa-login-back"><a href="/">← Go to The Divine Tarot</a></p>
+    </div>);
 
-        <h3 style={{ marginTop: 32 }}>Coupons</h3>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", border: "1px solid #555", borderRadius: 10, padding: 12 }}>
-          <input value={nc.code} onChange={(e) => setNc({ ...nc, code: e.target.value.toUpperCase().replace(/\s/g, "") })} placeholder="CODE (jaise SAVE10)" style={{ ...box, width: 170 }} />
-          <select value={nc.type} onChange={(e) => setNc({ ...nc, type: e.target.value })} style={box}><option value="percent">% off</option><option value="flat">₹ off</option></select>
-          <input type="number" value={nc.value} onChange={(e) => setNc({ ...nc, value: e.target.value })} placeholder={nc.type === "percent" ? "10" : "500"} style={{ ...box, width: 90 }} />
-          {TIERS.map(([t, l]) => <label key={t} style={{ fontSize: 13 }}><input type="checkbox" checked={nc.tiers.includes(t)} onChange={(e) => setNc({ ...nc, tiers: e.target.checked ? [...nc.tiers, t] : nc.tiers.filter((x: string) => x !== t) })} /> {l}</label>)}
-          <span style={{ fontSize: 13 }}>Expiry:</span><input type="date" min={today} value={nc.expires} onChange={(e) => setNc({ ...nc, expires: e.target.value })} style={box} />
-          <input type="number" min={1} value={nc.maxUses} onChange={(e) => setNc({ ...nc, maxUses: e.target.value })} placeholder="Max uses (khaali = unlimited)" style={{ ...box, width: 210 }} />
-          <button className="btn gold" onClick={createCoupon} disabled={!nc.code || !nc.value}>+ Coupon banao</button>
+  const paidForm = orders.filter((o) => o.status === "paid" && o.formDone).length, paidPending = orders.filter((o) => o.status === "paid" && !o.formDone).length, unpaid = orders.filter((o) => o.status !== "paid").length;
+  const MENU = [
+    ["book", "📅", "Bookings", rows.filter((b) => { const [d, t] = b.slot.split("T"); return slotMs(d, t) >= Date.now(); }).length],
+    ["pay", "💳", "Payments", paidPending],
+    ["slots", "🕒", "Slots", 0],
+    ["price", "🏷️", "Prices & Offers", 0],
+    ["tools", "🛠️", "Tools", 0],
+  ] as const;
+  const TITLE = { book: "Bookings", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
+  return (
+    <div className="wpa">
+      <div className="wpa-bar">
+        <span className="wpa-bar-logo"><img src="/logo.png" alt="" />The Divine Tarot</span>
+        <a href="/" target="_blank" rel="noreferrer">🏠 Visit Site</a>
+        <span className="wpa-bar-right">Howdy, <b>{who}</b><button onClick={logout}>Log Out</button></span>
+      </div>
+      <nav className="wpa-menu">
+        {MENU.map(([k, ic, l, n]) => (
+          <button key={k} className={tab === k ? "current" : ""} onClick={() => { setTab(k); if (k === "price") loadPricing(); }}>
+            <span className="ic">{ic}</span><span className="lbl">{l}</span>{n > 0 && <span className="count">{n}</span>}
+          </button>))}
+      </nav>
+      <main className="wpa-main">
+        <div className="wpa-head">
+          <h1>{TITLE[tab]}</h1>
+          <button className="wpa-btn" onClick={() => { load(); if (tab === "price") loadPricing(); }}>↻ Refresh</button>
         </div>
-        {pmsg && <p style={{ border: "1px solid #555", borderRadius: 8, padding: 10, fontSize: 14 }}>{pmsg}</p>}
-        {!coupons.length ? <p style={{ opacity: 0.7 }}>Abhi koi coupon nahi hai.</p> : (
-          <table style={{ borderCollapse: "collapse", width: "100%", marginTop: 12, fontSize: 14 }}><tbody>
-            <tr>{["Code", "Discount", "Readings", "Expiry", "Used", ""].map((h) => <td key={h} style={td}>{h}</td>)}</tr>
-            {coupons.map((c) => { const expired = c.expires && c.expires < today, full = c.maxUses && c.used >= c.maxUses; return (
-              <tr key={c.code} style={{ borderTop: "1px solid #555", opacity: expired || full ? 0.55 : 1 }}>
-                <td style={{ padding: "8px 12px 8px 0" }}><b>{c.code}</b>{expired ? " (expired)" : full ? " (limit poori)" : ""}</td>
-                <td>{c.type === "percent" ? `${c.value}%` : `₹${c.value}`} off</td>
-                <td>{(c.tiers || []).map((t: string) => TIERS.find(([k]) => k === t)?.[1]).join(", ")}</td>
-                <td>{c.expires || "—"}</td>
-                <td>{c.used || 0}{c.maxUses ? ` / ${c.maxUses}` : ""}</td>
-                <td style={{ textAlign: "right" }}>{delCode === c.code
-                  ? <><button onClick={() => deleteCoupon(c.code)} style={{ padding: "4px 10px", background: "#c0392b", border: 0, borderRadius: 6, color: "#fff", cursor: "pointer" }}>Pakka delete?</button> <button onClick={() => setDelCode("")} style={{ padding: "4px 10px", background: "transparent", border: "1px solid #555", borderRadius: 6, color: "inherit", cursor: "pointer" }}>Nahi</button></>
-                  : <button onClick={() => setDelCode(c.code)} style={{ padding: "4px 10px", background: "transparent", border: "1px solid #f66", borderRadius: 6, color: "#f66", cursor: "pointer" }}>Delete</button>}</td>
-              </tr>); })}
-          </tbody></table>)}
-        <p style={{ fontSize: 13, opacity: 0.7, marginTop: 12 }}>Coupon offer price ke upar lagta hai. Koi bhi price ₹100 se kam nahi hoti. Coupon ka "used" sirf payment hone par badhta hai.</p>
-      </>)}
-      </div>)}
-      {tab === "slots" && (<div>
-      <p style={{ margin: "0 0 14px" }}>Booking dates: <input type="date" value={cfg.fromDate || ""} onChange={(e) => setCfg({ ...cfg, fromDate: e.target.value })} style={box} /> se <input type="date" value={cfg.toDate || ""} onChange={(e) => setCfg({ ...cfg, toDate: e.target.value })} style={box} /> tak (normal + urgent dono)</p>
-      <h3>Normal booking — days &amp; time (India time)</h3>
-      {DAYS.map((n, i) => (
-        <div key={i} style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0" }}>
-          <label style={{ width: 130 }}><input type="checkbox" checked={day(i).on} onChange={(e) => setDay(i, { on: e.target.checked })} /> {n}</label>
-          <input type="time" value={day(i).start} onChange={(e) => setDay(i, { start: e.target.value })} style={box} /> to
-          <input type="time" value={day(i).end} onChange={(e) => setDay(i, { end: e.target.value })} style={box} />
-        </div>))}
-      <p>Call length (min): <input type="number" value={cfg.duration} onChange={(e) => setCfg({ ...cfg, duration: +e.target.value })} style={{ ...box, width: 70 }} />
-        &nbsp; Slot gap (min): <input type="number" value={cfg.step} onChange={(e) => setCfg({ ...cfg, step: +e.target.value })} style={{ ...box, width: 70 }} />
-        </p>
-      <p>Normal slot payment ke kam se kam <input type="number" value={cfg.minDays} onChange={(e) => setCfg({ ...cfg, minDays: +e.target.value })} style={{ ...box, width: 60 }} /> din baad, din 7–10 wali window (0 = jo pehla slot khaali ho, non-stop).
-        &nbsp; Max kitne din aage tak: <input type="number" value={cfg.advanceDays} onChange={(e) => setCfg({ ...cfg, advanceDays: +e.target.value })} style={{ ...box, width: 60 }} /></p>
-      <h3 style={{ marginTop: 28 }}>⚡ Urgent booking (₹17,000) — days &amp; time</h3>
-      {DAYS.map((n, i) => (
-        <div key={"u" + i} style={{ display: "flex", gap: 10, alignItems: "center", margin: "8px 0" }}>
-          <label style={{ width: 130 }}><input type="checkbox" checked={uday(i).on} onChange={(e) => setUday(i, { on: e.target.checked })} /> {n}</label>
-          <input type="time" value={uday(i).start} onChange={(e) => setUday(i, { start: e.target.value })} style={box} /> to
-          <input type="time" value={uday(i).end} onChange={(e) => setUday(i, { end: e.target.value })} style={box} />
-        </div>))}
-      <p>Payment ke <input type="number" value={cfg.urgentHours} onChange={(e) => setCfg({ ...cfg, urgentHours: +e.target.value })} style={{ ...box, width: 60 }} /> ghante ke andar.
-        &nbsp; Kam se kam kitne ghante baad (taiyari ka time): <input type="number" value={cfg.urgentLeadHours} onChange={(e) => setCfg({ ...cfg, urgentLeadHours: +e.target.value })} style={{ ...box, width: 60 }} /></p>
-      <p style={{ fontSize: 13, opacity: 0.7 }}>Tip: normal aur urgent ke start time ek jaise rakhein (jaise 12:00, 13:00…) taaki slots overlap na hon. Band dates dono par lagti hain.</p>
-      <p>Band karne wali dates / festivals (YYYY-MM-DD, comma se alag):<br />
-        <input value={cfg.blocked.join(",")} onChange={(e) => setCfg({ ...cfg, blocked: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} style={{ ...box, width: "100%" }} /></p>
-      <button className="btn gold" onClick={save}>Save</button> <span>{msg}</span>
-      </div>)}
-      {tab === "pay" && (<div>
-      {(() => {
-        const st = (o: any) => o.status !== "paid" ? ["Payment pending", "#9aa0a6"] : o.formDone ? ["Paid · form bhara", "#7ee2a8"] : ["Paid · form baaki", "#e8a33d"];
-        const n = (f: (o: any) => boolean) => orders.filter(f).length;
-        return (<>
-          <p style={{ display: "flex", gap: 18, flexWrap: "wrap", fontSize: 14 }}>
-            <span style={{ color: "#7ee2a8" }}>✓ Paid + form: {n((o) => o.status === "paid" && o.formDone)}</span>
-            <span style={{ color: "#e8a33d" }}>● Paid, form baaki: {n((o) => o.status === "paid" && !o.formDone)}</span>
-            <span style={{ color: "#9aa0a6" }}>○ Unpaid: {n((o) => o.status !== "paid")}</span>
-          </p>
-          {!orders.length && <p style={{ opacity: 0.7 }}>Abhi koi payment attempt nahi hai.</p>}
-          {orders.map((o) => { const [label, col] = st(o); return (
-            <div key={o.bid} style={{ borderTop: "1px solid #555", padding: "9px 0", fontSize: 14, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
-              <b style={{ color: col, minWidth: 130 }}>{label}</b>
-              {o.tier && o.tier !== "standard" && <b style={{ color: o.tier === "video" ? "#8b5cf6" : "#c9a227" }}>{TIER_INFO[o.tier as keyof typeof TIER_INFO]?.badge || o.tier}</b>}
-              <span>{o.name || "-"}</span><span>{o.email || "-"}</span><span>{o.phone || "-"}</span>
-              {o.slot && <span>Slot {o.slot.replace("T", " ")}</span>}
-              <span style={{ opacity: 0.6 }}>{new Date(o.paidAt || o.createdAt).toLocaleString("en-IN")} · ID {o.bid}{o.paymentId ? ` · ${o.paymentId}` : ""}{o.amount ? ` · ₹${Number(o.amount).toLocaleString("en-IN")}` : ""}{o.coupon ? ` · 🎟 ${o.coupon}` : ""}</span>
-              {o.status === "paid" && !o.formDone && <button onClick={() => resume(o.bid)} style={{ padding: "3px 10px", background: "transparent", border: "1px solid #e8a33d", borderRadius: 6, color: "#e8a33d", cursor: "pointer", fontSize: 13 }}>Form link banao</button>}
-            </div>); })}
-        </>);
-      })()}
-      </div>)}
-      {tab === "book" && (<div>
-      {missing.length > 0 && <p style={{ color: "#f66", border: "1px solid #f66", borderRadius: 8, padding: 10, fontSize: 14 }}>⚠ Vercel mein yeh settings missing hain: <b>{missing.join(", ")}</b> — jab tak yeh set nahi hongi Meet link aur emails nahi jayenge.</p>}
-      {note && <p style={{ border: "1px solid #555", borderRadius: 8, padding: 10, fontSize: 14 }}>{note}</p>}
-      {!rows.length && <p style={{ opacity: 0.7 }}>Abhi koi confirmed booking nahi hai.</p>}
-      {rows.map((b) => {
-        const [d, t] = b.slot.split("T"), past = slotMs(d, t) < Date.now(), open = openId === b.slot, a: Record<string, string> = b.answers || {};
-        return (
-          <div key={b.slot} style={{ borderTop: "1px solid #555", padding: "10px 0", fontSize: 14, opacity: past ? 0.55 : 1 }}>
-            <div onClick={() => setOpenId(open ? "" : b.slot)} style={{ cursor: "pointer", display: "flex", gap: 10, alignItems: "baseline", flexWrap: "wrap" }}>
-              <span>{open ? "▼" : "▶"}</span><b>{d} · {t}</b>{b.tier && b.tier !== "standard" && <b style={{ color: b.tier === "video" ? "#8b5cf6" : "#c9a227" }}>{TIER_INFO[b.tier as keyof typeof TIER_INFO]?.badge || b.tier}</b>}<span>{b.name}</span><span>{b.phone}</span>
-              {a["Concern"] && <span style={{ color: "#c9a227" }}>· {a["Concern"]}</span>}
-              {b.calendarOk === false && <span style={{ color: "#f66" }}>⚠ Meet link nahi bana</span>}
-              {b.clientMailOk === false && <span style={{ color: "#f66" }}>⚠ client mail fail</span>}
-              {b.edits ? <span style={{ color: "#8b5cf6" }}>✏️ Edited{b.edits > 1 ? ` ×${b.edits}` : ""}</span> : null}
+        {missing.length > 0 && <Notice kind="error">Vercel mein yeh settings missing hain: <b>{missing.join(", ")}</b> — jab tak yeh set nahi hongi Meet link aur emails nahi jayenge.</Notice>}
+        {note && <Notice kind={tone(note)}>{note}</Notice>}
+
+        {tab === "book" && (<>
+          <ul className="wpa-subsubsub"><li><b>Sab</b> ({rows.length})</li><li>Aane wali ({MENU[0][3]})</li><li>Edited ({rows.filter((b) => b.edits).length})</li></ul>
+          <table className="wpa-table">
+            <thead><tr><th style={{ width: 150 }}>Slot</th><th>Customer</th><th style={{ width: 210 }}>Reading</th><th>Concern</th><th style={{ width: 150 }}>Status</th></tr></thead>
+            <tbody>
+              {!rows.length && <tr><td colSpan={5}>Abhi koi confirmed booking nahi hai.</td></tr>}
+              {[...rows].sort((x, y) => { // upcoming first (soonest on top), then past ones (latest first)
+                const px = slotMs(...(x.slot.split("T") as [string, string])) < Date.now(), py = slotMs(...(y.slot.split("T") as [string, string])) < Date.now();
+                return px !== py ? (px ? 1 : -1) : px ? y.slot.localeCompare(x.slot) : x.slot.localeCompare(y.slot);
+              }).map((b) => {
+                const [d, t] = b.slot.split("T"), past = slotMs(d, t) < Date.now(), open = openId === b.slot, a: Record<string, string> = b.answers || {};
+                return [
+                  <tr key={b.slot} className={past ? "past" : ""}>
+                    <td><b>{d}</b><br />{t} IST{past && <span className="wpa-muted"> · ho gayi</span>}</td>
+                    <td><a className="wpa-row-title" onClick={() => setOpenId(open ? "" : b.slot)}>{b.name}</a><div className="wpa-muted">{b.phone} · {b.email}</div>
+                      <div className="wpa-row-actions"><a onClick={() => setOpenId(open ? "" : b.slot)}>{open ? "Band karein" : "Details dekhein"}</a>{b.meetLink && <> | <a href={b.meetLink} target="_blank" rel="noopener noreferrer">Meet link</a></>}</div></td>
+                    <td>{TYPE(b.tier)}</td>
+                    <td>{a["Concern"] || "—"}</td>
+                    <td>{b.calendarOk === false ? <span className="wpa-status err">Meet link nahi bana</span> : b.clientMailOk === false ? <span className="wpa-status err">Client mail fail</span> : <span className="wpa-status ok">Confirmed</span>}
+                      {b.edits ? <div><span className="wpa-status edit">✏️ Edited{b.edits > 1 ? ` ×${b.edits}` : ""}</span></div> : null}</td>
+                  </tr>,
+                  open && <tr key={b.slot + "-d"} className="wpa-detail"><td colSpan={5}>
+                    <table className="wpa-kv"><tbody>
+                      {b.meetLink && <tr><td style={td}>Meet link</td><td><a href={b.meetLink} target="_blank" rel="noopener noreferrer">{b.meetLink}</a></td></tr>}
+                      <tr><td style={td}>Email</td><td>{b.email}</td></tr>
+                      {Object.entries(a).filter(([k, v]) => v && k !== "Email (payment)" && k !== "Slot").map(([k, v]) => (
+                        <tr key={k}><td style={td}>{k}</td><td style={{ whiteSpace: "pre-wrap" }}>{v}</td></tr>))}
+                      <tr><td style={td}>Booking / Payment</td><td>{b.bid} · {b.paymentId || "-"}</td></tr>
+                    </tbody></table>
+                    {(b.calendarOk === false || b.clientMailOk === false) && (
+                      <div className="wpa-notice error inline">
+                        {b.calendarErr && <p>Meet error: {b.calendarErr}</p>}
+                        {b.mailErr && <p>Email error: {b.mailErr}</p>}
+                        <p><button className="wpa-btn primary" onClick={() => retry(b.slot)}>↻ Meet link + email dobara bhejein</button></p>
+                      </div>)}
+                    {!b.answers && <p className="wpa-muted">Is booking ka form data nahi mila (purani booking).</p>}
+                    <p className="wpa-muted" style={{ fontSize: 12 }}>Photos sirf email (OWNER_EMAIL) mein attach hoti hain, yahan nahi.</p>
+                  </td></tr>,
+                ];
+              })}
+            </tbody>
+          </table>
+        </>)}
+
+        {tab === "pay" && (<>
+          <ul className="wpa-subsubsub"><li><b>Sab</b> ({orders.length})</li><li className="ok">Paid + form ({paidForm})</li><li className="warn">Paid, form baaki ({paidPending})</li><li>Unpaid ({unpaid})</li></ul>
+          <table className="wpa-table">
+            <thead><tr><th style={{ width: 150 }}>Status</th><th>Customer</th><th style={{ width: 200 }}>Reading</th><th style={{ width: 140 }}>Slot</th><th>Payment</th></tr></thead>
+            <tbody>
+              {!orders.length && <tr><td colSpan={5}>Abhi koi payment attempt nahi hai.</td></tr>}
+              {orders.map((o) => (
+                <tr key={o.bid}>
+                  <td>{o.status !== "paid" ? <span className="wpa-status">Payment pending</span> : o.formDone ? <span className="wpa-status ok">Paid · form bhara</span> : <span className="wpa-status warn">Paid · form baaki</span>}</td>
+                  <td><b>{o.name || "—"}</b><div className="wpa-muted">{o.email || "-"}{o.phone ? ` · ${o.phone}` : ""}</div>
+                    {o.status === "paid" && !o.formDone && <div className="wpa-row-actions"><a onClick={() => resume(o.bid)}>Form link banao</a></div>}</td>
+                  <td>{TYPE(o.tier)}</td>
+                  <td>{o.slot ? o.slot.replace("T", " ") : "—"}</td>
+                  <td>{o.amount ? <b>₹{Number(o.amount).toLocaleString("en-IN")}</b> : "—"}{o.coupon ? <span className="wpa-tag">🎟 {o.coupon}</span> : null}
+                    <div className="wpa-muted">{new Date(o.paidAt || o.createdAt).toLocaleString("en-IN")} · ID {o.bid}{o.paymentId ? ` · ${o.paymentId}` : ""}</div></td>
+                </tr>))}
+            </tbody>
+          </table>
+        </>)}
+
+        {tab === "slots" && (<>
+          {msg && <Notice kind={tone(msg)}>{msg}</Notice>}
+          <div className="wpa-postbox"><h2>Booking dates</h2><div className="inside">
+            <p>Bookings <input type="date" value={cfg.fromDate || ""} onChange={(e) => setCfg({ ...cfg, fromDate: e.target.value })} /> se <input type="date" value={cfg.toDate || ""} onChange={(e) => setCfg({ ...cfg, toDate: e.target.value })} /> tak</p>
+            <p>Band karne wali dates / festivals (YYYY-MM-DD, comma se alag):<br />
+              <input className="wide" value={cfg.blocked.join(",")} onChange={(e) => setCfg({ ...cfg, blocked: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })} /></p>
+          </div></div>
+          <div className="wpa-cols">
+            <div className="wpa-postbox"><h2>Normal booking — days &amp; time (IST)</h2><div className="inside">
+              <table className="wpa-form-table"><tbody>{DAYS.map((n, i) => (
+                <tr key={i}><th><label><input type="checkbox" checked={day(i).on} onChange={(e) => setDay(i, { on: e.target.checked })} /> {n}</label></th>
+                  <td><input type="time" value={day(i).start} onChange={(e) => setDay(i, { start: e.target.value })} /> to <input type="time" value={day(i).end} onChange={(e) => setDay(i, { end: e.target.value })} /></td></tr>))}</tbody></table>
+              <p>Call length <input className="sm" type="number" value={cfg.duration} onChange={(e) => setCfg({ ...cfg, duration: +e.target.value })} /> min &nbsp; Slot gap <input className="sm" type="number" value={cfg.step} onChange={(e) => setCfg({ ...cfg, step: +e.target.value })} /> min</p>
+              <p>Payment ke kam se kam <input className="sm" type="number" value={cfg.minDays} onChange={(e) => setCfg({ ...cfg, minDays: +e.target.value })} /> din baad · max <input className="sm" type="number" value={cfg.advanceDays} onChange={(e) => setCfg({ ...cfg, advanceDays: +e.target.value })} /> din aage tak</p>
+            </div></div>
+            <div className="wpa-postbox"><h2>⚡ Urgent bookings — days &amp; time (IST)</h2><div className="inside">
+              <table className="wpa-form-table"><tbody>{DAYS.map((n, i) => (
+                <tr key={"u" + i}><th><label><input type="checkbox" checked={uday(i).on} onChange={(e) => setUday(i, { on: e.target.checked })} /> {n}</label></th>
+                  <td><input type="time" value={uday(i).start} onChange={(e) => setUday(i, { start: e.target.value })} /> to <input type="time" value={uday(i).end} onChange={(e) => setUday(i, { end: e.target.value })} /></td></tr>))}</tbody></table>
+              <p>Payment ke <input className="sm" type="number" value={cfg.urgentHours} onChange={(e) => setCfg({ ...cfg, urgentHours: +e.target.value })} /> ghante ke andar · kam se kam <input className="sm" type="number" value={cfg.urgentLeadHours} onChange={(e) => setCfg({ ...cfg, urgentLeadHours: +e.target.value })} /> ghante baad</p>
+              <p className="description">Normal aur urgent ke start time ek jaise rakhein (12:00, 13:00…) taaki slots overlap na hon. Band dates dono par lagti hain.</p>
+            </div></div>
+          </div>
+          <p><button className="wpa-btn primary" onClick={save}>Save Changes</button></p>
+        </>)}
+
+        {tab === "price" && (!pricing ? <p>Load ho raha hai…</p> : (<>
+          {pmsg && <Notice kind={tone(pmsg)}>{pmsg}</Notice>}
+          <div className="wpa-postbox"><h2>Readings — on/off &amp; prices (₹)</h2><div className="inside">
+            <p className="description">OFF karne par woh reading website se hat jaati hai (card, buttons, sticky bar) aur uski nayi booking nahi hoti. Pehle se bani bookings par koi asar nahi.</p>
+            <table className="wpa-table compact"><thead><tr><th>Reading</th><th style={{ width: 120 }}>Website par</th><th style={{ width: 160 }}>Regular price</th><th style={{ width: 200 }}>Offer price <small>(khaali = nahi)</small></th></tr></thead><tbody>
+              {TIERS.map(([t, l]) => { const off = pricing.enabled?.[t] === false; return (
+                <tr key={t} className={off ? "past" : ""}><td><b>{l}</b></td>
+                  <td><label className={`wpa-toggle ${off ? "" : "on"}`}><input type="checkbox" checked={!off} onChange={(e) => setPricing({ ...pricing, enabled: { ...pricing.enabled, [t]: e.target.checked } })} /><span />{off ? "OFF" : "ON"}</label></td>
+                  <td><input type="number" min={100} value={pricing.prices[t] ?? ""} onChange={(e) => setPrice(t, e.target.value)} /></td>
+                  <td><input type="number" min={100} value={pricing.offer.prices?.[t] ?? ""} onChange={(e) => setOfferPrice(t, e.target.value)} placeholder="—" /></td></tr>); })}
+            </tbody></table>
+            {pricing.enabled && Object.values(pricing.enabled).every((v) => v === false) && <Notice kind="warning">Saari readings OFF hain — website par &quot;Bookings abhi band hain&quot; dikhega.</Notice>}
+          </div></div>
+          <div className="wpa-postbox"><h2>Seasonal discount / offer</h2><div className="inside">
+            <table className="wpa-form-table"><tbody>
+              <tr><th>Offer</th><td><label><input type="checkbox" checked={!!pricing.offer.on} onChange={(e) => setOffer({ on: e.target.checked })} /> Offer chalu hai</label></td></tr>
+              <tr><th>Naam</th><td><input value={pricing.offer.name || ""} onChange={(e) => setOffer({ name: e.target.value })} placeholder="Diwali Offer" /></td></tr>
+              <tr><th>Dates</th><td><input type="date" value={pricing.offer.from || ""} onChange={(e) => setOffer({ from: e.target.value })} /> se <input type="date" value={pricing.offer.until || ""} onChange={(e) => setOffer({ until: e.target.value })} /> tak
+                <p className="description">Offer sirf in dates ke beech (India time) aur sirf un readings par lagta hai jinka offer price bhara hai.</p></td></tr>
+            </tbody></table>
+          </div></div>
+          <p><button className="wpa-btn primary" onClick={savePricing}>Save Changes</button></p>
+
+          <div className="wpa-postbox"><h2>Coupons</h2><div className="inside">
+            <div className="wpa-inline-form">
+              <input value={nc.code} onChange={(e) => setNc({ ...nc, code: e.target.value.toUpperCase().replace(/\s/g, "") })} placeholder="CODE (jaise SAVE10)" />
+              <select value={nc.type} onChange={(e) => setNc({ ...nc, type: e.target.value })}><option value="percent">% off</option><option value="flat">₹ off</option></select>
+              <input className="sm" type="number" value={nc.value} onChange={(e) => setNc({ ...nc, value: e.target.value })} placeholder={nc.type === "percent" ? "10" : "500"} />
+              <span className="wpa-muted">Expiry</span><input type="date" min={today} value={nc.expires} onChange={(e) => setNc({ ...nc, expires: e.target.value })} />
+              <input type="number" min={1} value={nc.maxUses} onChange={(e) => setNc({ ...nc, maxUses: e.target.value })} placeholder="Max uses (khaali = unlimited)" />
             </div>
-            {open && (
-              <div style={{ margin: "10px 0 4px 22px", padding: 14, border: "1px solid #555", borderRadius: 10 }}>
-                <table style={{ borderCollapse: "collapse", width: "100%" }}><tbody>
-                  {b.meetLink && <tr><td style={td}>Meet link</td><td><a href={b.meetLink} target="_blank" rel="noopener noreferrer" style={{ color: "#9b8cff" }}>{b.meetLink}</a></td></tr>}
-                  <tr><td style={td}>Email</td><td>{b.email}</td></tr>
-                  {Object.entries(a).filter(([k, v]) => v && k !== "Email (payment)" && k !== "Slot").map(([k, v]) => (
-                    <tr key={k}><td style={td}>{k}</td><td style={{ whiteSpace: "pre-wrap" }}>{v}</td></tr>))}
-                  <tr><td style={td}>Booking / Payment</td><td>{b.bid} · {b.paymentId || "-"}</td></tr>
-                </tbody></table>
-                {(b.calendarOk === false || b.clientMailOk === false) && (
-                  <div style={{ margin: "10px 0", padding: 10, border: "1px solid #f66", borderRadius: 8 }}>
-                    {b.calendarErr && <div style={{ color: "#f66" }}>Meet error: {b.calendarErr}</div>}
-                    {b.mailErr && <div style={{ color: "#f66" }}>Email error: {b.mailErr}</div>}
-                    <button className="btn gold" style={{ marginTop: 8, padding: "8px 18px" }} onClick={() => retry(b.slot)}>↻ Meet link + email dobara bhejein</button>
-                  </div>)}
-                {!b.answers && <p style={{ color: "#e8a33d" }}>Is booking ka form data nahi mila (purani booking).</p>}
-                <p style={{ fontSize: 12, opacity: 0.7, margin: "10px 0 0" }}>Photos sirf email (OWNER_EMAIL) mein attach hoti hain, yahan nahi.</p>
-              </div>)}
-          </div>);
-      })}
-      </div>)}
+            <div className="wpa-inline-form">{TIERS.map(([t, l]) => <label key={t}><input type="checkbox" checked={nc.tiers.includes(t)} onChange={(e) => setNc({ ...nc, tiers: e.target.checked ? [...nc.tiers, t] : nc.tiers.filter((x: string) => x !== t) })} /> {l}</label>)}
+              <button className="wpa-btn primary" onClick={createCoupon} disabled={!nc.code || !nc.value}>Add Coupon</button></div>
+            <table className="wpa-table compact" style={{ marginTop: 12 }}><thead><tr><th>Code</th><th>Discount</th><th>Readings</th><th>Expiry</th><th>Used</th><th style={{ width: 170 }}></th></tr></thead><tbody>
+              {!coupons.length && <tr><td colSpan={6}>Abhi koi coupon nahi hai.</td></tr>}
+              {coupons.map((c) => { const expired = c.expires && c.expires < today, full = c.maxUses && c.used >= c.maxUses; return (
+                <tr key={c.code} className={expired || full ? "past" : ""}>
+                  <td><b>{c.code}</b>{expired ? <span className="wpa-status">expired</span> : full ? <span className="wpa-status">limit poori</span> : null}</td>
+                  <td>{c.type === "percent" ? `${c.value}%` : `₹${c.value}`} off</td>
+                  <td>{(c.tiers || []).map((t: string) => TIERS.find(([k]) => k === t)?.[1]).join(", ")}</td>
+                  <td>{c.expires || "—"}</td>
+                  <td>{c.used || 0}{c.maxUses ? ` / ${c.maxUses}` : ""}</td>
+                  <td style={{ textAlign: "right" }}>{delCode === c.code
+                    ? <><button className="wpa-btn danger" onClick={() => deleteCoupon(c.code)}>Pakka delete?</button> <button className="wpa-btn" onClick={() => setDelCode("")}>Nahi</button></>
+                    : <a className="wpa-link-delete" onClick={() => setDelCode(c.code)}>Delete</a>}</td>
+                </tr>); })}
+            </tbody></table>
+            <p className="description">Coupon offer price ke upar lagta hai. Koi bhi price ₹100 se kam nahi hoti. &quot;Used&quot; sirf payment hone par badhta hai.</p>
+          </div></div>
+        </>))}
+
+        {tab === "tools" && (<>
+          <div className="wpa-postbox"><h2>📅 Upcoming customers ko calendar invite bhejo</h2><div className="inside">
+            <p>Jin aane wali bookings ko abhi tak Google Calendar invite nahi gaya, unhe ek baar bhejta hai.</p>
+            <p><button className="wpa-btn" onClick={invite}>Invite bhejo</button></p>
+          </div></div>
+          <div className="wpa-postbox"><h2>✏️ Edit link bhejo (pichhle 24 ghante)</h2><div className="inside">
+            <p>Jinhone pichhle 24 ghante mein form bhara aur jinka edit time abhi baaki hai, unhe form edit ka link email karta hai (har customer ko ek baar).</p>
+            <p><button className="wpa-btn" onClick={editLinks}>Edit link bhejo</button></p>
+          </div></div>
+        </>)}
+        <p className="wpa-footer">The Divine Tarot · Booking Admin</p>
+      </main>
     </div>);
 }
