@@ -7,6 +7,7 @@ import { isQuestionTier, isTaken, parseTier, tierInfo, tierLabel } from "@/lib/s
 import { sendClientConfirmation, sendOwnerNotification, sendOwnerUpdate } from "@/lib/mailer";
 import { bidFrom, editToken, originOf } from "@/lib/session";
 import { editUntil } from "@/lib/formEdit";
+import { logMail } from "@/lib/mailLog";
 import { MAX_WORDS, WORD_FIELDS, wordCount } from "@/lib/words";
 import { VIDEO_MAX_Q, VIDEO_Q_CHARS, VIDEO_TOPICS, needsPartner } from "@/lib/concerns";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 30;
@@ -116,7 +117,8 @@ export async function POST(req: Request) {
     await slotRef.update({ name: p1.name, email, phone: p1.phone, answers: after, raw, prevAnswers: before, editedAt: Date.now(), edits: FieldValue.increment(1) });
     await orderRef.update({ name: p1.name, editedAt: Date.now() });
     const emailChanged = String(cur.email || "").toLowerCase() !== email, meetLink = cur.meetLink || null;
-    if (emailChanged && cur.eventId) await changeGuest(cur.eventId, cur.email || "", email).catch((e) => console.error("calendar guest change failed", e));
+    if (emailChanged && cur.eventId) await changeGuest(cur.eventId, cur.email || "", email).then(() => logMail({ kind: "invite", bid, slot: b.slot }, email, true))
+      .catch((e) => { console.error("calendar guest change failed", e); return logMail({ kind: "invite", bid, slot: b.slot }, email, false, e); });
     const until = editUntil(b.formAt, b.slot), editLink = `${originOf(req)}/api/edit?t=${editToken(bid, until)}`;
     const mails = await Promise.allSettled([
       sendOwnerUpdate({ bid, tier, date, time, name: p1.name, email }, before, after, photos, meetLink),
@@ -154,7 +156,8 @@ export async function POST(req: Request) {
   answers = { "Slot": `${date} ${time} IST`, "Booking type": tierLabel(tier), ...answers };
 
   let m: { meetLink?: string; eventId?: string } | null = null, calendarErr = "";
-  try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone, tier }); } catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); }
+  try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone, tier }); await logMail({ kind: "invite", bid, slot: key }, email, true); }
+  catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); await logMail({ kind: "invite", bid, slot: key }, email, false, e); }
   const meetLink = m?.meetLink || null;
   await slotRef.update({ meetLink, eventId: m?.eventId || null, calendarOk: !!meetLink, calendarErr });
   await orderRef.update({ meetLink });

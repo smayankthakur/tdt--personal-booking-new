@@ -1,4 +1,5 @@
 import nodemailer, { type SendMailOptions } from "nodemailer";
+import { logMail, type MailMeta } from "./mailLog";
 import { callMinutes, isQuestionTier, isUrgentTier, slotMs, tierInfo, tierTag } from "./slots";
 
 function transporter() {
@@ -11,8 +12,12 @@ function transporter() {
 }
 /** Every mail gets a plain-text twin and normal transactional headers — HTML-only mail is a common spam signal. */
 const toText = (h: string) => h.replace(/<br\s*\/?>|<\/(p|div|li|h\d|tr)>/gi, "\n").replace(/<a [^>]*href="([^"]+)"[^>]*>(.*?)<\/a>/gi, "$2 ($1)").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/\n{3,}/g, "\n\n").trim();
-async function send(m: SendMailOptions) {
-  return transporter().sendMail({ ...m, text: toText(String(m.html || "")), headers: { "X-Auto-Response-Suppress": "OOF, AutoReply", ...(m.headers as object) } });
+async function send(m: SendMailOptions, meta?: MailMeta) {
+  try {
+    const r = await transporter().sendMail({ ...m, text: toText(String(m.html || "")), headers: { "X-Auto-Response-Suppress": "OOF, AutoReply", ...(m.headers as object) } });
+    if (meta) await logMail(meta, m.to as string | string[], true);
+    return r;
+  } catch (e) { if (meta) await logMail(meta, m.to as string | string[], false, e); throw e; }
 }
 const from = () => process.env.SMTP_FROM || `"The Divine Tarot" <${process.env.SMTP_USER}>`;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
@@ -54,7 +59,7 @@ const until = (ms?: number) => ms ? new Date(ms).toLocaleString("en-IN", { timeZ
 const editBox = (link?: string | null, ms?: number) => !link ? "" :
   `<div style="border:1px dashed #6d28d9;border-radius:8px;padding:12px 16px;margin:18px 0;font-size:14px;line-height:1.6">✏️ Form mein kuch galat bhar diya? <b>${until(ms)} tak</b> aap form edit kar sakte hain (slot same rahega).<br/><a href="${link}" style="color:#6d28d9;font-weight:600">Form edit karein →</a></div>`;
 
-export async function sendClientConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; editLink?: string | null; editUntil?: number; updated?: boolean; tier?: string }) {
+export async function sendClientConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; editLink?: string | null; editUntil?: number; updated?: boolean; tier?: string; by?: string }) {
   const { day, range } = prettySlot(b.date, b.time, b.tier);
   const video = b.tier === "video", q3 = isQuestionTier(b.tier) && !video;
   const meet = b.meetLink
@@ -90,7 +95,7 @@ export async function sendClientConfirmation(b: { name: string; email: string; b
         </ul>
       </div>
       <p style="font-size:13px;color:#666;margin-top:28px">Contact: thedivinetarothindi@gmail.com | +91 88281 16545</p></div>`,
-  });
+  }, { kind: "confirm", bid: b.bid, slot: `${b.date}T${b.time}`, by: b.by });
 }
 
 /** Sent to the owner with every answer and the uploaded photos attached. */
@@ -106,11 +111,11 @@ export async function sendOwnerNotification(sub: Record<string, any>, photos: { 
     html: `<div style="font-family:Arial,sans-serif;max-width:640px"><h3>${day} · ${range}</h3>
       <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "<b style='color:#c00'>NOT CREATED — create manually</b>"}<br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}</p>
       <table>${rows}</table><p>Photos attached: ${photos.length}</p></div>`,
-  });
+  }, { kind: "owner", bid: sub.bid, slot: `${sub.date}T${sub.time}` });
 }
 
 /** One-off mail to customers who booked before form editing existed: their personal edit link. */
-export async function sendEditLink(b: { name: string; email: string; date: string; time: string; editLink: string; editUntil: number; tier?: string }) {
+export async function sendEditLink(b: { name: string; email: string; date: string; time: string; editLink: string; editUntil: number; tier?: string; bid?: string; by?: string }) {
   const { day, range } = prettySlot(b.date, b.time, b.tier);
   await send({
     from: from(), to: b.email, subject: `Edit your reading form (till ${until(b.editUntil)}) - The Divine Tarot`,
@@ -120,7 +125,7 @@ export async function sendEditLink(b: { name: string; email: string; date: strin
       <p>Ab aap apna reading form <b>${until(b.editUntil)} tak</b> edit kar sakte hain — naam, birth details, partner details, wajah ya photo. Slot aur Google Meet link same rahenge.</p>
       <p style="text-align:center;margin:26px 0"><a href="${b.editLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Form edit karein</a></p>
       <p style="font-size:13px;color:#666">Kuch badalna nahi hai toh is email ko ignore karein. Contact: +91 88281 16545</p></div>`,
-  });
+  }, { kind: "edit", bid: b.bid, slot: `${b.date}T${b.time}`, by: b.by });
 }
 
 /** Owner copy when a customer edits their form: what changed (old → new) + any new photos. */
@@ -141,12 +146,12 @@ export async function sendOwnerUpdate(sub: { bid: string; tier?: string; date: s
       <h4>Kya badla (${changed.length})</h4>${changed.length ? `<table><tr><th align="left">Sawal</th><th align="left">Pehle</th><th align="left">Ab</th></tr>${diff}</table>` : "<p>Koi text change nahi (sirf photo).</p>"}
       <p>Nayi photos attached: ${photos.length}${photos.length ? "" : " (purani photos pichhle email mein hain)"}</p>
       <h4>Poora form (ab)</h4><table>${all}</table></div>`,
-  });
+  }, { kind: "ownerUpdate", bid: sub.bid, slot: `${sub.date}T${sub.time}` });
 }
 
 /** Payment receipt + a personal 24-hour form link, so a customer who loses the payment page (Instagram browser,
  *  UPI app switch, closed tab) can still open the form from any phone/browser. */
-export async function sendPaymentReceived(b: { email: string; bid: string; tier?: string; formLink?: string | null }) {
+export async function sendPaymentReceived(b: { email: string; bid: string; tier?: string; formLink?: string | null; by?: string }) {
   const when = isUrgentTier(b.tier) ? "48 ghante ke andar" : "7 se 10 din ke andar";
   const kind = b.tier && b.tier !== "standard" ? ` (<b>${tierInfo(b.tier).name}</b>)` : "";
   const btn = b.formLink
@@ -160,7 +165,7 @@ export async function sendPaymentReceived(b: { email: string; bid: string; tier?
       ${btn}
       <p>Form submit karte hi aapka <b>appointment slot (${when}), Google Meet link aur schedule</b> isi email par aa jayega, aur Google Calendar invite bhi milega.</p>
       <p style="background:#fff4e5;padding:12px 16px;border-radius:6px;font-size:14px">Koi dikkat ho toh WhatsApp karein <b>+91 88281 16545</b> aur yeh Booking ID bhejein: <b>${b.bid}</b></p></div>`,
-  });
+  }, { kind: "payment", bid: b.bid, by: b.by });
 }
 
 /** 6-digit email verification code for the reading form (valid 10 minutes). */
@@ -176,7 +181,7 @@ export async function sendOtpEmail(email: string, code: string) {
 }
 
 /** Sent once by /api/cron/reminders, about 3 hours before the slot. */
-export async function sendReminder(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; tier?: string }) {
+export async function sendReminder(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; tier?: string; by?: string }) {
   const { day, range } = prettySlot(b.date, b.time, b.tier);
   const meet = b.meetLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink}</span></p>`
@@ -193,5 +198,20 @@ export async function sendReminder(b: { name: string; email: string; bid: string
       ${meet}
       <p style="font-size:14px;line-height:1.7"><b>Slot time par sirf 5 minute wait kiya jayega.</b> ${b.tier === "video" ? "Camera on rakhein, achhi roshni aur stable network ke saath" : "Stable network aur headphones ke saath"}, isi email id (${esc(b.email)}) se join karein.</p>
       <p style="font-size:13px;color:#666;margin-top:28px">Contact: thedivinetarothindi@gmail.com | +91 88281 16545</p></div>`,
-  });
+  }, { kind: "reminder", bid: b.bid, slot: `${b.date}T${b.time}`, by: b.by });
+}
+
+/** "Aapka form abhi baaki hai" — a fresh 24-hour form link for a paid customer who has not filled the form yet
+ *  (sent once automatically ~12 h after payment by the cron, or any time from /admin). */
+export async function sendFormReminder(b: { email: string; bid: string; tier?: string; formLink: string; by?: string }) {
+  const when = isUrgentTier(b.tier) ? "48 ghante ke andar" : "7 se 10 din ke andar";
+  await send({
+    from: from(), to: b.email, subject: "Reminder: your reading form is still pending - The Divine Tarot",
+    html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
+      <h2 style="color:#6d28d9">Namaste</h2>
+      <p>Aapka payment mil chuka hai${b.tier && b.tier !== "standard" ? ` (<b>${tierInfo(b.tier).name}</b>)` : ""}, lekin <b>reading form abhi tak nahi bhara gaya</b>.</p>
+      <p>Form bharte hi aapka appointment slot (${when}) aur Google Meet link isi email par aa jayega.</p>
+      <p style="text-align:center;margin:26px 0"><a href="${b.formLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Reading Form Bharein</a><br/><span style="font-size:12px;color:#555">Yeh link sirf aapke liye hai aur 24 ghante tak valid hai.</span></p>
+      <p style="font-size:13px;color:#666">Booking ID: ${b.bid}</p></div>`,
+  }, { kind: "formReminder", bid: b.bid, by: b.by });
 }

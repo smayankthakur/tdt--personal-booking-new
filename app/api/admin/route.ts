@@ -8,6 +8,7 @@ import { editToken, originOf, resumeToken } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 const ENV = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REFRESH_TOKEN", "SMTP_HOST", "SMTP_USER", "SMTP_PASS", "OWNER_EMAIL"];
 import { adminFrom } from "@/lib/adminAuth";
+import { logMail } from "@/lib/mailLog";
 // Email + password login (see lib/adminAuth.ts); the old shared ADMIN_TOKEN is no longer accepted.
 const deny = async (req: Request) => !(await adminFrom(req));
 
@@ -27,7 +28,8 @@ export async function PUT(req: Request) {
 
 // Re-create the Meet link and re-send the customer email for one booking.
 export async function POST(req: Request) {
-  if (await deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const who = await adminFrom(req);
+  if (!who) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const body = await req.json();
   if (body.resume) { // 24-hour form link for a paid customer who lost the payment page — share on WhatsApp only
     const o = await db.doc(`orders/${body.resume}`).get();
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
       const ref = db.doc(`bookings/${o.slot}`), b = (await ref.get()).data() as any;
       if (!b || b.bid !== d.id || b.status !== "confirmed" || b.editLinkSentAt) continue;
       const [date, time] = String(o.slot).split("T");
-      try { await sendEditLink({ name: b.name, email: b.email, date, time, tier: o.tier, editUntil: until, editLink: `${originOf(req)}/api/edit?t=${editToken(d.id, until)}` }); await ref.update({ editLinkSentAt: Date.now() }); out.push(`${o.slot.replace("T", " ")} ✓`); }
+      try { await sendEditLink({ bid: d.id, by: who, name: b.name, email: b.email, date, time, tier: o.tier, editUntil: until, editLink: `${originOf(req)}/api/edit?t=${editToken(d.id, until)}` }); await ref.update({ editLinkSentAt: Date.now() }); out.push(`${o.slot.replace("T", " ")} ✓`); }
       catch (e: any) { out.push(`${o.slot.replace("T", " ")} ✗ ${String(e?.message || e).slice(0, 100)}`); }
     }
     return NextResponse.json({ result: out.length ? `Edit link bheja: ${out.join(" · ")}` : "Koi pending customer nahi (pichhle 24 ghante)." });
@@ -53,8 +55,8 @@ export async function POST(req: Request) {
     const out: string[] = [];
     for (const d of todo) {
       const b = d.data() as any;
-      try { await sendInvite(b.eventId, { email: b.email, bid: b.bid, phone: b.phone, tier: b.tier }); await d.ref.update({ inviteSentAt: Date.now() }); out.push(`${d.id.replace("T", " ")} ✓`); }
-      catch (e: any) { out.push(`${d.id.replace("T", " ")} ✗ ${String(e?.message || e).slice(0, 120)}`); }
+      try { await sendInvite(b.eventId, { email: b.email, bid: b.bid, phone: b.phone, tier: b.tier }); await d.ref.update({ inviteSentAt: Date.now() }); await logMail({ kind: "invite", bid: b.bid, slot: d.id, by: who }, b.email, true); out.push(`${d.id.replace("T", " ")} ✓`); }
+      catch (e: any) { await logMail({ kind: "invite", bid: b.bid, slot: d.id, by: who }, b.email, false, e); out.push(`${d.id.replace("T", " ")} ✗ ${String(e?.message || e).slice(0, 120)}`); }
     }
     return NextResponse.json({ result: out.length ? `Calendar invite bheja: ${out.join(" · ")}` : "Koi pending upcoming booking nahi hai." });
   }
@@ -63,11 +65,11 @@ export async function POST(req: Request) {
   const b = s.data() as any, [date, time] = String(slot).split("T"), out: string[] = [];
   let meetLink: string | null = b.meetLink || null, calendarErr = "", mailErr = "";
   if (!meetLink) {
-    try { const m = await createMeet(slot, b); meetLink = m.meetLink || null; await ref.update({ meetLink, eventId: m.eventId || null, calendarOk: true, calendarErr: "" }); out.push("Meet link ban gaya ✓"); }
-    catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); await ref.update({ calendarOk: false, calendarErr }); out.push("Meet link ERROR: " + calendarErr); }
+    try { const m = await createMeet(slot, b); meetLink = m.meetLink || null; await ref.update({ meetLink, eventId: m.eventId || null, calendarOk: true, calendarErr: "" }); await logMail({ kind: "invite", bid: b.bid, slot, by: who }, b.email, true); out.push("Meet link ban gaya ✓"); }
+    catch (e: any) { await logMail({ kind: "invite", bid: b.bid, slot, by: who }, b.email, false, e); calendarErr = String(e?.message || e).slice(0, 300); await ref.update({ calendarOk: false, calendarErr }); out.push("Meet link ERROR: " + calendarErr); }
   }
   if (meetLink || !calendarErr) {
-    try { await sendClientConfirmation({ name: b.name, email: b.email, bid: b.bid, date, time, meetLink }); await ref.update({ clientMailOk: true, mailErr: "" }); out.push("Customer ko email bhej di ✓"); }
+    try { await sendClientConfirmation({ name: b.name, email: b.email, bid: b.bid, date, time, meetLink, tier: b.tier, by: who }); await ref.update({ clientMailOk: true, mailErr: "" }); out.push("Customer ko email bhej di ✓"); }
     catch (e: any) { mailErr = String(e?.message || e).slice(0, 300); await ref.update({ clientMailOk: false, mailErr }); out.push("Email ERROR: " + mailErr); }
   }
   return NextResponse.json({ result: out.join(" · "), meetLink });

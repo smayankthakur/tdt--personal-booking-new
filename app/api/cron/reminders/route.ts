@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { FieldPath, FieldValue } from "firebase-admin/firestore";
 import { db } from "@/lib/db";
-import { sendReminder } from "@/lib/mailer";
+import { sendFormReminder, sendReminder } from "@/lib/mailer";
+import { realEmail } from "@/lib/payments";
+import { resumeToken } from "@/lib/session";
 import { addDays, istDate, slotMs } from "@/lib/slots";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 60;
 
 const BEFORE_MS = 3 * 3600 * 1000; // reminder goes out once, ~3 hours before the slot
+const FORM_AFTER_MS = 12 * 3600 * 1000, FORM_UNTIL_MS = 72 * 3600 * 1000; // paid but no form: one auto reminder 12 h after payment
 
 /**
  * ONE reminder email per booking, about 3 hours before the slot (with the Meet link).
@@ -44,5 +47,28 @@ export async function GET(req: Request) {
       out.push(`${d.id} ✗ ${String(e?.message || e).slice(0, 120)}`);
     }
   }
-  return NextResponse.json({ checked: snap.size, sent: out });
+  // Paid but the reading form is still empty: ONE automatic "form baaki hai" mail with a fresh 24 h link,
+  // 12 h after payment (only for payments in the last 3 days). Admin can send more from /admin.
+  const os = await db.collection("orders").where("paidAt", ">=", now - FORM_UNTIL_MS).get();
+  const pending = os.docs.filter((d) => { const o = d.data(); return o.status === "paid" && !o.formDone && !o.autoFormReminderAt && now - o.paidAt >= FORM_AFTER_MS && realEmail(o.customerEmail, o.email); });
+  const forms: string[] = [];
+  for (const d of pending) {
+    const claimed = await db.runTransaction(async (tx) => {
+      const s = (await tx.get(d.ref)).data();
+      if (!s || s.autoFormReminderAt || s.formDone) return false;
+      tx.update(d.ref, { autoFormReminderAt: Date.now() });
+      return true;
+    });
+    if (!claimed) continue;
+    const o = d.data(), site = String(o.origin || process.env.SITE_URL || "https://booking.thedivinetarotonline.com").replace(/\/$/, "");
+    try {
+      await sendFormReminder({ email: realEmail(o.customerEmail, o.email), bid: d.id, tier: o.tier, formLink: `${site}/api/resume?t=${resumeToken(d.id)}` });
+      await d.ref.update({ formReminderAt: Date.now(), formReminders: FieldValue.increment(1) });
+      forms.push(`${d.id} ✓`);
+    } catch (e: any) {
+      await d.ref.update({ autoFormReminderAt: FieldValue.delete() }); // retry on the next run
+      forms.push(`${d.id} ✗ ${String(e?.message || e).slice(0, 120)}`);
+    }
+  }
+  return NextResponse.json({ checked: snap.size, sent: out, formReminders: forms });
 }

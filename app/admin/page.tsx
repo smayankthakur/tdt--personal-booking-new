@@ -2,11 +2,14 @@
 import { useEffect, useState } from "react";
 import { ALL_TIERS, TIER_INFO, slotMs, type Cfg } from "@/lib/slots";
 import "./admin.css";
+import { Notice, TypeTag, tone } from "./ui";
+import Dashboard from "./Dashboard";
+import MailLog from "./MailLog";
 const td = { padding: "6px 14px 6px 0", color: "#646970", verticalAlign: "top", whiteSpace: "nowrap" } as const;
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function Admin() {
-  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"book" | "pay" | "slots" | "price" | "tools">("book"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
+  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"dash" | "book" | "pay" | "slots" | "price" | "tools">("dash"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
   const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [who, setWho] = useState(""), [busy, setBusy] = useState(false);
   const SKEY = "tdt_admin";
   useEffect(() => { // keep the session across refreshes in this tab only
@@ -31,6 +34,14 @@ export default function Admin() {
     if (!r.ok) return setMsg("Load nahi hua");
     const j = await r.json(); setCfg(j.cfg); setRows(j.bookings); setOrders(j.orders || []); setMissing(j.missingEnv || []); setMsg("");
   };
+  /** JSON call to an /api/admin… route with the session header (logs out on 401). */
+  const api = async (path: string, method = "GET", body?: unknown) => {
+    const r = await fetch(path, { method, headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+    if (r.status === 401) logout();
+    return r.json().catch(() => ({ error: `Server error (${r.status})` }));
+  };
+  const openBooking = (slot: string) => { setTab("book"); setOpenId(slot); setTimeout(() => document.getElementById("bk-" + slot)?.scrollIntoView({ behavior: "smooth", block: "center" }), 60); };
+  const formReminder = async (bid: string) => { setNote("Form reminder bheja ja raha hai…"); const j = await api("/api/admin/mail", "POST", { bid, kind: "formReminder" }); setNote(j.result || j.error || "Kuch galat hua"); load(); };
   // ---- Prices, seasonal offer, coupons (/api/admin/pricing) ----
   const TIERS = ALL_TIERS.map((t) => [t, TIER_INFO[t].name] as const);
   const [pricing, setPricing] = useState<any>(null), [coupons, setCoupons] = useState<any[]>([]), [pmsg, setPmsg] = useState(""), [delCode, setDelCode] = useState("");
@@ -77,9 +88,7 @@ export default function Admin() {
   const box = {} as const; // inputs are styled by the WordPress-like admin stylesheet (.wpa)
 
   // ---------- WordPress-style admin UI ----------
-  const TYPE = (t?: string) => (t && t !== "standard" ? <span className={`wpa-tag ${t === "video" ? "blue" : "gold"}`}>{TIER_INFO[t as keyof typeof TIER_INFO]?.badge || t}</span> : <span className="wpa-tag">Voice (40 min)</span>);
-  const Notice = ({ kind = "info", children }: { kind?: "info" | "success" | "error" | "warning"; children: React.ReactNode }) => <div className={`wpa-notice ${kind}`}><p>{children}</p></div>;
-  const tone = (m: string) => (/✓|ban gaya|delete ho gaya|Saved/.test(m) ? "success" : /ERROR|nahi|galat|error|fail|⚠/i.test(m) ? "error" : "info") as "success" | "error" | "info";
+  const TYPE = (t?: string) => <TypeTag t={t} />;
 
   if (!cfg) return (
     <div className="wpa-login">
@@ -99,13 +108,14 @@ export default function Admin() {
 
   const paidForm = orders.filter((o) => o.status === "paid" && o.formDone).length, paidPending = orders.filter((o) => o.status === "paid" && !o.formDone).length, unpaid = orders.filter((o) => o.status !== "paid").length;
   const MENU = [
+    ["dash", "🏠", "Dashboard", 0],
     ["book", "📅", "Bookings", rows.filter((b) => { const [d, t] = b.slot.split("T"); return slotMs(d, t) >= Date.now(); }).length],
     ["pay", "💳", "Payments", paidPending],
     ["slots", "🕒", "Slots", 0],
     ["price", "🏷️", "Prices & Offers", 0],
     ["tools", "🛠️", "Tools", 0],
   ] as const;
-  const TITLE = { book: "Bookings", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
+  const TITLE = { dash: "Dashboard", book: "Bookings", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
   return (
     <div className="wpa">
       <div className="wpa-bar">
@@ -125,10 +135,12 @@ export default function Admin() {
           <button className="wpa-btn" onClick={() => { load(); if (tab === "price") loadPricing(); }}>↻ Refresh</button>
         </div>
         {missing.length > 0 && <Notice kind="error">Vercel mein yeh settings missing hain: <b>{missing.join(", ")}</b> — jab tak yeh set nahi hongi Meet link aur emails nahi jayenge.</Notice>}
-        {note && <Notice kind={tone(note)}>{note}</Notice>}
+        {note && <div className="wpa-sticky"><Notice kind={tone(note)}>{note} <a className="wpa-dismiss" onClick={() => setNote("")}>✕</a></Notice></div>}
+
+        {tab === "dash" && <Dashboard api={api} rows={rows} orders={orders} onNote={setNote} openBooking={openBooking} resumeLink={resume} />}
 
         {tab === "book" && (<>
-          <ul className="wpa-subsubsub"><li><b>Sab</b> ({rows.length})</li><li>Aane wali ({MENU[0][3]})</li><li>Edited ({rows.filter((b) => b.edits).length})</li></ul>
+          <ul className="wpa-subsubsub"><li><b>Sab</b> ({rows.length})</li><li>Aane wali ({MENU[1][3]})</li><li>Edited ({rows.filter((b) => b.edits).length})</li></ul>
           <table className="wpa-table">
             <thead><tr><th style={{ width: 150 }}>Slot</th><th>Customer</th><th style={{ width: 210 }}>Reading</th><th>Concern</th><th style={{ width: 150 }}>Status</th></tr></thead>
             <tbody>
@@ -139,7 +151,7 @@ export default function Admin() {
               }).map((b) => {
                 const [d, t] = b.slot.split("T"), past = slotMs(d, t) < Date.now(), open = openId === b.slot, a: Record<string, string> = b.answers || {};
                 return [
-                  <tr key={b.slot} className={past ? "past" : ""}>
+                  <tr key={b.slot} id={"bk-" + b.slot} className={past ? "past" : ""}>
                     <td><b>{d}</b><br />{t} IST{past && <span className="wpa-muted"> · ho gayi</span>}</td>
                     <td><a className="wpa-row-title" onClick={() => setOpenId(open ? "" : b.slot)}>{b.name}</a><div className="wpa-muted">{b.phone} · {b.email}</div>
                       <div className="wpa-row-actions"><a onClick={() => setOpenId(open ? "" : b.slot)}>{open ? "Band karein" : "Details dekhein"}</a>{b.meetLink && <> | <a href={b.meetLink} target="_blank" rel="noopener noreferrer">Meet link</a></>}</div></td>
@@ -163,6 +175,7 @@ export default function Admin() {
                         <p><button className="wpa-btn primary" onClick={() => retry(b.slot)}>↻ Meet link + email dobara bhejein</button></p>
                       </div>)}
                     {!b.answers && <p className="wpa-muted">Is booking ka form data nahi mila (purani booking).</p>}
+                    {b.bid && <MailLog api={api} bid={b.bid} form slotAhead={!past} hasEvent={!!b.eventId} onNote={setNote} />}
                     <p className="wpa-muted" style={{ fontSize: 12 }}>Photos sirf email (OWNER_EMAIL) mein attach hoti hain, yahan nahi.</p>
                   </td></tr>,
                 ];
@@ -181,7 +194,7 @@ export default function Admin() {
                 <tr key={o.bid}>
                   <td>{o.status !== "paid" ? <span className="wpa-status">Payment pending</span> : o.formDone ? <span className="wpa-status ok">Paid · form bhara</span> : <span className="wpa-status warn">Paid · form baaki</span>}</td>
                   <td><b>{o.name || "—"}</b><div className="wpa-muted">{o.email || "-"}{o.phone ? ` · ${o.phone}` : ""}</div>
-                    {o.status === "paid" && !o.formDone && <div className="wpa-row-actions"><a onClick={() => resume(o.bid)}>Form link banao</a></div>}</td>
+                    {o.status === "paid" && !o.formDone && <div className="wpa-row-actions"><a onClick={() => formReminder(o.bid)}>Reminder email bhejo</a> | <a onClick={() => resume(o.bid)}>Form link copy</a>{o.formReminders ? <span className="wpa-muted"> · {o.formReminders} reminder gaye</span> : null}</div>}</td>
                   <td>{TYPE(o.tier)}</td>
                   <td>{o.slot ? o.slot.replace("T", " ") : "—"}</td>
                   <td>{o.amount ? <b>₹{Number(o.amount).toLocaleString("en-IN")}</b> : "—"}{o.coupon ? <span className="wpa-tag">🎟 {o.coupon}</span> : null}
