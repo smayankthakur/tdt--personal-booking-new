@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { FieldPath, FieldValue } from "firebase-admin/firestore";
 import { db } from "@/lib/db";
-import { sendFormReminder, sendReminder } from "@/lib/mailer";
+import { sendFeedbackRequest, sendFormReminder, sendReminder } from "@/lib/mailer";
 import { realEmail } from "@/lib/payments";
-import { resumeToken } from "@/lib/session";
+import { feedbackToken, resumeToken } from "@/lib/session";
 import { addDays, istDate, slotMs } from "@/lib/slots";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 60;
 
 const BEFORE_MS = 3 * 3600 * 1000; // reminder goes out once, ~3 hours before the slot
+const FEEDBACK_AFTER_MS = 24 * 3600 * 1000; // feedback mail: one day after the slot
 const FORM_AFTER_MS = 12 * 3600 * 1000, FORM_UNTIL_MS = 72 * 3600 * 1000; // paid but no form: one auto reminder 12 h after payment
 
 /**
@@ -70,5 +71,24 @@ export async function GET(req: Request) {
       forms.push(`${d.id} ✗ ${String(e?.message || e).slice(0, 120)}`);
     }
   }
-  return NextResponse.json({ checked: snap.size, sent: out, formReminders: forms });
+  // ~1 day after the reading: ONE "kaisi lagi reading?" mail (not for no-shows / refunds; only readings of the last 3 days).
+  const fsnap = await db.collection("bookings").where(FieldPath.documentId(), ">=", addDays(today, -3)).where(FieldPath.documentId(), "<=", today + "~").get();
+  const site = String(process.env.SITE_URL || "https://booking.thedivinetarotonline.com").replace(/\/$/, "");
+  const fbs: string[] = [];
+  for (const d of fsnap.docs) {
+    const b = d.data(), [date, time] = d.id.split("T"), start = time ? slotMs(date, time) : 0;
+    if (b.status !== "confirmed" || !b.email || !b.bid || b.feedbackAt || b.outcome === "noshow" || b.outcome === "refunded") continue;
+    if (now - start < FEEDBACK_AFTER_MS || now - start > 72 * 3600e3) continue;
+    const claimed = await db.runTransaction(async (tx) => {
+      const s = (await tx.get(d.ref)).data();
+      if (!s || s.feedbackAt) return false;
+      tx.update(d.ref, { feedbackAt: Date.now() });
+      return true;
+    });
+    if (!claimed) continue;
+    if ((await db.doc(`feedback/${b.bid}`).get()).exists) continue; // already rated
+    try { await sendFeedbackRequest({ name: b.name, email: b.email, bid: b.bid, date, time, tier: b.tier, link: `${site}/feedback?t=${feedbackToken(b.bid)}` }); fbs.push(`${d.id} ✓`); }
+    catch (e: any) { await d.ref.update({ feedbackAt: FieldValue.delete() }); fbs.push(`${d.id} ✗ ${String(e?.message || e).slice(0, 120)}`); }
+  }
+  return NextResponse.json({ checked: snap.size, sent: out, formReminders: forms, feedback: fbs });
 }

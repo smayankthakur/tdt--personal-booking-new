@@ -1,7 +1,8 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./db";
 import { sendPaymentReceived } from "./mailer";
-import { slotMs } from "./slots";
+import { slotMs, tierInfo } from "./slots";
+import { notifyAdmins } from "./push";
 import { resumeToken } from "./session";
 
 /** Razorpay fills "void@razorpay.com" when the customer skips email at checkout — treat that as no email. */
@@ -29,6 +30,7 @@ export async function markPaid(bid: string, plinkId: string, paymentId: string |
     }
     return d;
   });
+  if (order) await notifyAdmins(`💳 Naya payment ₹${Number(order.amount || 0).toLocaleString("en-IN")}`, `${tierInfo(order.tier).name}${order.coupon ? ` · 🎟 ${order.coupon}` : ""} · ${realEmail(order.customerEmail, email) || phone || "—"}`, "/admin");
   const to = realEmail(order?.customerEmail, email); // email typed on our site first, then Razorpay's
   if (order && to) {
     // Personal 24-hour form link (same signed token as the admin "Form link banao" button).

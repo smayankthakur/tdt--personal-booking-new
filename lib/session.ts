@@ -60,3 +60,11 @@ export function openResume(t: string): string | null {
   if (!bid || !exp || !sig || !key() || !BID.test(bid) || Number(exp) < Date.now()) return null;
   return same(sig, mac(`rs:${bid}:${exp}`)) ? bid : null;
 }
+
+/** Personal link to rate a finished reading (/feedback?t=…). No expiry: one rating per booking, it can be updated. */
+export const feedbackToken = (bid: string) => `${bid}.${mac(`fb:${bid}`)}`;
+export function openFeedback(t: string): string | null {
+  const [bid, sig] = String(t || "").split(".");
+  if (!bid || !sig || !key() || !BID.test(bid)) return null;
+  return same(sig, mac(`fb:${bid}`)) ? bid : null;
+}

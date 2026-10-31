@@ -1058,3 +1058,11 @@ footer a {
 @media (max-width: 860px) { .tier-grid.n4, .tier-grid.n5 { grid-template-columns: 1fr; } }
 .price-card.q3 { border-color: rgba(126,226,168,.45); background: linear-gradient(160deg, rgba(126,226,168,.08), var(--panel) 55%); }
 .price-card.q3 .badge { background: rgba(126,226,168,.14); }
+
+/* feedback page */
+.fb-stars { display: flex; justify-content: center; gap: 6px; margin: 18px 0 4px; }
+.fb-stars button { background: none; border: 0; font-size: 44px; line-height: 1; color: rgba(255,255,255,.22); cursor: pointer; padding: 2px; transition: transform .1s, color .1s; }
+.fb-stars button.on { color: #f5b942; } .fb-stars button:hover { transform: scale(1.12); }
+.fb-stars button:focus-visible { outline: 2px solid #f5b942; outline-offset: 2px; border-radius: 6px; }
+.fb-label { text-align: center; min-height: 22px; margin-bottom: 14px; color: var(--gold-soft); }
+.fb-text { width: 100%; margin-top: 6px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--panel-line); background: rgba(255,255,255,.04); color: inherit; font: inherit; resize: vertical; }

@@ -8,6 +8,7 @@ import { sendClientConfirmation, sendOwnerNotification, sendOwnerUpdate } from "
 import { bidFrom, editToken, originOf } from "@/lib/session";
 import { editUntil } from "@/lib/formEdit";
 import { logMail } from "@/lib/mailLog";
+import { notifyAdmins } from "@/lib/push";
 import { MAX_WORDS, WORD_FIELDS, wordCount } from "@/lib/words";
 import { VIDEO_MAX_Q, VIDEO_Q_CHARS, VIDEO_TOPICS, needsPartner } from "@/lib/concerns";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 30;
@@ -170,6 +171,8 @@ export async function POST(req: Request) {
   mails.forEach((x) => x.status === "rejected" && console.error("mail failed", x.reason));
   const why = (r: PromiseSettledResult<unknown>) => (r.status === "rejected" ? String((r.reason as any)?.message || r.reason).slice(0, 300) : "");
   await slotRef.update({ clientMailOk: mails[0].status === "fulfilled", ownerMailOk: mails[1].status === "fulfilled", mailErr: why(mails[0]) || why(mails[1]) });
+  const when = new Date(`${key}:00+05:30`).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
+  await notifyAdmins(`📅 Nayi booking: ${p1.name}`, `${when} · ${tierInfo(tier).name}${meetLink ? "" : " · ⚠ Meet link nahi bana"}`, "/admin");
 
   return NextResponse.json({ ok: true, date, time, meetLink });
 }

@@ -251,3 +251,19 @@ export async function sendCancelled(b: { name: string; email: string; bid: strin
       <p style="font-size:13px;color:#666">Booking ID: ${b.bid}</p></div>`,
   }, { kind: "cancel", bid: b.bid, slot: b.key, by: b.by });
 }
+
+/** ~1 day after the reading: "kaisi lagi aapki reading?" with a personal 1-click rating link. */
+export async function sendFeedbackRequest(b: { name: string; email: string; bid: string; date: string; time: string; tier?: string; link: string; by?: string }) {
+  const { day } = prettySlot(b.date, b.time, b.tier);
+  const star = (n: number) => `<a href="${b.link}&r=${n}" style="font-size:30px;text-decoration:none;color:#f59e0b;padding:0 3px">★</a>`;
+  await send({
+    from: from(), to: b.email, subject: "How was your reading? - The Divine Tarot",
+    html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
+      <h2 style="color:#6d28d9">Namaste ${esc(b.name || "")}</h2>
+      <p>Aapki <b>${day}</b> wali reading kaisi lagi? Aapka feedback humein aur behtar banne mein madad karta hai — sirf 30 second lagenge.</p>
+      <p style="text-align:center;margin:22px 0 6px">${[1, 2, 3, 4, 5].map(star).join("")}</p>
+      <p style="text-align:center;font-size:12px;color:#555;margin:0 0 22px">Star par click karein (5 = bahut achhi)</p>
+      <p style="text-align:center"><a href="${b.link}" style="background:#6d28d9;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Feedback dein</a></p>
+      <p style="font-size:13px;color:#666">Booking ID: ${b.bid}</p></div>`,
+  }, { kind: "feedback", bid: b.bid, slot: `${b.date}T${b.time}`, by: b.by });
+}

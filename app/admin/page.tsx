@@ -9,11 +9,17 @@ import CustomerPanel from "./CustomerPanel";
 import Customers from "./Customers";
 import CalendarView from "./CalendarView";
 import Reports from "./Reports";
+import Feedback from "./Feedback";
+import Activity from "./Activity";
+import Account from "./Account";
 import { buildCustomers } from "./customers";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+type Tab = "dash" | "book" | "cal" | "cust" | "pay" | "report" | "feedback" | "slots" | "price" | "tools" | "activity" | "account";
+const TABS: Tab[] = ["dash", "book", "cal", "cust", "pay", "report", "feedback", "slots", "price", "tools", "activity", "account"];
+
 export default function Admin() {
-  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"dash" | "book" | "cal" | "cust" | "pay" | "report" | "slots" | "price" | "tools">("dash"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
+  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<Tab>("dash"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
   const [cancelled, setCancelled] = useState<any[]>([]), [custOpen, setCustOpen] = useState("");
   const customers = useMemo(() => buildCustomers(rows, orders, cancelled), [rows, orders, cancelled]);
   const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [who, setWho] = useState(""), [busy, setBusy] = useState(false);
@@ -21,7 +27,13 @@ export default function Admin() {
   useEffect(() => { // keep the session across refreshes in this tab only
     try { const v = JSON.parse(sessionStorage.getItem(SKEY) || "null"); if (v?.token) { setToken(v.token); setWho(v.email); } } catch {}
   }, []);
-  useEffect(() => { if (token) load(); }, [token]);
+  useEffect(() => { if (token && !cfg) load(); }, [token]);
+  useEffect(() => { // /admin#feedback etc. (links from push notifications) open that page
+    const h = location.hash.slice(1) as Tab;
+    if (TABS.includes(h)) setTab(h);
+  }, []);
+  const go = (k: Tab) => { setTab(k); try { history.replaceState(null, "", k === "dash" ? "/admin" : `/admin#${k}`); } catch {} };
+  const newToken = (t: string) => { setToken(t); try { sessionStorage.setItem(SKEY, JSON.stringify({ token: t, email: who })); } catch {} };
   const logout = () => { try { sessionStorage.removeItem(SKEY); } catch {} setToken(""); setWho(""); setCfg(null); setPw(""); };
   const signIn = async (e: React.FormEvent) => {
     e.preventDefault(); setMsg(""); setBusy(true);
@@ -46,7 +58,7 @@ export default function Admin() {
     if (r.status === 401) logout();
     return r.json().catch(() => ({ error: `Server error (${r.status})` }));
   };
-  const openBooking = (slot: string) => { setTab("book"); setOpenId(slot); setTimeout(() => document.getElementById("bk-" + slot)?.scrollIntoView({ behavior: "smooth", block: "center" }), 60); };
+  const openBooking = (slot: string) => { go("book"); setOpenId(slot); setTimeout(() => document.getElementById("bk-" + slot)?.scrollIntoView({ behavior: "smooth", block: "center" }), 60); };
   const formReminder = async (bid: string) => { setNote("Form reminder bheja ja raha hai…"); const j = await api("/api/admin/mail", "POST", { bid, kind: "formReminder" }); setNote(j.result || j.error || "Kuch galat hua"); load(); };
   // ---- Prices, seasonal offer, coupons (/api/admin/pricing) ----
   const TIERS = ALL_TIERS.map((t) => [t, TIER_INFO[t].name] as const);
@@ -127,21 +139,24 @@ export default function Admin() {
     ["cust", "👥", "Customers", 0],
     ["pay", "💳", "Payments", paidPending],
     ["report", "📊", "Reports", 0],
+    ["feedback", "⭐", "Feedback", 0],
     ["slots", "🕒", "Slots", 0],
     ["price", "🏷️", "Prices & Offers", 0],
     ["tools", "🛠️", "Tools", 0],
+    ["activity", "🕘", "Activity", 0],
+    ["account", "👤", "Account", 0],
   ] as const;
-  const TITLE = { dash: "Dashboard", book: "Bookings", cal: "Calendar", cust: "Customers", report: "Revenue Report", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
+  const TITLE = { dash: "Dashboard", book: "Bookings", cal: "Calendar", cust: "Customers", report: "Revenue Report", feedback: "Customer Feedback", activity: "Activity Log", account: "Account & Notifications", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
   return (
     <div className="wpa">
       <div className="wpa-bar">
         <span className="wpa-bar-logo"><img src="/logo.png" alt="" />The Divine Tarot</span>
         <a href="/" target="_blank" rel="noreferrer">🏠 Visit Site</a>
-        <span className="wpa-bar-right">Howdy, <b>{who}</b><button onClick={logout}>Log Out</button></span>
+        <span className="wpa-bar-right"><a onClick={() => go("account")}>Howdy, <b>{who}</b></a><button onClick={logout}>Log Out</button></span>
       </div>
       <nav className="wpa-menu">
         {MENU.map(([k, ic, l, n]) => (
-          <button key={k} className={tab === k ? "current" : ""} onClick={() => { setTab(k); if (k === "price") loadPricing(); }}>
+          <button key={k} className={tab === k ? "current" : ""} onClick={() => { go(k); if (k === "price") loadPricing(); }}>
             <span className="ic">{ic}</span><span className="lbl">{l}</span>{n > 0 && <span className="count">{n}</span>}
           </button>))}
       </nav>
@@ -160,6 +175,12 @@ export default function Admin() {
         {tab === "cal" && <CalendarView api={api} cfg={cfg} saveCfg={saveCfg} openBooking={openBooking} onNote={setNote} />}
 
         {tab === "report" && <Reports api={api} />}
+
+        {tab === "feedback" && <Feedback api={api} onNote={setNote} />}
+
+        {tab === "activity" && <Activity api={api} />}
+
+        {tab === "account" && <Account api={api} me={who} onNote={setNote} onToken={newToken} />}
 
         {tab === "cust" && <Customers customers={customers} openCustomer={setCustOpen} />}
 

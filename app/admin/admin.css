@@ -42,7 +42,7 @@
 .wpa-link-delete { color: #b32d2e !important; }
 
 /* inputs */
-.wpa input[type=text], .wpa input[type=search], .wpa input:not([type]), .wpa input[type=number], .wpa input[type=date], .wpa input[type=time], .wpa input[type=email], .wpa select {
+.wpa input[type=text], .wpa input[type=search], .wpa input[type=password], .wpa input:not([type]), .wpa input[type=number], .wpa input[type=date], .wpa input[type=time], .wpa input[type=email], .wpa select {
   min-height: 30px; padding: 0 8px; border: 1px solid #8c8f94; border-radius: 4px; background: #fff; color: #2c3338; font: 14px inherit; font-family: inherit; box-shadow: none; }
 .wpa input:focus, .wpa select:focus { border-color: #2271b1; box-shadow: 0 0 0 1px #2271b1; outline: 2px solid transparent; }
 .wpa input.sm { width: 70px; } .wpa input.wide { width: 100%; }
@@ -187,6 +187,10 @@
 .wpa-chart-x { display: flex; justify-content: space-between; margin-left: 74px; color: #646970; font-size: 11px; padding-top: 4px; }
 .wpa-hbar { margin: 12px 0; } .wpa-hbar .lbl { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .wpa-hbar .track { height: 10px; background: #f0f0f1; border-radius: 0 4px 4px 0; } .wpa-hbar .fill { height: 100%; background: #2271b1; border-radius: 0 4px 4px 0; min-width: 2px; }
+
+.wpa-stars { color: #dba617; font-size: 15px; letter-spacing: 1px; white-space: nowrap; } .wpa-stars span { color: #dcdcde; }
+.wpa-bar-right a { color: #f0f0f1 !important; } .wpa-bar-right a:hover { color: #72aee6 !important; }
+.wpa-menu { overflow-y: auto; }
 
 @media (max-width: 782px) {
   .wpa-bar { height: 46px; } .wpa-menu { top: 46px; width: 54px; } .wpa-menu .lbl, .wpa-menu .count { display: none; }
