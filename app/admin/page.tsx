@@ -66,7 +66,7 @@ export default function Admin() {
   const [nc, setNc] = useState<any>({ code: "", type: "percent", value: "", tiers: [...ALL_TIERS], expires: "", maxUses: "" });
   const papi = (method: string, body?: object, q = "") => fetch(`/api/admin/pricing${q}`, { method, headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => { if (r.status === 401) logout(); return r.json(); });
   const loadPricing = async () => { const j = await papi("GET"); if (j.pricing) { setPricing(j.pricing); setCoupons(j.coupons || []); } };
-  const savePricing = async () => { setPmsg("Save ho raha hai…"); const j = await papi("PUT", pricing); setPmsg(j.ok ? "Saved ✓ — website par 1 minute ke andar dikhega" : j.error || "Save nahi hua"); if (j.pricing) setPricing(j.pricing); };
+  const savePricing = async () => { setPmsg("Save ho raha hai…"); const j = await papi("PUT", pricing); setPmsg(j.ok ? `Saved ✓ — website par turant dikhega${j.closed ? ` · band ki gayi reading ke ${j.closed} khule payment link cancel kiye` : ""}` : j.error || "Save nahi hua"); if (j.pricing) setPricing(j.pricing); };
   const createCoupon = async () => { setPmsg(""); const j = await papi("POST", { ...nc, value: Number(nc.value), maxUses: nc.maxUses ? Number(nc.maxUses) : null, expires: nc.expires || null }); if (j.ok) { setPmsg(`Coupon ${j.coupon.code} ban gaya ✓`); setNc({ ...nc, code: "", value: "", maxUses: "", expires: "" }); loadPricing(); } else setPmsg(j.error || "Coupon nahi bana"); };
   const [editCode, setEditCode] = useState(""), [ec, setEc] = useState<any>({});
   const patchCoupon = async (body: object) => { const j = await papi("PATCH", body); setPmsg(j.ok ? "Coupon update ho gaya ✓" : j.error || "Update nahi hua"); setEditCode(""); loadPricing(); };
@@ -192,7 +192,7 @@ export default function Admin() {
               {!orders.length && <tr><td colSpan={5}>Abhi koi payment attempt nahi hai.</td></tr>}
               {orders.map((o) => (
                 <tr key={o.bid}>
-                  <td>{o.status === "cancelled" ? <span className="wpa-status err">Cancelled{o.refunded ? " · refund" : ""}</span> : o.status !== "paid" ? <span className="wpa-status">Payment pending</span> : o.refunded ? <span className="wpa-status warn">Refunded</span> : o.formDone ? <span className="wpa-status ok">Paid · form bhara</span> : <span className="wpa-status warn">Paid · form baaki</span>}</td>
+                  <td>{o.status === "void" ? <span className="wpa-status" title="Reading band hone par khula payment link cancel kiya gaya">Link cancel · reading band</span> : o.status === "cancelled" ? <span className="wpa-status err">Cancelled{o.refunded ? " · refund" : ""}</span> : o.status !== "paid" ? <span className="wpa-status">Payment pending</span> : o.refunded ? <span className="wpa-status warn">Refunded</span> : o.formDone ? <span className="wpa-status ok">Paid · form bhara</span> : <span className="wpa-status warn">Paid · form baaki</span>}</td>
                   <td><b>{o.name || "—"}</b><div className="wpa-muted">{o.email || "-"}{o.phone ? ` · ${o.phone}` : ""}</div>
                     {o.status === "paid" && !o.formDone && <div className="wpa-row-actions"><a onClick={() => formReminder(o.bid)}>Reminder email bhejo</a> | <a onClick={() => resume(o.bid)}>Form link copy</a>{o.formReminders ? <span className="wpa-muted"> · {o.formReminders} reminder gaye</span> : null}</div>}</td>
                   <td>{TYPE(o.tier)}</td>

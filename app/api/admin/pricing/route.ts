@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { adminFrom } from "@/lib/adminAuth";
 import { logActivity } from "@/lib/activity";
+import { voidOpenLinks } from "@/lib/payments";
 import { CODE_RE, MIN_PRICE, TIERS, getPricing, normCode, savePricing, type Coupon, type Pricing } from "@/lib/pricing";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
@@ -38,11 +39,15 @@ export async function PUT(req: Request) {
   const name = String(o.name || "").trim().slice(0, 40);
   if (o.on && !name) return bad("Offer ka naam likhein (jaise Diwali Offer).");
   const enabled = Object.fromEntries(TIERS.map((t) => [t, b?.enabled?.[t] !== false])) as Pricing["enabled"];
+  const before = (await getPricing(true)).enabled, turnedOff = TIERS.filter((t) => before[t] !== false && !enabled[t]);
   await savePricing({ prices, offer: { on: !!o.on, name, from: o.from || "", until: o.until || "", prices: offerPrices }, enabled });
+  // A reading switched OFF can't be bought any more: new requests are refused (lib/pricing liveTier) and payment
+  // links opened in the last 30 minutes for it are cancelled at Razorpay.
+  const closed = await voidOpenLinks(turnedOff);
   revalidatePath("/"); // the landing page shows the new prices / on-off at once
   const L = (t: string) => `${t} ₹${prices[t as keyof typeof prices]}${offerPrices[t as keyof typeof offerPrices] ? `/₹${offerPrices[t as keyof typeof offerPrices]}` : ""}${enabled[t as keyof typeof enabled] ? "" : " OFF"}`;
-  await logActivity(who, "Prices / offer save kiye", `${TIERS.map(L).join(" · ")}${o.on ? ` · Offer "${name}" ${o.from}–${o.until}` : " · Offer band"}`);
-  return NextResponse.json({ ok: true, pricing: await getPricing(true) });
+  await logActivity(who, "Prices / offer save kiye", `${TIERS.map(L).join(" · ")}${o.on ? ` · Offer "${name}" ${o.from}–${o.until}` : " · Offer band"}${closed ? ` · ${closed} payment link cancel` : ""}`);
+  return NextResponse.json({ ok: true, pricing: await getPricing(true), closed });
 }
 
 // Create a coupon.

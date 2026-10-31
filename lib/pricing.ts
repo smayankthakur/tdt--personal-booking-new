@@ -54,12 +54,12 @@ export const CODE_RE = /^[A-Z0-9-]{3,20}$/;
  * The reading actually on sale for a requested tier: itself when ON, else the most similar ON reading
  * (old links, old app versions, a page opened before the admin switched it off). null = everything is OFF.
  */
-export async function liveTier(tier: Tier): Promise<Tier | null> {
-  return resolveTier(tier, (await getPricing()).enabled);
+export async function liveTier(tier: Tier, fresh = false): Promise<Tier | null> {
+  return resolveTier(tier, (await getPricing(fresh)).enabled); // fresh = read Firestore now (also refreshes the 30 s cache)
 }
 /** 409 body for a request naming a switched-off tier: the customer is moved to `alt` and sees its price before paying. */
 export async function tierOff(tier: Tier) {
-  const alt = await liveTier(tier);
+  const alt = await liveTier(tier, true);
   return {
     error: alt ? `${TIER_NAME[tier]} abhi available nahi hai — iski jagah ${TIER_NAME[alt]} chuna gaya hai. Price dekh kar dobara Continue dabayein.` : "Abhi koi booking available nahi hai.",
     code: "tier_off", alt, altName: alt ? TIER_NAME[alt] : null,

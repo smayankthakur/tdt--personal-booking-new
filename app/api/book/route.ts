@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Sahi email likhein — form ka link isi par aayega.", code: "email" }, { status: 400 });
   // Switched-off reading (old link / page opened before the admin turned it off): never charge a different reading
   // silently — tell the popup which ON reading replaces it, so the customer sees that price and confirms.
-  if ((await liveTier(tier)) !== tier) return NextResponse.json(await tierOff(tier), { status: 409 });
+  if ((await liveTier(tier, true)) !== tier) return NextResponse.json(await tierOff(tier), { status: 409 });
   const origin = originOf(req); // always return the customer to the domain they are actually on
   // Price (regular / seasonal offer) and any coupon are computed on the server from /admin's settings.
   const q = await quote(tier, body?.coupon);

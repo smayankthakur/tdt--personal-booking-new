@@ -8,7 +8,7 @@ export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 // the reply says which one, so the popup switches to it and shows its price before the customer pays.
 export async function POST(req: Request) {
   const b = await req.json().catch(() => ({}));
-  const asked = parseTier(b?.tier), tier = await liveTier(asked);
+  const asked = parseTier(b?.tier), tier = await liveTier(asked, true);
   if (!tier) return NextResponse.json({ error: "Abhi koi booking available nahi hai.", code: "all_off" }, { status: 409 });
   const q = await quote(tier, b?.code);
   if ("error" in q) return NextResponse.json({ ...q, tier, ...(tier !== asked ? { from: asked } : {}) }, { status: 400 });

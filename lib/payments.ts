@@ -69,3 +69,31 @@ export async function verifyOrderWithRazorpay(bid: string, orderId: string, paym
 /** Website bookings use payment links ("plink_…"), app bookings use orders ("order_…"). */
 export const verifyAnyWithRazorpay = (bid: string, id: string) =>
   id.startsWith("order_") ? verifyOrderWithRazorpay(bid, id) : verifyWithRazorpay(bid, id);
+
+/**
+ * A reading was switched OFF in /admin: cancel every still-open Razorpay payment link of that reading (links live
+ * 30 min), so nobody can pay for it through a link opened earlier. Only links Razorpay confirms as cancelled are
+ * marked void here; a link that got paid in the meantime is left for markPaid as usual. Returns how many were closed.
+ */
+export async function voidOpenLinks(tiers: string[]) {
+  if (!tiers.length) return 0;
+  const snap = await db.collection("orders").where("createdAt", ">=", Date.now() - 40 * 60 * 1000).get();
+  let n = 0;
+  for (const d of snap.docs) {
+    const o = d.data();
+    if (o.status !== "created" || !tiers.includes(o.tier || "standard") || !String(o.plinkId || "").startsWith("plink_")) continue;
+    try {
+      const r = await (await fetch(`https://api.razorpay.com/v1/payment_links/${o.plinkId}/cancel`, { method: "POST", headers: { Authorization: auth(), "Content-Type": "application/json" }, cache: "no-store" })).json();
+      const st = r?.status || (await rz(`payment_links/${o.plinkId}`))?.status;
+      if (st !== "cancelled" && st !== "expired") continue; // paid / unknown → leave it alone
+      await db.runTransaction(async (tx) => {
+        const s = (await tx.get(d.ref)).data(), hRef = s?.heldSlot ? db.doc(`bookings/${s.heldSlot}`) : null, h = hRef ? await tx.get(hRef) : null;
+        if (!s || s.status !== "created") return;
+        tx.update(d.ref, { status: "void", voidReason: "reading switched off", voidAt: Date.now() });
+        if (hRef && h?.exists && h.data()!.bid === d.id && h.data()!.status === "held") tx.delete(hRef); // free the urgent hold
+      });
+      n++;
+    } catch (e) { console.error("cancel payment link failed", o.plinkId, e); }
+  }
+  return n;
+}
