@@ -5,6 +5,7 @@ import { adminFrom } from "@/lib/adminAuth";
 import { sendInvite } from "@/lib/calendar";
 import { editUntil } from "@/lib/formEdit";
 import { logMail } from "@/lib/mailLog";
+import { logActivity } from "@/lib/activity";
 import { sendClientConfirmation, sendFormReminder, sendReminder } from "@/lib/mailer";
 import { realEmail } from "@/lib/payments";
 import { editToken, originOf, resumeToken } from "@/lib/session";
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
       if (!to) return no("Is order par customer ki email nahi hai — Form link copy karke WhatsApp par bhejein.");
       await sendFormReminder({ email: to, bid, tier: o.tier, formLink: `${site}/api/resume?t=${resumeToken(bid)}`, by: who });
       await oRef.update({ formReminderAt: Date.now(), formReminders: FieldValue.increment(1) });
-      return NextResponse.json({ result: `Form reminder bhej diya → ${to} ✓` });
+      { await logActivity(who, "Mail dobara bheja", `Form reminder · ${bid}`); return NextResponse.json({ result: `Form reminder bhej diya → ${to} ✓` }); }
     }
 
     // the rest need the confirmed booking
@@ -60,13 +61,13 @@ export async function POST(req: Request) {
       await sendClientConfirmation({ name: b.name, email: b.email, bid, date, time, meetLink: b.meetLink || null, tier: b.tier, by: who,
         editUntil: until, editLink: open ? `${site}/api/edit?t=${editToken(bid, until)}` : null });
       await bRef.update({ clientMailOk: true, mailErr: "" });
-      return NextResponse.json({ result: `Confirmation mail bhej di → ${b.email} ✓` });
+      { await logActivity(who, "Mail dobara bheja", `Confirmation mail · ${bid}`); return NextResponse.json({ result: `Confirmation mail bhej di → ${b.email} ✓` }); }
     }
     if (kind === "reminder") {
       if (slotMs(date, time) < Date.now()) return no("Slot ka time nikal chuka hai — reminder ka matlab nahi.");
       await sendReminder({ name: b.name, email: b.email, bid, date, time, meetLink: b.meetLink || null, tier: b.tier, by: who });
       await bRef.update({ reminderAt: Date.now() });
-      return NextResponse.json({ result: `Reminder bhej diya → ${b.email} ✓` });
+      { await logActivity(who, "Mail dobara bheja", `Reminder · ${bid}`); return NextResponse.json({ result: `Reminder bhej diya → ${b.email} ✓` }); }
     }
     if (kind === "invite") {
       if (!b.eventId) return no("Calendar event nahi bana — pehle 'Meet link + email dobara bhejein' dabayein.");
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
       catch (e) { await logMail({ kind: "invite", bid, slot: o.slot, by: who }, b.email, false, e); throw e; }
       await logMail({ kind: "invite", bid, slot: o.slot, by: who }, b.email, true);
       await bRef.update({ inviteSentAt: Date.now() });
-      return NextResponse.json({ result: `Google Calendar invite dobara bheja → ${b.email} ✓` });
+      { await logActivity(who, "Mail dobara bheja", `Google Calendar invite · ${bid}`); return NextResponse.json({ result: `Google Calendar invite dobara bheja → ${b.email} ✓` }); }
     }
     return no("Yeh mail type nahi pehchana.");
   } catch (e: any) {

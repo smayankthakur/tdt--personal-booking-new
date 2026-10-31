@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
 import { adminFrom } from "@/lib/adminAuth";
+import { logActivity } from "@/lib/activity";
 import { CODE_RE, MIN_PRICE, TIERS, getPricing, normCode, savePricing, type Coupon, type Pricing } from "@/lib/pricing";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
@@ -39,7 +40,8 @@ export async function PUT(req: Request) {
   const enabled = Object.fromEntries(TIERS.map((t) => [t, b?.enabled?.[t] !== false])) as Pricing["enabled"];
   await savePricing({ prices, offer: { on: !!o.on, name, from: o.from || "", until: o.until || "", prices: offerPrices }, enabled });
   revalidatePath("/"); // the landing page shows the new prices / on-off at once
-  console.log("pricing saved by", who);
+  const L = (t: string) => `${t} ₹${prices[t as keyof typeof prices]}${offerPrices[t as keyof typeof offerPrices] ? `/₹${offerPrices[t as keyof typeof offerPrices]}` : ""}${enabled[t as keyof typeof enabled] ? "" : " OFF"}`;
+  await logActivity(who, "Prices / offer save kiye", `${TIERS.map(L).join(" · ")}${o.on ? ` · Offer "${name}" ${o.from}–${o.until}` : " · Offer band"}`);
   return NextResponse.json({ ok: true, pricing: await getPricing(true) });
 }
 
@@ -61,14 +63,31 @@ export async function POST(req: Request) {
   if ((await ref.get()).exists) return bad("Yeh code pehle se hai.");
   const c: Coupon = { code, type, value, tiers, expires, maxUses, used: 0, createdAt: Date.now(), createdBy: who };
   await ref.set(c);
+  await logActivity(who, "Coupon banaya", `${code} · ${type === "percent" ? `${value}%` : `₹${value}`} off${expires ? ` · till ${expires}` : ""}${maxUses ? ` · max ${maxUses}` : ""}`);
   return NextResponse.json({ ok: true, coupon: c });
 }
 
 // Delete a coupon: DELETE ?code=XYZ
 export async function DELETE(req: Request) {
-  if (!(await adminFrom(req))) return unauth();
+  const who = await adminFrom(req); if (!who) return unauth();
   const code = normCode(new URL(req.url).searchParams.get("code"));
   if (!CODE_RE.test(code)) return bad("Code sahi nahi hai.");
   await db.doc(`coupons/${code}`).delete();
+  await logActivity(who, "Coupon delete kiya", code);
+  return NextResponse.json({ ok: true });
+}
+
+// Pause / resume a coupon or change its expiry / usage limit: PATCH { code, paused?, expires?, maxUses? }
+export async function PATCH(req: Request) {
+  const who = await adminFrom(req); if (!who) return unauth();
+  const b = await req.json().catch(() => ({})), code = normCode(b?.code), ref = db.doc(`coupons/${code}`);
+  if (!CODE_RE.test(code) || !(await ref.get()).exists) return bad("Coupon nahi mila.");
+  const up: Record<string, unknown> = {};
+  if ("paused" in b) up.paused = !!b.paused;
+  if ("expires" in b) { const e = b.expires ? String(b.expires) : null; if (e && !DATE.test(e)) return bad("Expiry date sahi bharein."); up.expires = e; }
+  if ("maxUses" in b) { const m = b.maxUses ? Math.round(Number(b.maxUses)) : null; if (m !== null && !(m >= 1)) return bad("Max uses 1 ya zyada ho."); up.maxUses = m; }
+  if (!Object.keys(up).length) return bad("Kuch badla nahi.");
+  await ref.update({ ...up, updatedAt: Date.now(), updatedBy: who });
+  await logActivity(who, "Coupon badla", `${code} · ${Object.entries(up).map(([k, v]) => `${k}=${v ?? "—"}`).join(", ")}`);
   return NextResponse.json({ ok: true });
 }

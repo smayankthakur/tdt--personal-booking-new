@@ -7,11 +7,13 @@ import Dashboard from "./Dashboard";
 import Bookings from "./Bookings";
 import CustomerPanel from "./CustomerPanel";
 import Customers from "./Customers";
+import CalendarView from "./CalendarView";
+import Reports from "./Reports";
 import { buildCustomers } from "./customers";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function Admin() {
-  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"dash" | "book" | "cust" | "pay" | "slots" | "price" | "tools">("dash"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
+  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"dash" | "book" | "cal" | "cust" | "pay" | "report" | "slots" | "price" | "tools">("dash"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
   const [cancelled, setCancelled] = useState<any[]>([]), [custOpen, setCustOpen] = useState("");
   const customers = useMemo(() => buildCustomers(rows, orders, cancelled), [rows, orders, cancelled]);
   const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [who, setWho] = useState(""), [busy, setBusy] = useState(false);
@@ -54,6 +56,8 @@ export default function Admin() {
   const loadPricing = async () => { const j = await papi("GET"); if (j.pricing) { setPricing(j.pricing); setCoupons(j.coupons || []); } };
   const savePricing = async () => { setPmsg("Save ho raha hai…"); const j = await papi("PUT", pricing); setPmsg(j.ok ? "Saved ✓ — website par 1 minute ke andar dikhega" : j.error || "Save nahi hua"); if (j.pricing) setPricing(j.pricing); };
   const createCoupon = async () => { setPmsg(""); const j = await papi("POST", { ...nc, value: Number(nc.value), maxUses: nc.maxUses ? Number(nc.maxUses) : null, expires: nc.expires || null }); if (j.ok) { setPmsg(`Coupon ${j.coupon.code} ban gaya ✓`); setNc({ ...nc, code: "", value: "", maxUses: "", expires: "" }); loadPricing(); } else setPmsg(j.error || "Coupon nahi bana"); };
+  const [editCode, setEditCode] = useState(""), [ec, setEc] = useState<any>({});
+  const patchCoupon = async (body: object) => { const j = await papi("PATCH", body); setPmsg(j.ok ? "Coupon update ho gaya ✓" : j.error || "Update nahi hua"); setEditCode(""); loadPricing(); };
   const deleteCoupon = async (code: string) => { const j = await papi("DELETE", undefined, `?code=${encodeURIComponent(code)}`); setDelCode(""); setPmsg(j.ok ? `Coupon ${code} delete ho gaya` : j.error || "Delete nahi hua"); loadPricing(); };
   const setPrice = (t: string, v: string) => setPricing({ ...pricing, prices: { ...pricing.prices, [t]: v } });
   const setOffer = (o: object) => setPricing({ ...pricing, offer: { ...pricing.offer, ...o } });
@@ -80,6 +84,11 @@ export default function Admin() {
     setNote("Pichhle 24 ghante wale customers ko edit link bheja ja raha hai…");
     const r = await fetch("/api/admin", { method: "POST", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify({ sendEditLinks: true }) });
     const j = await r.json(); setNote(j.result || j.error || "Kuch galat hua"); load();
+  };
+  const saveCfg = async (c: Cfg) => {
+    const r = await fetch("/api/admin", { method: "PUT", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify(c) });
+    if (r.ok) setCfg(c);
+    return r.ok;
   };
   const save = async () => {
     const r = await fetch("/api/admin", { method: "PUT", headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: JSON.stringify(cfg) });
@@ -114,13 +123,15 @@ export default function Admin() {
   const MENU = [
     ["dash", "🏠", "Dashboard", 0],
     ["book", "📅", "Bookings", rows.filter((b) => { const [d, t] = b.slot.split("T"); return slotMs(d, t) >= Date.now(); }).length],
+    ["cal", "📆", "Calendar", 0],
     ["cust", "👥", "Customers", 0],
     ["pay", "💳", "Payments", paidPending],
+    ["report", "📊", "Reports", 0],
     ["slots", "🕒", "Slots", 0],
     ["price", "🏷️", "Prices & Offers", 0],
     ["tools", "🛠️", "Tools", 0],
   ] as const;
-  const TITLE = { dash: "Dashboard", book: "Bookings", cust: "Customers", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
+  const TITLE = { dash: "Dashboard", book: "Bookings", cal: "Calendar", cust: "Customers", report: "Revenue Report", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
   return (
     <div className="wpa">
       <div className="wpa-bar">
@@ -145,6 +156,10 @@ export default function Admin() {
         {tab === "dash" && <Dashboard api={api} rows={rows} orders={orders} onNote={setNote} openBooking={openBooking} resumeLink={resume} />}
 
         {tab === "book" && <Bookings api={api} rows={rows} orders={orders} cancelled={cancelled} customers={customers} openId={openId} setOpenId={setOpenId} onNote={setNote} reload={load} retry={retry} openCustomer={setCustOpen} />}
+
+        {tab === "cal" && <CalendarView api={api} cfg={cfg} saveCfg={saveCfg} openBooking={openBooking} onNote={setNote} />}
+
+        {tab === "report" && <Reports api={api} />}
 
         {tab === "cust" && <Customers customers={customers} openCustomer={setCustOpen} />}
 
@@ -229,19 +244,24 @@ export default function Admin() {
               <button className="wpa-btn primary" onClick={createCoupon} disabled={!nc.code || !nc.value}>Add Coupon</button></div>
             <table className="wpa-table compact" style={{ marginTop: 12 }}><thead><tr><th>Code</th><th>Discount</th><th>Readings</th><th>Expiry</th><th>Used</th><th style={{ width: 170 }}></th></tr></thead><tbody>
               {!coupons.length && <tr><td colSpan={6}>Abhi koi coupon nahi hai.</td></tr>}
-              {coupons.map((c) => { const expired = c.expires && c.expires < today, full = c.maxUses && c.used >= c.maxUses; return (
-                <tr key={c.code} className={expired || full ? "past" : ""}>
-                  <td><b>{c.code}</b>{expired ? <span className="wpa-status">expired</span> : full ? <span className="wpa-status">limit poori</span> : null}</td>
+              {coupons.map((c) => { const expired = c.expires && c.expires < today, full = c.maxUses && c.used >= c.maxUses; return editCode === c.code ? (
+                <tr key={c.code}><td><b>{c.code}</b></td><td colSpan={5}><div className="wpa-inline-form" style={{ margin: 0 }}>
+                  <span className="wpa-muted">Expiry</span><input type="date" value={ec.expires || ""} onChange={(e) => setEc({ ...ec, expires: e.target.value })} />
+                  <input type="number" min={1} value={ec.maxUses || ""} onChange={(e) => setEc({ ...ec, maxUses: e.target.value })} placeholder="Max uses (khaali = unlimited)" />
+                  <button className="wpa-btn primary" onClick={() => patchCoupon({ code: c.code, expires: ec.expires || null, maxUses: ec.maxUses ? Number(ec.maxUses) : null })}>Save</button>
+                  <button className="wpa-btn" onClick={() => setEditCode("")}>Cancel</button></div></td></tr>) : (
+                <tr key={c.code} className={expired || full || c.paused ? "past" : ""}>
+                  <td><b>{c.code}</b>{c.paused ? <span className="wpa-status warn">paused</span> : expired ? <span className="wpa-status">expired</span> : full ? <span className="wpa-status">limit poori</span> : null}</td>
                   <td>{c.type === "percent" ? `${c.value}%` : `₹${c.value}`} off</td>
                   <td>{(c.tiers || []).map((t: string) => TIERS.find(([k]) => k === t)?.[1]).join(", ")}</td>
                   <td>{c.expires || "—"}</td>
                   <td>{c.used || 0}{c.maxUses ? ` / ${c.maxUses}` : ""}</td>
                   <td style={{ textAlign: "right" }}>{delCode === c.code
                     ? <><button className="wpa-btn danger" onClick={() => deleteCoupon(c.code)}>Pakka delete?</button> <button className="wpa-btn" onClick={() => setDelCode("")}>Nahi</button></>
-                    : <a className="wpa-link-delete" onClick={() => setDelCode(c.code)}>Delete</a>}</td>
+                    : <><a onClick={() => patchCoupon({ code: c.code, paused: !c.paused })}>{c.paused ? "Chalu karein" : "Pause"}</a> | <a onClick={() => { setEditCode(c.code); setEc({ expires: c.expires || "", maxUses: c.maxUses || "" }); }}>Edit</a> | <a className="wpa-link-delete" onClick={() => setDelCode(c.code)}>Delete</a></>}</td>
                 </tr>); })}
             </tbody></table>
-            <p className="description">Coupon offer price ke upar lagta hai. Koi bhi price ₹100 se kam nahi hoti. &quot;Used&quot; sirf payment hone par badhta hai.</p>
+            <p className="description">Pause karne par coupon turant band ho jaata hai (delete nahi hota, baad mein chalu kar sakte hain). Coupon offer price ke upar lagta hai. Koi bhi price ₹100 se kam nahi hoti. &quot;Used&quot; sirf payment hone par badhta hai.</p>
           </div></div>
         </>))}
 

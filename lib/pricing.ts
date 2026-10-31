@@ -12,7 +12,7 @@ export const MIN_PRICE = 100; // nothing is ever charged below ₹100 (offers an
 
 export type Offer = { on: boolean; name: string; from: string; until: string; prices: Partial<Record<Tier, number | null>> };
 export type Pricing = { prices: Record<Tier, number>; offer: Offer; enabled: Record<Tier, boolean> };
-export type Coupon = { code: string; type: "percent" | "flat"; value: number; tiers: Tier[]; expires?: string | null; maxUses?: number | null; used: number; createdAt: number; createdBy?: string };
+export type Coupon = { code: string; type: "percent" | "flat"; value: number; tiers: Tier[]; expires?: string | null; maxUses?: number | null; used: number; createdAt: number; createdBy?: string; paused?: boolean };
 
 export const DEFAULT_PRICING: Pricing = {
   prices: { standard: Number(process.env.PRICE_INR || REGULAR_PRICE), urgent: Number(process.env.PRICE_URGENT_INR || URGENT_PRICE), video: Number(process.env.PRICE_VIDEO_INR || VIDEO_PRICE), q3: 4500, q3urgent: 9000 }, // q3 prices = placeholders; admin sets them
@@ -59,6 +59,7 @@ export async function quote(tier: Tier, rawCode?: unknown): Promise<{ regular: n
   if (!CODE_RE.test(code)) return { error: "Yeh coupon code sahi nahi hai." };
   const c = (await db.doc(`coupons/${code}`).get()).data() as Coupon | undefined;
   if (!c) return { error: "Yeh coupon code sahi nahi hai." };
+  if (c.paused) return { error: "Yeh coupon abhi band hai." };
   if (c.expires && istDate(Date.now()) > c.expires) return { error: "Yeh coupon expire ho chuka hai." };
   if (c.maxUses && (c.used || 0) >= c.maxUses) return { error: "Yeh coupon ki limit poori ho chuki hai." };
   if (c.tiers?.length && !c.tiers.includes(tier)) return { error: `Yeh coupon ${TIER_NAME[tier]} par nahi lagta.` };
