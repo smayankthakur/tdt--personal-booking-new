@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
 import { HOLD_MS, TIER_INFO, isTaken, isUrgentTier, type Tier, parseTier } from "@/lib/slots";
-import { quote } from "@/lib/pricing";
+import { liveTier, quote, tierOff } from "@/lib/pricing";
 import { sealBid } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
@@ -16,6 +16,8 @@ const NO_SLOTS = "Abhi saare slots full hain. Kripya baad mein dobara dekhein.";
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const tier: Tier = parseTier(body?.tier);
+  // Switched-off reading (older app build / screen opened earlier): reply which ON reading replaces it (code tier_off, alt).
+  if ((await liveTier(tier)) !== tier) return NextResponse.json(await tierOff(tier), { status: 409 });
   // The customer's email, asked in the app before paying (as on the website): the "payment received" mail and the form
   // link go to it, and it prefills Razorpay Checkout. Optional so older app versions keep working.
   const customerEmail = String(body?.email || "").trim().toLowerCase().slice(0, 200);

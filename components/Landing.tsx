@@ -7,6 +7,7 @@ import PayButton from "@/components/PayButton";
 import ResumeBanner from "@/components/ResumeBanner";
 import { inr } from "@/lib/offer";
 import type { PublicPrice } from "@/lib/pricing";
+import { TIER_INFO, resolveTier, tierFromHint, type Tier } from "@/lib/slots";
 
 
 /** Fades an element up into view the first time it scrolls into the viewport. */
@@ -92,6 +93,30 @@ export default function Landing({ pricing }: { pricing: Prices }) {
   const voice = on.standard || on.urgent || on.q3 || on.q3urgent;
   const title = voice && on.video ? <>Voice &amp; Video Call Reading</> : on.video ? <>Video Call Reading</> : <>Voice Call Reading</>;
   const q3Price = inr(pricing.q3.price), q3uPrice = inr(pricing.q3urgent.price);
+
+  // Old / shared links that name a reading (?tier=urgent, ?type=video, #voice, /3-questions …): jump to that card.
+  // If the admin has switched that reading OFF, show the most similar reading that is ON instead (and say so).
+  const [moved, setMoved] = useState<{ from: Tier; to: Tier } | null>(null);
+  useEffect(() => {
+    const url = new URL(window.location.href), keys = ["tier", "type", "reading", "call"];
+    const hint = keys.map((k) => url.searchParams.get(k)).find(Boolean) || url.hash.slice(1);
+    const asked = tierFromHint(hint);
+    if (!asked) return;
+    const to = resolveTier(asked, on);
+    keys.forEach((k) => url.searchParams.delete(k));
+    if (!to) { window.history.replaceState(null, "", `${url.pathname}${url.search}#book`); return; } // everything OFF: the page says so
+    if (to !== asked) setMoved({ from: asked, to });
+    window.history.replaceState(null, "", `${url.pathname}${url.search}#${to}`);
+    const t = setTimeout(() => {
+      const el = document.getElementById(to);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("card-focus"); setTimeout(() => el.classList.remove("card-focus"), 2600);
+    }, 300);
+    return () => clearTimeout(t);
+  }, []);
+  // shown at the top of the card the visitor was moved to, so it is on screen right after the scroll
+  const movedNote = (t: Tier) => moved?.to === t ? <div className="moved-note" role="status">ℹ️ <b>{TIER_INFO[moved.from].name}</b> abhi available nahi hai — aapke liye iski jagah yeh reading dikhayi gayi hai.</div> : null;
   return (
     <>
       <ResumeBanner />
@@ -210,8 +235,9 @@ export default function Landing({ pricing }: { pricing: Prices }) {
           {count === 0 && <div className="notes-card" style={{ maxWidth: 640, margin: "0 auto 32px", textAlign: "center" }}><p>Abhi koi booking available nahi hai. Bookings jald hi dobara shuru hongi.</p></div>}
           <div className={`tier-grid n${count}`}>
             {on.standard && <Reveal delay={80}>
-              <div className={`price-card${offer ? " offer" : ""}`}>
+              <div id="standard" className={`price-card${offer ? " offer" : ""}`}>
                 {offer && <div className="offer-ribbon">🪔 {OFFER.name} · Valid till {OFFER.untilText}</div>}
+                {movedNote("standard")}
                 <span className="badge">40 Minutes · Voice Call</span>
                 <h3>Call Reading</h3>
                 <div className="amount">
@@ -230,8 +256,9 @@ export default function Landing({ pricing }: { pricing: Prices }) {
             </Reveal>}
 
             {on.urgent && <Reveal delay={130}>
-              <div className="price-card urgent">
+              <div id="urgent" className="price-card urgent">
                 {pricing.urgent.offerName && <div className="offer-ribbon">🪔 {pricing.urgent.offerName} · Valid till {untilText(pricing.urgent.offerUntil)}</div>}
+                {movedNote("urgent")}
                 <span className="badge">⚡ Urgent · Within 48 Hours</span>
                 <h3>Urgent Call Reading</h3>
                 <div className="amount">
@@ -250,8 +277,9 @@ export default function Landing({ pricing }: { pricing: Prices }) {
             </Reveal>}
 
             {on.video && <Reveal delay={180}>
-              <div className="price-card video">
+              <div id="video" className="price-card video">
                 {pricing.video.offerName && <div className="offer-ribbon">🪔 {pricing.video.offerName} · Valid till {untilText(pricing.video.offerUntil)}</div>}
+                {movedNote("video")}
                 <span className="badge">🎥 30 Minutes · Video Call</span>
                 <h3>Video Call Reading</h3>
                 <div className="amount">
@@ -270,8 +298,9 @@ export default function Landing({ pricing }: { pricing: Prices }) {
               </div>
             </Reveal>}
             {on.q3 && <Reveal delay={230}>
-              <div className="price-card q3">
+              <div id="q3" className="price-card q3">
                 {pricing.q3.offerName && <div className="offer-ribbon">🪔 {pricing.q3.offerName} · Valid till {untilText(pricing.q3.offerUntil)}</div>}
+                {movedNote("q3")}
                 <span className="badge">❓ 30 Minutes · Voice Call · 3 Sawal</span>
                 <h3>3 Question Call Reading</h3>
                 <div className="amount">
@@ -290,8 +319,9 @@ export default function Landing({ pricing }: { pricing: Prices }) {
               </div>
             </Reveal>}
             {on.q3urgent && <Reveal delay={280}>
-              <div className="price-card urgent q3">
+              <div id="q3urgent" className="price-card urgent q3">
                 {pricing.q3urgent.offerName && <div className="offer-ribbon">🪔 {pricing.q3urgent.offerName} · Valid till {untilText(pricing.q3urgent.offerUntil)}</div>}
+                {movedNote("q3urgent")}
                 <span className="badge">⚡ Urgent · 3 Sawal · Within 48 Hours</span>
                 <h3>Urgent 3 Question Call</h3>
                 <div className="amount">

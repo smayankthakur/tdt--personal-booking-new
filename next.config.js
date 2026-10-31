@@ -16,6 +16,15 @@ const nextConfig = {
   poweredByHeader: false,
   // No next/image in this app: switch the built-in image optimizer off so its endpoint can't be abused (audit S22).
   images: { unoptimized: true },
+  // Old / shared links to one reading, e.g. /urgent, /video-call, /3-questions → the page opens that reading's card
+  // (or the most similar reading that is switched ON — see components/Landing.tsx).
+  async redirects() {
+    return [{
+      source: "/:t(voice|voice-call|call|call-reading|standard|normal|personal-reading|urgent|urgent-call|urgent-reading|video|video-call|videocall|video-reading|q3|3q|3-questions|3-question|questions|3-sawal|q3urgent|q3-urgent|urgent-q3|urgent-3q|3q-urgent|urgent-3-questions)",
+      destination: "/?tier=:t",
+      permanent: false,
+    }];
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

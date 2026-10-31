@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { OFFER, REGULAR_PRICE, URGENT_PRICE, VIDEO_PRICE } from "./offer";
-import { ALL_TIERS, TIER_INFO, istDate, type Tier } from "./slots";
+import { ALL_TIERS, TIER_INFO, istDate, resolveTier, type Tier } from "./slots";
 
 /**
  * Prices, seasonal offer and coupons — all editable from /admin (Firestore config/pricing + coupons/{CODE}).
@@ -49,6 +49,22 @@ export async function publicPricing(): Promise<Record<Tier, PublicPrice>> {
 
 export const normCode = (c: unknown) => String(c || "").trim().toUpperCase().replace(/\s+/g, "");
 export const CODE_RE = /^[A-Z0-9-]{3,20}$/;
+
+/**
+ * The reading actually on sale for a requested tier: itself when ON, else the most similar ON reading
+ * (old links, old app versions, a page opened before the admin switched it off). null = everything is OFF.
+ */
+export async function liveTier(tier: Tier): Promise<Tier | null> {
+  return resolveTier(tier, (await getPricing()).enabled);
+}
+/** 409 body for a request naming a switched-off tier: the customer is moved to `alt` and sees its price before paying. */
+export async function tierOff(tier: Tier) {
+  const alt = await liveTier(tier);
+  return {
+    error: alt ? `${TIER_NAME[tier]} abhi available nahi hai — iski jagah ${TIER_NAME[alt]} chuna gaya hai. Price dekh kar dobara Continue dabayein.` : "Abhi koi booking available nahi hai.",
+    code: "tier_off", alt, altName: alt ? TIER_NAME[alt] : null,
+  };
+}
 
 /** Checks a coupon for a tier and returns the final amount (never below MIN_PRICE). */
 export async function quote(tier: Tier, rawCode?: unknown): Promise<{ regular: number; price: number; offerName: string | null; coupon: string | null; discount: number; final: number } | { error: string }> {

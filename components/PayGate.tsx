@@ -16,28 +16,33 @@ const save = (v: string) => { try { localStorage.setItem(KEY, v); } catch {} };
 export type PayTier = Tier;
 export function usePay(tier: PayTier, onNoSlots?: () => void) {
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  // The reading actually being bought: starts as the button's tier; if the admin switched that one OFF (old link,
+  // page opened earlier) the server names the most similar ON reading and the popup moves to it — with its price shown.
+  const [cur, setCur] = useState<PayTier>(tier), [moved, setMoved] = useState<PayTier | null>(null);
+  const switchTo = (t: PayTier) => { if (t !== cur) { setMoved(cur); setCur(t); } };
   async function go(email: string, coupon?: string) {
     setErr(""); setBusy(true);
     try {
-      const j = await (await fetch("/api/book", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tier, email, coupon: coupon || undefined }) })).json();
+      const j = await (await fetch("/api/book", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tier: cur, email, coupon: coupon || undefined }) })).json();
       if (j.url) { save(email); window.location.href = j.url; return; }
+      if (j.code === "tier_off" && j.alt) { switchTo(j.alt); save(email); setBusy(false); return; } // new price loads; customer confirms again
       setErr(j.error || "Kuch galat hua. Dobara try karein.");
       if (j.code === "no_slots") onNoSlots?.();
     } catch { setErr("Network error. Dobara try karein."); }
     setBusy(false);
   }
-  const modal = open ? <EmailModal busy={busy} err={err} onClose={() => { if (!busy) { setOpen(false); setErr(""); } }} onSubmit={go} tier={tier} /> : null;
+  const modal = open ? <EmailModal key={cur} busy={busy} err={err} onClose={() => { if (!busy) { setOpen(false); setErr(""); } }} onSubmit={go} tier={cur} moved={moved} onSwitch={switchTo} /> : null;
   return { start: () => { setErr(""); setOpen(true); }, busy, modal };
 }
 
-function EmailModal({ busy, err, onClose, onSubmit, tier }: { busy: boolean; err: string; onClose: () => void; onSubmit: (email: string, coupon?: string) => void; tier: PayTier }) {
+function EmailModal({ busy, err, onClose, onSubmit, tier, moved, onSwitch }: { busy: boolean; err: string; onClose: () => void; onSubmit: (email: string, coupon?: string) => void; tier: PayTier; moved: PayTier | null; onSwitch: (t: PayTier) => void }) {
   const [email, setEmail] = useState(load), [local, setLocal] = useState(""), [sugg, setSugg] = useState(""), [asTyped, setAsTyped] = useState("");
   const input = useRef<HTMLInputElement>(null);
   // Price shown before paying (server-computed: regular / seasonal offer / coupon). The server re-checks it on payment.
   type Q = { regular: number; price: number; offerName: string | null; coupon: string | null; discount: number; final: number };
   const [q, setQ] = useState<Q | null>(null), [code, setCode] = useState(""), [cMsg, setCMsg] = useState(""), [cBusy, setCBusy] = useState(false), [showCode, setShowCode] = useState(false);
   const ask = async (c: string) => { try { const r = await fetch("/api/coupon", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tier, code: c }) }); return await r.json(); } catch { return { error: "Network error" }; } };
-  useEffect(() => { ask("").then((j) => j.ok && setQ(j)); }, []);
+  useEffect(() => { ask("").then((j) => { if (j.tier && j.tier !== tier) return onSwitch(j.tier); if (j.ok) setQ(j); }); }, []);
   const apply = async () => {
     setCMsg(""); if (!code.trim()) return; setCBusy(true);
     const j = await ask(code); setCBusy(false);
@@ -63,6 +68,7 @@ function EmailModal({ busy, err, onClose, onSubmit, tier }: { busy: boolean; err
       <form className="pg-card" onSubmit={submit} noValidate role="dialog" aria-modal="true" aria-labelledby="pg-title">
         <button type="button" className="pg-x" onClick={onClose} aria-label="Close">×</button>
         <h3 id="pg-title">{tier === "standard" ? "Personal Reading" : TIER_INFO[tier].badge} — aapki email</h3>
+        {moved && <p className="pg-moved">ℹ️ <b>{TIER_INFO[moved].name}</b> abhi available nahi hai — aapke liye iski jagah <b>{TIER_INFO[tier].name}</b> chuna gaya hai. Neeche iski price dekh lein.</p>}
         <p>Payment ke baad <b>reading form ka link</b>, aapka <b>slot, Google Meet link</b> aur reminder isi email par aayenge. Dhyan se likhein.</p>
         <input ref={input} className="rf-in" type="email" inputMode="email" autoComplete="email" placeholder="aapka@gmail.com" value={email} onChange={(e) => { setEmail(e.target.value); setSugg(""); }} disabled={busy} />
         {sugg && (

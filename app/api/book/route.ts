@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
 import { HOLD_MS, TIER_INFO, isTaken, isUrgentTier, type Tier, parseTier } from "@/lib/slots";
-import { quote } from "@/lib/pricing";
+import { liveTier, quote, tierOff } from "@/lib/pricing";
 import { originOf } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
@@ -23,6 +23,9 @@ export async function POST(req: Request) {
   const customerEmail = String(body?.email || "").trim().toLowerCase().slice(0, 200);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(customerEmail) || /@razorpay\.com$/.test(customerEmail))
     return NextResponse.json({ error: "Sahi email likhein — form ka link isi par aayega.", code: "email" }, { status: 400 });
+  // Switched-off reading (old link / page opened before the admin turned it off): never charge a different reading
+  // silently — tell the popup which ON reading replaces it, so the customer sees that price and confirms.
+  if ((await liveTier(tier)) !== tier) return NextResponse.json(await tierOff(tier), { status: 409 });
   const origin = originOf(req); // always return the customer to the domain they are actually on
   // Price (regular / seasonal offer) and any coupon are computed on the server from /admin's settings.
   const q = await quote(tier, body?.coupon);

@@ -22,6 +22,36 @@ export const parseTier = (x: unknown): Tier => (ALL_TIERS.includes(x as Tier) ? 
 export const tierInfo = (t?: unknown) => TIER_INFO[parseTier(t)];
 export const isUrgentTier = (t?: unknown) => tierInfo(t).urgent;
 export const isQuestionTier = (t?: unknown) => tierInfo(t).questions;
+/**
+ * Old links / buttons for a reading that is now switched OFF in /admin lead to the closest reading that is ON:
+ * same speed first (urgent ↔ urgent), then the same kind of call. Order = preference.
+ */
+export const SIMILAR: Record<Tier, Tier[]> = {
+  standard: ["q3", "video", "urgent", "q3urgent"],
+  urgent: ["q3urgent", "standard", "q3", "video"],
+  video: ["q3", "standard", "q3urgent", "urgent"],
+  q3: ["standard", "video", "q3urgent", "urgent"],
+  q3urgent: ["urgent", "q3", "standard", "video"],
+};
+/** The tier itself when it is ON, else the most similar ON tier, else null (everything is OFF). */
+export const resolveTier = (t: Tier, enabled: Partial<Record<Tier, boolean>>): Tier | null =>
+  enabled[t] !== false ? t : SIMILAR[t].find((x) => enabled[x] !== false) || null;
+// Names people may have in old / shared links: ?tier=urgent, ?type=video, #voice, /3-questions …
+const ALIASES: [RegExp, Tier][] = [
+  [/^((q3|3q|3questions?|3sawal)urgent|urgent(q3|3q|3questions?|3sawal))$/, "q3urgent"],
+  [/^(q3|3q|3questions?|questions?|3sawal|teensawal|3questioncall)$/, "q3"],
+  [/^(video|videocall|videoreading|meet|googlemeet)$/, "video"],
+  [/^(urgent|urgentcall|urgentreading|48|48hours?|48hrs?)$/, "urgent"],
+  [/^(standard|voice|voicecall|call|callreading|normal|personal|personalreading|reading|40min)$/, "standard"],
+];
+/** Tier named in a link hint (case, spaces, "-" and "_" ignored), or null. */
+export function tierFromHint(h?: string | null): Tier | null {
+  let raw = String(h || "");
+  try { raw = decodeURIComponent(raw); } catch {}
+  const s = raw.toLowerCase().replace(/[\s_+-]+/g, "");
+  if (!s) return null;
+  return ALIASES.find(([re]) => re.test(s))?.[1] || null;
+}
 export const callMinutes = (tier?: string) => (parseTier(tier) === "standard" || parseTier(tier) === "urgent" ? Number(process.env.CALL_MINUTES || 40) : tierInfo(tier).mins);
 export const tierLabel = (tier?: string) => tierInfo(tier).label;
 export const tierTag = (tier?: string) => tierInfo(tier).tag;
