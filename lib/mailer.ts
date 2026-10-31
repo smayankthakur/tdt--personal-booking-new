@@ -215,3 +215,39 @@ export async function sendFormReminder(b: { email: string; bid: string; tier?: s
       <p style="font-size:13px;color:#666">Booking ID: ${b.bid}</p></div>`,
   }, { kind: "formReminder", bid: b.bid, by: b.by });
 }
+
+/** Admin moved the booking to a new slot (same Meet link). */
+export async function sendRescheduled(b: { name: string; email: string; bid: string; date: string; time: string; oldKey: string; meetLink: string | null; tier?: string; note?: string; by?: string }) {
+  const { day, range } = prettySlot(b.date, b.time, b.tier), [od, ot] = b.oldKey.split("T"), old = prettySlot(od, ot, b.tier);
+  const meet = b.meetLink
+    ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink} (link wahi hai)</span></p>` : "";
+  await send({
+    from: from(), to: b.email, subject: `Your reading has been rescheduled - ${day}, ${range.split(" – ")[0]} IST`,
+    attachments: [{ filename: "reading.ics", content: ics(b.bid, b.date, b.time, b.meetLink, b.tier), contentType: "text/calendar; method=PUBLISH" }],
+    html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
+      <h2 style="color:#6d28d9">Namaste ${esc(b.name || "")}</h2>
+      <p>Aapki reading ka <b>time badal diya gaya hai</b>.</p>
+      <div style="background:#f6f3fb;border-left:3px solid #6d28d9;padding:14px 20px;margin:20px 0;line-height:1.8">
+        <span style="color:#999;text-decoration:line-through">${old.day}, ${old.range}</span><br/>
+        <b>Naya Date:</b> ${day}<br/><b>Naya Time:</b> ${range}<br/><b>Booking ID:</b> ${b.bid}
+      </div>
+      ${b.note ? `<p style="background:#fff4e5;padding:12px 16px;border-radius:6px">${esc(b.note)}</p>` : ""}
+      ${meet}
+      <p style="text-align:center"><a href="${gcalLink(b.date, b.time, b.meetLink, b.tier)}" style="color:#6d28d9;font-weight:600">📅 Naya time Google Calendar mein add karein</a></p>
+      <p style="font-size:14px">Google Calendar invite bhi naye time ke saath update ho gaya hai. Slot time par sirf 5 minute wait kiya jayega.</p></div>`,
+  }, { kind: "reschedule", bid: b.bid, slot: `${b.date}T${b.time}`, by: b.by });
+}
+
+/** Admin cancelled the booking (refund, if any, is done by hand in the Razorpay dashboard). */
+export async function sendCancelled(b: { name: string; email: string; bid: string; key: string; tier?: string; refund: boolean; amount?: number; note?: string; by?: string }) {
+  const [d, t] = b.key.split("T"), { day, range } = prettySlot(d, t, b.tier);
+  await send({
+    from: from(), to: b.email, subject: `Your reading on ${day} has been cancelled - The Divine Tarot`,
+    html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
+      <h2 style="color:#6d28d9">Namaste ${esc(b.name || "")}</h2>
+      <p>Aapki <b>${day}, ${range}</b> wali reading <b>cancel</b> kar di gayi hai.</p>
+      ${b.note ? `<p style="background:#f6f3fb;padding:12px 16px;border-radius:6px">${esc(b.note)}</p>` : ""}
+      ${b.refund ? `<p style="background:#edfaef;padding:12px 16px;border-radius:6px">Aapka refund${b.amount ? ` <b>₹${Number(b.amount).toLocaleString("en-IN")}</b>` : ""} process kar diya gaya hai. Bank ke hisaab se 5–7 working days mein aapke account mein aa jayega.</p>` : ""}
+      <p style="font-size:13px;color:#666">Booking ID: ${b.bid}</p></div>`,
+  }, { kind: "cancel", bid: b.bid, slot: b.key, by: b.by });
+}

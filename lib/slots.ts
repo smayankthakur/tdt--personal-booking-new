@@ -66,7 +66,8 @@ export const ymd = (d: Date) => d.toISOString().slice(0, 10);
 export const istDate = (ms: number) => ymd(new Date(ms + 330 * 60000));
 export const addDays = (date: string, n: number) => ymd(new Date(new Date(date + "T00:00:00Z").getTime() + n * 864e5));
 export const slotMs = (date: string, time: string) => new Date(`${date}T${time}:00+05:30`).getTime();
-export const isTaken = (b: any) => b.status === "confirmed" || (b.status === "held" && b.holdUntil > Date.now());
+/** A slot is unavailable when booked, held during an urgent payment, or blocked by the admin (calendar view). */
+export const isTaken = (b: any) => b.status === "confirmed" || b.status === "blocked" || (b.status === "held" && b.holdUntil > Date.now());
 
 export function daySlots(cfg: Cfg, date: string, days: Record<string, DayCfg> = cfg.days): string[] {
   const dow = new Date(date + "T00:00:00Z").getUTCDay();

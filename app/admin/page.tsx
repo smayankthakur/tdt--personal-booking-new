@@ -1,15 +1,19 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ALL_TIERS, TIER_INFO, slotMs, type Cfg } from "@/lib/slots";
 import "./admin.css";
 import { Notice, TypeTag, tone } from "./ui";
 import Dashboard from "./Dashboard";
-import MailLog from "./MailLog";
-const td = { padding: "6px 14px 6px 0", color: "#646970", verticalAlign: "top", whiteSpace: "nowrap" } as const;
+import Bookings from "./Bookings";
+import CustomerPanel from "./CustomerPanel";
+import Customers from "./Customers";
+import { buildCustomers } from "./customers";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export default function Admin() {
-  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"dash" | "book" | "pay" | "slots" | "price" | "tools">("dash"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
+  const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<"dash" | "book" | "cust" | "pay" | "slots" | "price" | "tools">("dash"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
+  const [cancelled, setCancelled] = useState<any[]>([]), [custOpen, setCustOpen] = useState("");
+  const customers = useMemo(() => buildCustomers(rows, orders, cancelled), [rows, orders, cancelled]);
   const [email, setEmail] = useState(""), [pw, setPw] = useState(""), [who, setWho] = useState(""), [busy, setBusy] = useState(false);
   const SKEY = "tdt_admin";
   useEffect(() => { // keep the session across refreshes in this tab only
@@ -32,7 +36,7 @@ export default function Admin() {
     const r = await fetch("/api/admin", { headers: { "x-admin-session": token } });
     if (r.status === 401) { logout(); return setMsg("Session khatam ho gaya. Dobara login karein."); }
     if (!r.ok) return setMsg("Load nahi hua");
-    const j = await r.json(); setCfg(j.cfg); setRows(j.bookings); setOrders(j.orders || []); setMissing(j.missingEnv || []); setMsg("");
+    const j = await r.json(); setCfg(j.cfg); setRows(j.bookings); setOrders(j.orders || []); setCancelled(j.cancelled || []); setMissing(j.missingEnv || []); setMsg("");
   };
   /** JSON call to an /api/admin… route with the session header (logs out on 401). */
   const api = async (path: string, method = "GET", body?: unknown) => {
@@ -106,16 +110,17 @@ export default function Admin() {
       <p className="wpa-login-back"><a href="/">← Go to The Divine Tarot</a></p>
     </div>);
 
-  const paidForm = orders.filter((o) => o.status === "paid" && o.formDone).length, paidPending = orders.filter((o) => o.status === "paid" && !o.formDone).length, unpaid = orders.filter((o) => o.status !== "paid").length;
+  const paidForm = orders.filter((o) => o.status === "paid" && o.formDone).length, paidPending = orders.filter((o) => o.status === "paid" && !o.formDone).length, unpaid = orders.filter((o) => o.status !== "paid" && o.status !== "cancelled").length;
   const MENU = [
     ["dash", "🏠", "Dashboard", 0],
     ["book", "📅", "Bookings", rows.filter((b) => { const [d, t] = b.slot.split("T"); return slotMs(d, t) >= Date.now(); }).length],
+    ["cust", "👥", "Customers", 0],
     ["pay", "💳", "Payments", paidPending],
     ["slots", "🕒", "Slots", 0],
     ["price", "🏷️", "Prices & Offers", 0],
     ["tools", "🛠️", "Tools", 0],
   ] as const;
-  const TITLE = { dash: "Dashboard", book: "Bookings", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
+  const TITLE = { dash: "Dashboard", book: "Bookings", cust: "Customers", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
   return (
     <div className="wpa">
       <div className="wpa-bar">
@@ -139,50 +144,9 @@ export default function Admin() {
 
         {tab === "dash" && <Dashboard api={api} rows={rows} orders={orders} onNote={setNote} openBooking={openBooking} resumeLink={resume} />}
 
-        {tab === "book" && (<>
-          <ul className="wpa-subsubsub"><li><b>Sab</b> ({rows.length})</li><li>Aane wali ({MENU[1][3]})</li><li>Edited ({rows.filter((b) => b.edits).length})</li></ul>
-          <table className="wpa-table">
-            <thead><tr><th style={{ width: 150 }}>Slot</th><th>Customer</th><th style={{ width: 210 }}>Reading</th><th>Concern</th><th style={{ width: 150 }}>Status</th></tr></thead>
-            <tbody>
-              {!rows.length && <tr><td colSpan={5}>Abhi koi confirmed booking nahi hai.</td></tr>}
-              {[...rows].sort((x, y) => { // upcoming first (soonest on top), then past ones (latest first)
-                const px = slotMs(...(x.slot.split("T") as [string, string])) < Date.now(), py = slotMs(...(y.slot.split("T") as [string, string])) < Date.now();
-                return px !== py ? (px ? 1 : -1) : px ? y.slot.localeCompare(x.slot) : x.slot.localeCompare(y.slot);
-              }).map((b) => {
-                const [d, t] = b.slot.split("T"), past = slotMs(d, t) < Date.now(), open = openId === b.slot, a: Record<string, string> = b.answers || {};
-                return [
-                  <tr key={b.slot} id={"bk-" + b.slot} className={past ? "past" : ""}>
-                    <td><b>{d}</b><br />{t} IST{past && <span className="wpa-muted"> · ho gayi</span>}</td>
-                    <td><a className="wpa-row-title" onClick={() => setOpenId(open ? "" : b.slot)}>{b.name}</a><div className="wpa-muted">{b.phone} · {b.email}</div>
-                      <div className="wpa-row-actions"><a onClick={() => setOpenId(open ? "" : b.slot)}>{open ? "Band karein" : "Details dekhein"}</a>{b.meetLink && <> | <a href={b.meetLink} target="_blank" rel="noopener noreferrer">Meet link</a></>}</div></td>
-                    <td>{TYPE(b.tier)}</td>
-                    <td>{a["Concern"] || "—"}</td>
-                    <td>{b.calendarOk === false ? <span className="wpa-status err">Meet link nahi bana</span> : b.clientMailOk === false ? <span className="wpa-status err">Client mail fail</span> : <span className="wpa-status ok">Confirmed</span>}
-                      {b.edits ? <div><span className="wpa-status edit">✏️ Edited{b.edits > 1 ? ` ×${b.edits}` : ""}</span></div> : null}</td>
-                  </tr>,
-                  open && <tr key={b.slot + "-d"} className="wpa-detail"><td colSpan={5}>
-                    <table className="wpa-kv"><tbody>
-                      {b.meetLink && <tr><td style={td}>Meet link</td><td><a href={b.meetLink} target="_blank" rel="noopener noreferrer">{b.meetLink}</a></td></tr>}
-                      <tr><td style={td}>Email</td><td>{b.email}</td></tr>
-                      {Object.entries(a).filter(([k, v]) => v && k !== "Email (payment)" && k !== "Slot").map(([k, v]) => (
-                        <tr key={k}><td style={td}>{k}</td><td style={{ whiteSpace: "pre-wrap" }}>{v}</td></tr>))}
-                      <tr><td style={td}>Booking / Payment</td><td>{b.bid} · {b.paymentId || "-"}</td></tr>
-                    </tbody></table>
-                    {(b.calendarOk === false || b.clientMailOk === false) && (
-                      <div className="wpa-notice error inline">
-                        {b.calendarErr && <p>Meet error: {b.calendarErr}</p>}
-                        {b.mailErr && <p>Email error: {b.mailErr}</p>}
-                        <p><button className="wpa-btn primary" onClick={() => retry(b.slot)}>↻ Meet link + email dobara bhejein</button></p>
-                      </div>)}
-                    {!b.answers && <p className="wpa-muted">Is booking ka form data nahi mila (purani booking).</p>}
-                    {b.bid && <MailLog api={api} bid={b.bid} form slotAhead={!past} hasEvent={!!b.eventId} onNote={setNote} />}
-                    <p className="wpa-muted" style={{ fontSize: 12 }}>Photos sirf email (OWNER_EMAIL) mein attach hoti hain, yahan nahi.</p>
-                  </td></tr>,
-                ];
-              })}
-            </tbody>
-          </table>
-        </>)}
+        {tab === "book" && <Bookings api={api} rows={rows} orders={orders} cancelled={cancelled} customers={customers} openId={openId} setOpenId={setOpenId} onNote={setNote} reload={load} retry={retry} openCustomer={setCustOpen} />}
+
+        {tab === "cust" && <Customers customers={customers} openCustomer={setCustOpen} />}
 
         {tab === "pay" && (<>
           <ul className="wpa-subsubsub"><li><b>Sab</b> ({orders.length})</li><li className="ok">Paid + form ({paidForm})</li><li className="warn">Paid, form baaki ({paidPending})</li><li>Unpaid ({unpaid})</li></ul>
@@ -192,7 +156,7 @@ export default function Admin() {
               {!orders.length && <tr><td colSpan={5}>Abhi koi payment attempt nahi hai.</td></tr>}
               {orders.map((o) => (
                 <tr key={o.bid}>
-                  <td>{o.status !== "paid" ? <span className="wpa-status">Payment pending</span> : o.formDone ? <span className="wpa-status ok">Paid · form bhara</span> : <span className="wpa-status warn">Paid · form baaki</span>}</td>
+                  <td>{o.status === "cancelled" ? <span className="wpa-status err">Cancelled{o.refunded ? " · refund" : ""}</span> : o.status !== "paid" ? <span className="wpa-status">Payment pending</span> : o.refunded ? <span className="wpa-status warn">Refunded</span> : o.formDone ? <span className="wpa-status ok">Paid · form bhara</span> : <span className="wpa-status warn">Paid · form baaki</span>}</td>
                   <td><b>{o.name || "—"}</b><div className="wpa-muted">{o.email || "-"}{o.phone ? ` · ${o.phone}` : ""}</div>
                     {o.status === "paid" && !o.formDone && <div className="wpa-row-actions"><a onClick={() => formReminder(o.bid)}>Reminder email bhejo</a> | <a onClick={() => resume(o.bid)}>Form link copy</a>{o.formReminders ? <span className="wpa-muted"> · {o.formReminders} reminder gaye</span> : null}</div>}</td>
                   <td>{TYPE(o.tier)}</td>
@@ -292,6 +256,7 @@ export default function Admin() {
           </div></div>
         </>)}
         <p className="wpa-footer">The Divine Tarot · Booking Admin</p>
+        {custOpen && customers.get(custOpen) && <CustomerPanel api={api} c={customers.get(custOpen)!} onClose={() => setCustOpen("")} openBooking={openBooking} />}
       </main>
     </div>);
 }

@@ -18,7 +18,9 @@ export async function GET(req: Request) {
   const bookings = snap.docs.map((d) => ({ slot: d.id, ...d.data() })).sort((a, b) => a.slot.localeCompare(b.slot));
   const os = await db.collection("orders").orderBy("createdAt", "desc").limit(300).get();
   const orders = os.docs.map((d) => { const { origin, plinkId, ...o } = d.data() as any; return { bid: d.id, ...o }; });
-  return NextResponse.json({ cfg: await getCfg(), bookings, orders, missingEnv: ENV.filter((k) => !process.env[k]) });
+  const cs = await db.collection("cancelled").orderBy("cancelledAt", "desc").limit(200).get();
+  const cancelled = cs.docs.map((d) => ({ ...(d.data() as any) })).map(({ raw, prevAnswers, ...c }) => c);
+  return NextResponse.json({ cfg: await getCfg(), bookings, orders, cancelled, missingEnv: ENV.filter((k) => !process.env[k]) });
 }
 export async function PUT(req: Request) {
   if (await deny(req)) return NextResponse.json({ error: "unauthorized" }, { status: 401 });

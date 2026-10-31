@@ -93,3 +93,23 @@ export async function changeGuest(eventId: string, oldEmail: string, newEmail: s
   })).json();
   if (!res?.id) throw new Error(`Calendar: ${res?.error?.message || "guest update nahi hua"}`);
 }
+
+const iso = (ms: number) => new Date(ms + 330 * 60000).toISOString().slice(0, 19) + "+05:30";
+
+/** Booking moved to another slot: move the event (same Meet link) and let Google email the new time to every guest. */
+export async function moveEvent(eventId: string, key: string, tier?: string) {
+  const [date, time] = key.split("T"), start = slotMs(date, time), end = start + callMinutes(tier) * 60000;
+  const access = await googleToken();
+  const res = await (await fetch(`${EVENTS}/${encodeURIComponent(eventId)}?sendUpdates=all`, {
+    method: "PATCH", headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ start: { dateTime: iso(start), timeZone: "Asia/Kolkata" }, end: { dateTime: iso(end), timeZone: "Asia/Kolkata" } }),
+  })).json();
+  if (!res?.id) throw new Error(`Calendar: ${res?.error?.message || "event move nahi hua"}`);
+}
+
+/** Booking cancelled: delete the event; Google emails a cancellation to every guest. */
+export async function cancelEvent(eventId: string) {
+  const access = await googleToken();
+  const r = await fetch(`${EVENTS}/${encodeURIComponent(eventId)}?sendUpdates=all`, { method: "DELETE", headers: { Authorization: `Bearer ${access}` } });
+  if (!r.ok && r.status !== 410 && r.status !== 404) throw new Error(`Calendar: event delete nahi hua (${r.status})`);
+}

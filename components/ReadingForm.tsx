@@ -139,6 +139,7 @@ export default function ReadingForm() {
   if (bk.status === "unknown") return <div className="rf-card"><h1>Pehle payment karein</h1><p>Reading form sirf payment ke baad khulta hai. Agar aapne payment kar diya hai, toh payment ke baad aayi email mein diye gaye <b>"Reading Form Bharein"</b> link se form kholein.</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>Booking page par jayein</a></div>;
   if (bk.status === "created" && !waited) return <div className="rf-card"><p>Form load ho raha hai…</p></div>;
   if (bk.status === "created") return <div className="rf-card"><h1>Payment abhi tak nahi mila</h1><p>Agar payment ho chuka hai toh page refresh karein. Nahi hua hai toh dobara payment karein.</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>Payment page par jayein</a></div>;
+  if (bk.status === "cancelled") return <div className="rf-card"><h1>Yeh booking cancel ho chuki hai</h1><p>Is booking ki details aapki email par bheji gayi hain. Nayi reading book karni ho toh neeche button dabayein.</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>➕ Nayi booking karein</a></div>;
   if (bk.status !== "paid") return <div className="rf-card"><h1>Payment nahi mila</h1><a className="btn gold" href="/#book">Wapas jayein</a></div>;
 
   if ((bk.formDone || done) && !editing) {
