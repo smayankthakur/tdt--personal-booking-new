@@ -10,6 +10,7 @@ export default function BookingActions({ api, b, onDone }: { api: Api; b: any; o
   const [date, setDate] = useState(b.slot.slice(0, 10)), [time, setTime] = useState(""), [grid, setGrid] = useState<any[] | null>(null);
   const [note, setNote] = useState(""), [notify, setNotify] = useState(true), [refund, setRefund] = useState(false), [sure, setSure] = useState(false);
   const past = keyMs(b.slot) < Date.now();
+  const written = /^written/.test(String(b.tier || "")); // written (email) reading: no call, "slot" = Bharti's plan date
 
   useEffect(() => {
     if (mode !== "move" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return;
@@ -32,14 +33,14 @@ export default function BookingActions({ api, b, onDone }: { api: Api; b: any; o
         <b>Reading status:</b>
         {Object.entries(OUTCOME).map(([k, [l]]) => (
           <button key={k} className={`wpa-btn${b.outcome === k ? " primary" : ""}`} disabled={busy} onClick={() => act({ action: "outcome", outcome: b.outcome === k ? "" : k })}>{l}</button>))}
-        {!past && <span className="wpa-muted">(reading ke baad set karein)</span>}
+        {written ? <span className="wpa-muted">(jawab email karne ke baad <b>Done</b> dabayein — 1 din baad customer ko feedback mail jayega)</span> : !past && <span className="wpa-muted">(reading ke baad set karein)</span>}
         <span style={{ flex: 1 }} />
         <button className={`wpa-btn${mode === "move" ? " primary" : ""}`} onClick={() => { setMode(mode === "move" ? "" : "move"); setSure(false); }}>🔁 Reschedule</button>
         <button className="wpa-btn" style={mode === "cancel" ? { borderColor: "#d63638", color: "#d63638" } : undefined} onClick={() => { setMode(mode === "cancel" ? "" : "cancel"); setSure(false); }}>✖ Cancel booking</button>
       </div>
 
       {mode === "move" && <div className="wpa-panel">
-        <p><b>Naya slot chunein</b> — Google Calendar event aur Meet link wahi rahega, sirf time badlega.</p>
+        <p>{written ? <><b>Plan date badlein</b> — written reading hai: sirf aapke calendar mein date badlegi, customer ko koi mail nahi jayega.</> : <><b>Naya slot chunein</b> — Google Calendar event aur Meet link wahi rahega, sirf time badlega.</>}</p>
         <p>Date <input type="date" min={today} value={date} onChange={(e) => setDate(e.target.value)} /></p>
         {grid === null ? <p className="wpa-muted">Slots load ho rahe hain…</p> : <div className="wpa-times">
           {!grid.length && <span className="wpa-muted">Is din koi slot set nahi hai — neeche custom time daalein.</span>}
@@ -49,7 +50,7 @@ export default function BookingActions({ api, b, onDone }: { api: Api; b: any; o
         </div>}
         <p>Ya custom time <input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></p>
         <p><input className="wide" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Customer ke liye message (optional) — jaise: Bharti ji us din available nahi hain" maxLength={300} /></p>
-        <p><label><input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> Customer ko email bhejo (Google Calendar invite apne aap update hoga)</label></p>
+        {!written && <p><label><input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} /> Customer ko email bhejo (Google Calendar invite apne aap update hoga)</label></p>}
         <p><button className="wpa-btn primary" disabled={busy || !date || !time} onClick={() => act({ action: "reschedule", to: `${date}T${time}`, note, notify }, `${date}T${time}`)}>
           {busy ? "Ho raha hai…" : time ? `${fmtSlot(b.slot)} → ${fmtSlot(`${date}T${time}`)}` : "Time chunein"}</button></p>
       </div>}

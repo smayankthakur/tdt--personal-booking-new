@@ -30,5 +30,5 @@ export async function GET(req: Request) {
       edit = { until, raw: { ...raw, email: em }, hadPartner: !!(raw.name2 || "").trim(), emailVerified: !!em && d.verifiedEmail === em };
     }
   }
-  return NextResponse.json({ bid, tier: d.tier || "standard", status: d.status, formDone: done, email: d.email || "", phone: d.phone || "", date, time, meetLink, edit });
+  return NextResponse.json({ bid, tier: d.tier || "standard", status: d.status, formDone: done, email: d.email || "", phone: d.phone || "", date, time, meetLink, edit, deliverBy: d.deliverBy || null, lang: d.lang || null });
 }

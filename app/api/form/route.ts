@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db } from "@/lib/db";
 import { changeGuest, createMeet } from "@/lib/calendar";
 import { freeSlots } from "@/lib/freeSlots";
-import { isQuestionTier, isTaken, parseTier, tierInfo, tierLabel } from "@/lib/slots";
+import { LANGUAGES, deliverByMs, isQuestionTier, isTaken, isUrgentTier, isWrittenTier, parseTier, tierInfo, tierLabel } from "@/lib/slots";
 import { sendClientConfirmation, sendOwnerNotification, sendOwnerUpdate } from "@/lib/mailer";
 import { bidFrom, editToken, originOf } from "@/lib/session";
 import { editUntil } from "@/lib/formEdit";
@@ -42,7 +42,11 @@ export async function POST(req: Request) {
   const dob = (p: string) => [S(f, p + "d"), S(f, p + "m"), S(f, p + "y")];
   const tob = (p: string) => (S(f, p + "h") ? `${S(f, p + "h")}:${S(f, p + "min") || "00"} ${S(f, p + "ap") || "AM"}` : "");
   // Video call reading: one person only, up to 3 written questions (100 characters each) with a topic each.
-  const video = isQuestionTier(b.tier); // video, q3, q3urgent: one person + 3 written questions
+  const video = isQuestionTier(b.tier); // video, q3, q3urgent, written: one person + 3 written questions
+  // Written (email) readings: the customer picks the language the answers are written in.
+  // (the mobile app may not have the language field yet → Hinglish, the site's own language)
+  const written = isWrittenTier(b.tier), lang = S(f, "lang") || (req.headers.get("x-tdt-booking") ? "Hinglish" : "");
+  if (written && !LANGUAGES.includes(lang)) return NextResponse.json({ error: "Jawab kis bhasha mein chahiye — Hindi, Hinglish ya English chunein.", code: "lang" }, { status: 400 });
   const questions: { topic: string; text: string }[] = [];
   if (video) {
     for (let i = 1; i <= VIDEO_MAX_Q; i++) {
@@ -91,6 +95,7 @@ export async function POST(req: Request) {
     "Full name": p1.name, "WhatsApp": p1.phone, "Email (payment)": email,
     "Date of birth (D/M/Y)": dob("dob").filter(Boolean).join(" / "), "Place of birth": p1.place, "Birth time": tob("tob"),
     "Verified": web ? "Email ✓ (OTP)" : "Email ✓ (OTP) · App booking", "Concern": concern,
+    ...(written ? { "Language": lang } : {}),
     ...Object.fromEntries(questions.map((q, i) => [`Sawal ${i + 1} (${q.topic})`, q.text])),
   } : {
     "Full name": p1.name, "WhatsApp": p1.phone, "Email (payment)": email,
@@ -112,6 +117,7 @@ export async function POST(req: Request) {
     const before: Record<string, string> = cur.answers || {};
     const after: Record<string, string> = {
       "Slot": before["Slot"] || `${date} ${time} IST`, "Booking type": before["Booking type"] || tierLabel(tier),
+      ...(before["Deliver by"] ? { "Deliver by": before["Deliver by"] } : {}),
       ...answers, "Edited": new Date().toLocaleString("en-IN", { timeZone: "Asia/Kolkata" }),
     };
     const slotRef = db.doc(`bookings/${b.slot}`);
@@ -122,17 +128,21 @@ export async function POST(req: Request) {
       .catch((e) => { console.error("calendar guest change failed", e); return logMail({ kind: "invite", bid, slot: b.slot }, email, false, e); });
     const until = editUntil(b.formAt, b.slot), editLink = `${originOf(req)}/api/edit?t=${editToken(bid, until)}`;
     const mails = await Promise.allSettled([
-      sendOwnerUpdate({ bid, tier, date, time, name: p1.name, email }, before, after, photos, meetLink),
-      emailChanged ? sendClientConfirmation({ name: p1.name, email, bid, date, time, meetLink, editLink, editUntil: until, updated: true, tier }) : Promise.resolve(),
+      sendOwnerUpdate({ bid, tier, date, time, name: p1.name, email, deliverBy: b.deliverBy }, before, after, photos, meetLink),
+      emailChanged ? sendClientConfirmation({ name: p1.name, email, bid, date, time, meetLink, editLink, editUntil: until, updated: true, tier, deliverBy: b.deliverBy, lang: written ? lang : undefined }) : Promise.resolve(),
     ]);
     mails.forEach((x) => x.status === "rejected" && console.error("edit mail failed", x.reason));
     await slotRef.update({ ownerMailOk: mails[0].status === "fulfilled", ...(emailChanged ? { clientMailOk: mails[1].status === "fulfilled" } : {}) });
-    return NextResponse.json({ ok: true, edited: true, date, time, meetLink });
+    return NextResponse.json({ ok: true, edited: true, date, time, meetLink, deliverBy: b.deliverBy || null, lang: written ? lang : null });
   }
 
   // Slot is AUTO-ASSIGNED and claimed atomically. Standard: earliest free slot on day 7–10 after payment (later only if full).
   // Urgent: the slot held at payment time (or the next free one within 48 h). The customer never has to pick.
-  const tier = parseTier(b.tier);
+  const tier = parseTier(b.tier), formAt = Date.now();
+  // Written readings: answers promised within 7 days (urgent: 48 hours) of this form; the slot is only the work plan.
+  const deliverBy = written ? deliverByMs(tier, formAt) : null;
+  const dby = deliverBy ? new Date(deliverBy).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+  if (written) answers = { "Deliver by": `${dby} IST`, ...answers };
   const candidates = (await freeSlots({ tier, paidAt: b.paidAt, bid, prefer: b.heldSlot || undefined })).slice(0, 20);
   const noSlot = () => NextResponse.json({ error: `Abhi koi slot khaali nahi hai. Aapki booking (ID ${bid}) surakshit hai — hum aapki email par jaankari bhejenge.`, code: "no_slots" }, { status: 409 });
   if (!candidates.length) return noSlot();
@@ -144,8 +154,8 @@ export async function POST(req: Request) {
       const ref = db.doc(`bookings/${k}`), sl = await tx.get(ref);
       if (sl.exists && isTaken(sl.data()) && sl.data()!.bid !== bid) continue;
       const [d, t] = k.split("T");
-      tx.set(ref, { status: "confirmed", tier, bid, name: p1.name, email, phone: p1.phone, paymentId: b.paymentId || null, formDone: true, raw, answers: { "Slot": `${d} ${t} IST`, "Booking type": tierLabel(tier), ...answers }, createdAt: Date.now() });
-      tx.update(orderRef, { formDone: true, slot: k, name: p1.name, formAt: Date.now() });
+      tx.set(ref, { status: "confirmed", tier, bid, ...(deliverBy ? { deliverBy, lang } : {}), name: p1.name, email, phone: p1.phone, paymentId: b.paymentId || null, formDone: true, raw, answers: { "Slot": `${d} ${t} IST`, "Booking type": tierLabel(tier), ...answers }, createdAt: Date.now() });
+      tx.update(orderRef, { formDone: true, slot: k, name: p1.name, formAt, ...(deliverBy ? { deliverBy, lang } : {}) });
       if (heldRef && k !== b.heldSlot && held?.exists && held.data()!.bid === bid && held.data()!.status === "held") tx.delete(heldRef); // free the old hold
       return k;
     }
@@ -156,23 +166,26 @@ export async function POST(req: Request) {
   const key = claimed, [date, time] = key.split("T"), slotRef = db.doc(`bookings/${key}`);
   answers = { "Slot": `${date} ${time} IST`, "Booking type": tierLabel(tier), ...answers };
 
+  // Calls only: Google Meet + calendar invite. Written readings get NO meeting link and NO invite.
   let m: { meetLink?: string; eventId?: string } | null = null, calendarErr = "";
-  try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone, tier }); await logMail({ kind: "invite", bid, slot: key }, email, true); }
-  catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); await logMail({ kind: "invite", bid, slot: key }, email, false, e); }
+  if (!written) {
+    try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone, tier }); await logMail({ kind: "invite", bid, slot: key }, email, true); }
+    catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); await logMail({ kind: "invite", bid, slot: key }, email, false, e); }
+  }
   const meetLink = m?.meetLink || null;
-  await slotRef.update({ meetLink, eventId: m?.eventId || null, calendarOk: !!meetLink, calendarErr });
-  await orderRef.update({ meetLink });
+  if (!written) { await slotRef.update({ meetLink, eventId: m?.eventId || null, calendarOk: !!meetLink, calendarErr }); await orderRef.update({ meetLink }); }
 
   const eu = editUntil(Date.now(), key);
   const mails = await Promise.allSettled([
-    sendClientConfirmation({ name: p1.name, email, bid, date, time, meetLink, tier, editUntil: eu, editLink: eu > Date.now() + 60e3 ? `${originOf(req)}/api/edit?t=${editToken(bid, eu)}` : null }),
-    sendOwnerNotification({ bid, tier, date, time, name: p1.name, email, paymentId: b.paymentId, answers }, photos, meetLink),
+    sendClientConfirmation({ name: p1.name, email, bid, date, time, meetLink, tier, deliverBy, lang: written ? lang : undefined, editUntil: eu, editLink: eu > Date.now() + 60e3 ? `${originOf(req)}/api/edit?t=${editToken(bid, eu)}` : null }),
+    sendOwnerNotification({ bid, tier, date, time, name: p1.name, email, paymentId: b.paymentId, answers, deliverBy }, photos, meetLink),
   ]);
   mails.forEach((x) => x.status === "rejected" && console.error("mail failed", x.reason));
   const why = (r: PromiseSettledResult<unknown>) => (r.status === "rejected" ? String((r.reason as any)?.message || r.reason).slice(0, 300) : "");
   await slotRef.update({ clientMailOk: mails[0].status === "fulfilled", ownerMailOk: mails[1].status === "fulfilled", mailErr: why(mails[0]) || why(mails[1]) });
   const when = new Date(`${key}:00+05:30`).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
-  await notifyAdmins(`📅 Nayi booking: ${p1.name}`, `${when} · ${tierInfo(tier).name}${meetLink ? "" : " · ⚠ Meet link nahi bana"}`, "/admin");
+  if (written) await notifyAdmins(`${isUrgentTier(tier) ? "⚡ URGENT " : ""}✍️ Naya written form: ${p1.name}`, `Jawab bhejna hai ${dby} tak · ${lang} · ${questions.length} sawal`, "/admin");
+  else await notifyAdmins(`📅 Nayi booking: ${p1.name}`, `${when} · ${tierInfo(tier).name}${meetLink ? "" : " · ⚠ Meet link nahi bana"}`, "/admin");
 
-  return NextResponse.json({ ok: true, date, time, meetLink });
+  return NextResponse.json({ ok: true, date, time, meetLink, deliverBy, lang: written ? lang : null });
 }

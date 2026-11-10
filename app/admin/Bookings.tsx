@@ -91,6 +91,7 @@ export default function Bookings({ api, rows, orders, cancelled, customers, open
               <td>{a["Concern"] || "—"}</td>
               <td>{b.calendarOk === false ? <span className="wpa-status err">Meet link nahi bana</span> : b.clientMailOk === false ? <span className="wpa-status err">Client mail fail</span>
                 : b.outcome ? <span className={`wpa-status ${OUTCOME[b.outcome]?.[1]}`}>{OUTCOME[b.outcome]?.[0]}</span>
+                : TIER_INFO[(b.tier || "standard") as keyof typeof TIER_INFO]?.written ? <span className="wpa-status warn" title="Jawab email karke Details mein 'Done' dabayein">✍️ Jawab bhejna hai{b.deliverBy ? ` · ${new Date(b.deliverBy).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short" })} tak` : ""}</span>
                 : past ? <span className="wpa-status" title="Details kholkar Done / No-show set karein">Ho gayi · status?</span> : <span className="wpa-status ok">Confirmed</span>}
                 {b.rescheduledFrom ? <div><span className="wpa-status edit" title={`Pehle: ${fmtSlot(b.rescheduledFrom)}`}>🔁 Rescheduled</span></div> : null}
                 {b.edits ? <div><span className="wpa-status edit">✏️ Edited{b.edits > 1 ? ` ×${b.edits}` : ""}</span></div> : null}</td>
@@ -112,7 +113,7 @@ export default function Bookings({ api, rows, orders, cancelled, customers, open
                   <p><button className="wpa-btn primary" onClick={() => retry(b.slot)}>↻ Meet link + email dobara bhejein</button></p>
                 </div>)}
               {!b.answers && <p className="wpa-muted">Is booking ka form data nahi mila (purani booking).</p>}
-              {b.bid && <MailLog api={api} bid={b.bid} form slotAhead={!past} hasEvent={!!b.eventId} onNote={onNote} />}
+              {b.bid && <MailLog api={api} bid={b.bid} form slotAhead={!past} hasEvent={!!b.eventId} onNote={onNote} written={!!TIER_INFO[(b.tier || "standard") as keyof typeof TIER_INFO]?.written} />}
               <p className="wpa-muted" style={{ fontSize: 12 }}>Photos sirf email (OWNER_EMAIL) mein attach hoti hain, yahan nahi.</p>
             </td></tr>,
           ];

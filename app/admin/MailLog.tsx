@@ -4,8 +4,8 @@ import { MAIL_LABEL, type MailKind } from "@/lib/mailKinds";
 import { type Api, fmtTime } from "./ui";
 
 /** Re-send buttons + every mail recorded for one booking (Firestore mailLog). */
-export default function MailLog({ api, bid, form, slotAhead, hasEvent, onNote }: {
-  api: Api; bid: string; form: boolean; slotAhead: boolean; hasEvent: boolean; onNote: (m: string) => void;
+export default function MailLog({ api, bid, form, slotAhead, hasEvent, onNote, written }: {
+  api: Api; bid: string; form: boolean; slotAhead: boolean; hasEvent: boolean; onNote: (m: string) => void; written?: boolean;
 }) {
   const [logs, setLogs] = useState<any[] | null>(null), [busy, setBusy] = useState("");
   const load = () => api(`/api/admin/mail?bid=${encodeURIComponent(bid)}`).then((j) => setLogs(j.logs || []));
@@ -24,7 +24,7 @@ export default function MailLog({ api, bid, form, slotAhead, hasEvent, onNote }:
         <B k="formReminder" l="Form reminder bhejo" show={!form} />
         <B k="confirm" l="Confirmation dobara bhejo" show={form} />
         <B k="invite" l="Calendar invite dobara" show={form && hasEvent && slotAhead} />
-        <B k="reminder" l="Reminder abhi bhejo" show={form && slotAhead} />
+        <B k="reminder" l="Reminder abhi bhejo" show={form && slotAhead && !written} />
       </div>
       {logs === null ? <p className="wpa-muted">Load ho raha hai…</p> : !logs.length
         ? <p className="wpa-muted">Is booking ka koi mail record nahi hai (yeh feature aane se pehle ke mails yahan nahi dikhte).</p>

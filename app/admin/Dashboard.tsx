@@ -51,8 +51,8 @@ export default function Dashboard({ api, rows, orders, onNote, openBooking, resu
             <td><b>{fmtSlot(b.slot)}</b><div className="wpa-muted">{inTime(keyMs(b.slot), now)}</div></td>
             <td><a className="wpa-row-title" onClick={() => openBooking(b.slot)}>{b.name}</a><div className="wpa-muted">{b.phone}</div></td>
             <td><TypeTag t={b.tier} /></td>
-            <td>{b.meetLink ? <a href={b.meetLink} target="_blank" rel="noopener noreferrer">Join</a> : <span className="wpa-status err">Link nahi</span>}</td>
-            <td>{b.reminderAt ? <span className="wpa-status ok">Reminder gaya</span> : keyMs(b.slot) - now > 3 * 3600e3 ? <span className="wpa-status">Reminder baad mein</span> : <span className="wpa-status warn">Reminder pending</span>}</td>
+            <td>{/^written/.test(String(b.tier || "")) ? <span className="wpa-status">✍️ Email</span> : b.meetLink ? <a href={b.meetLink} target="_blank" rel="noopener noreferrer">Join</a> : <span className="wpa-status err">Link nahi</span>}</td>
+            <td>{/^written/.test(String(b.tier || "")) ? <span className="wpa-status">{b.outcome === "done" ? "Jawab bheja ✓" : "Jawab bhejna hai"}</span> : b.reminderAt ? <span className="wpa-status ok">Reminder gaya</span> : keyMs(b.slot) - now > 3 * 3600e3 ? <span className="wpa-status">Reminder baad mein</span> : <span className="wpa-status warn">Reminder pending</span>}</td>
           </tr>)}
         </tbody></table>}
     </div></div>

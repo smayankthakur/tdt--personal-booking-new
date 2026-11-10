@@ -6,7 +6,7 @@ import { logActivity } from "@/lib/activity";
 import { cancelEvent, moveEvent } from "@/lib/calendar";
 import { logMail } from "@/lib/mailLog";
 import { sendCancelled, sendRescheduled } from "@/lib/mailer";
-import { addDays, daySlots, isTaken, slotMs } from "@/lib/slots";
+import { addDays, daySlots, isTaken, slotMs, isWrittenTier } from "@/lib/slots";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
 const KEY = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -119,7 +119,8 @@ export async function POST(req: Request) {
       try { await moveEvent(b.eventId, to, b.tier); await logMail({ kind: "invite", bid: b.bid, slot: to, by: who }, b.email, true); out.push("Calendar update ✓"); }
       catch (e: any) { await logMail({ kind: "invite", bid: b.bid, slot: to, by: who }, b.email, false, e); out.push(`Calendar ERROR: ${String(e?.message || e).slice(0, 120)}`); }
     }
-    if (body.notify !== false && b.email) {
+    if (isWrittenTier(b.tier)) out.push("Written reading — sirf plan date badli, customer ko mail nahi gaya");
+    else if (body.notify !== false && b.email) {
       try { await sendRescheduled({ name: b.name, email: b.email, bid: b.bid, date: nd, time: nt, oldKey: slot, meetLink: b.meetLink || null, tier: b.tier, note: String(body.note || "").slice(0, 300), by: who }); out.push("Customer ko mail ✓"); }
       catch (e: any) { out.push(`Mail ERROR: ${String(e?.message || e).slice(0, 120)}`); }
     }

@@ -6,38 +6,54 @@ export type DayCfg = { on: boolean; start: string; end: string };
  *  video     = 30-min Google Meet VIDEO call, one person, 3 written questions, slot day 7–10
  *  q3        = 30-min voice call, one person, 3 written questions, slot day 7–10
  *  q3urgent  = same as q3, slot within 48 h (held before payment)
+ *  written       = WRITTEN reading on email (no call, no Meet): 3 written questions, answers + guidance emailed
+ *                  in the customer's language within 7 days of the form. Its "slot" is only Bharti's work plan
+ *                  (admin calendar / due list) — the customer is never sent a call time or invite.
+ *  writtenurgent = same, answers within 48 hours (plan slot held before payment)
  * Price and on/off of each type are set in /admin (lib/pricing.ts).
  */
-export type Tier = "standard" | "urgent" | "video" | "q3" | "q3urgent";
-type Info = { mins: number; urgent: boolean; questions: boolean; video: boolean; name: string; label: string; tag: string; badge: string };
+export type Tier = "standard" | "urgent" | "video" | "q3" | "q3urgent" | "written" | "writtenurgent";
+type Info = { mins: number; urgent: boolean; questions: boolean; video: boolean; written: boolean; deliveryHours: number; name: string; label: string; tag: string; badge: string };
 export const TIER_INFO: Record<Tier, Info> = {
-  standard: { mins: 40, urgent: false, questions: false, video: false, name: "Voice Call (40 min)", label: "Standard", tag: "", badge: "" },
-  urgent: { mins: 40, urgent: true, questions: false, video: false, name: "Urgent Voice Call (48 hrs)", label: "URGENT (48 hrs)", tag: "⚡ URGENT ", badge: "⚡ Urgent" },
-  video: { mins: 30, urgent: false, questions: true, video: true, name: "Video Call (30 min)", label: "VIDEO CALL (30 min, 3 questions)", tag: "🎥 VIDEO ", badge: "🎥 Video Call (30 min)" },
-  q3: { mins: 30, urgent: false, questions: true, video: false, name: "3 Question Voice Call (30 min)", label: "3-QUESTION VOICE CALL (30 min)", tag: "❓ 3Q ", badge: "❓ 3 Sawal · Voice Call (30 min)" },
-  q3urgent: { mins: 30, urgent: true, questions: true, video: false, name: "Urgent 3 Question Voice Call (48 hrs)", label: "URGENT 3-QUESTION VOICE CALL (48 hrs, 30 min)", tag: "⚡❓ URGENT 3Q ", badge: "⚡ Urgent · 3 Sawal · Voice Call (30 min)" },
+  standard: { mins: 40, urgent: false, questions: false, video: false, written: false, deliveryHours: 0, name: "Voice Call (40 min)", label: "Standard", tag: "", badge: "" },
+  urgent: { mins: 40, urgent: true, questions: false, video: false, written: false, deliveryHours: 0, name: "Urgent Voice Call (48 hrs)", label: "URGENT (48 hrs)", tag: "⚡ URGENT ", badge: "⚡ Urgent" },
+  video: { mins: 30, urgent: false, questions: true, video: true, written: false, deliveryHours: 0, name: "Video Call (30 min)", label: "VIDEO CALL (30 min, 3 questions)", tag: "🎥 VIDEO ", badge: "🎥 Video Call (30 min)" },
+  q3: { mins: 30, urgent: false, questions: true, video: false, written: false, deliveryHours: 0, name: "3 Question Voice Call (30 min)", label: "3-QUESTION VOICE CALL (30 min)", tag: "❓ 3Q ", badge: "❓ 3 Sawal · Voice Call (30 min)" },
+  q3urgent: { mins: 30, urgent: true, questions: true, video: false, written: false, deliveryHours: 0, name: "Urgent 3 Question Voice Call (48 hrs)", label: "URGENT 3-QUESTION VOICE CALL (48 hrs, 30 min)", tag: "⚡❓ URGENT 3Q ", badge: "⚡ Urgent · 3 Sawal · Voice Call (30 min)" },
+  written: { mins: 0, urgent: false, questions: true, video: false, written: true, deliveryHours: 7 * 24, name: "Personal Reading (3 Questions, answers on email)", label: "WRITTEN READING (3 questions · email · 7 days)", tag: "✍️ WRITTEN ", badge: "✍️ 3 Sawal · Jawab Email Par (7 din)" },
+  writtenurgent: { mins: 0, urgent: true, questions: true, video: false, written: true, deliveryHours: 48, name: "Urgent Personal Reading (3 Questions, answers on email in 48 hrs)", label: "URGENT WRITTEN READING (3 questions · email · 48 hrs)", tag: "⚡✍️ URGENT WRITTEN ", badge: "⚡ Urgent · 3 Sawal · Jawab Email Par (48 ghante)" },
 };
 export const ALL_TIERS = Object.keys(TIER_INFO) as Tier[];
 export const parseTier = (x: unknown): Tier => (ALL_TIERS.includes(x as Tier) ? (x as Tier) : "standard");
 export const tierInfo = (t?: unknown) => TIER_INFO[parseTier(t)];
 export const isUrgentTier = (t?: unknown) => tierInfo(t).urgent;
 export const isQuestionTier = (t?: unknown) => tierInfo(t).questions;
+/** Written readings: answers are emailed (no call, no Google Meet, no calendar invite, no call reminders). */
+export const isWrittenTier = (t?: unknown) => tierInfo(t).written;
+/** Latest time the written answers are promised: form submission + 7 days (urgent: + 48 hours). */
+export const deliverByMs = (tier: unknown, formAt: number) => formAt + tierInfo(tier).deliveryHours * 3600e3;
+/** Reading languages offered on the form (written readings). */
+export const LANGUAGES = ["Hindi", "Hinglish", "English"];
 /**
  * Old links / buttons for a reading that is now switched OFF in /admin lead to the closest reading that is ON:
  * same speed first (urgent ↔ urgent), then the same kind of call. Order = preference.
  */
 export const SIMILAR: Record<Tier, Tier[]> = {
-  standard: ["q3", "video", "urgent", "q3urgent"],
-  urgent: ["q3urgent", "standard", "q3", "video"],
-  video: ["q3", "standard", "q3urgent", "urgent"],
-  q3: ["standard", "video", "q3urgent", "urgent"],
-  q3urgent: ["urgent", "q3", "standard", "video"],
+  standard: ["written", "q3", "video", "urgent", "q3urgent", "writtenurgent"],
+  urgent: ["writtenurgent", "q3urgent", "written", "standard", "q3", "video"],
+  video: ["written", "q3", "standard", "q3urgent", "urgent", "writtenurgent"],
+  q3: ["written", "standard", "video", "q3urgent", "urgent", "writtenurgent"],
+  q3urgent: ["writtenurgent", "urgent", "written", "q3", "standard", "video"],
+  written: ["q3", "standard", "video", "writtenurgent", "q3urgent", "urgent"],
+  writtenurgent: ["q3urgent", "urgent", "written", "q3", "standard", "video"],
 };
 /** The tier itself when it is ON, else the most similar ON tier, else null (everything is OFF). */
 export const resolveTier = (t: Tier, enabled: Partial<Record<Tier, boolean>>): Tier | null =>
   enabled[t] !== false ? t : SIMILAR[t].find((x) => enabled[x] !== false) || null;
 // Names people may have in old / shared links: ?tier=urgent, ?type=video, #voice, /3-questions …
 const ALIASES: [RegExp, Tier][] = [
+  [/^((written|email|mail|likhit)urgent|urgent(written|email|mail|likhit)(reading)?)$/, "writtenurgent"],
+  [/^(written|writtenreading|email|emailreading|mail|mailreading|likhit|writing)$/, "written"],
   [/^((q3|3q|3questions?|3sawal)urgent|urgent(q3|3q|3questions?|3sawal))$/, "q3urgent"],
   [/^(q3|3q|3questions?|questions?|3sawal|teensawal|3questioncall)$/, "q3"],
   [/^(video|videocall|videoreading|meet|googlemeet)$/, "video"],
@@ -112,6 +128,10 @@ export function daySlots(cfg: Cfg, date: string, days: Record<string, DayCfg> = 
 /** Earliest / latest allowed slot start for a booking paid at `paidAt`. Pure, so it can be unit-tested. */
 export function windowFor(cfg: Cfg, tier: Tier, paidAt: number, now = Date.now()) {
   const from = cfg.fromDate ? slotMs(cfg.fromDate, "00:00") : 0, to = cfg.toDate ? slotMs(cfg.toDate, "23:59") : Infinity;
+  if (isWrittenTier(tier)) { // written: plan slot inside the delivery window (7 days / 48 h from now), any configured day
+    const base = Math.max(now, paidAt), lead = isUrgentTier(tier) ? cfg.urgentLeadHours * 3600e3 : LEAD_MS;
+    return { lo: base + lead, hi: base + tierInfo(tier).deliveryHours * 3600e3, days: isUrgentTier(tier) ? cfg.urgentDays : cfg.days };
+  }
   if (isUrgentTier(tier))
     return { lo: Math.max(from, Math.max(now, paidAt) + cfg.urgentLeadHours * 3600e3), hi: Math.min(to, paidAt + cfg.urgentHours * 3600e3), days: cfg.urgentDays };
   const d0 = istDate(paidAt);

@@ -60,7 +60,7 @@ const NAV = [
 const ASK_URL = "https://reading.thedivinetarotonline.com/";
 
 /** Prices + seasonal offer come from /admin (lib/pricing.ts), passed in by app/page.tsx. */
-type Prices = Record<"standard" | "urgent" | "video" | "q3" | "q3urgent", PublicPrice>;
+type Prices = Record<Tier, PublicPrice>;
 const untilText = (d?: string | null) => (d ? new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) : "");
 
 export default function Landing({ pricing }: { pricing: Prices }) {
@@ -77,21 +77,26 @@ export default function Landing({ pricing }: { pricing: Prices }) {
   const anyOffer = (["standard", "urgent", "video"] as const).find((t) => pricing[t].offerName), offerName = anyOffer ? pricing[anyOffer].offerName : null;
   const old = (p: PublicPrice) => (p.offerName ? <s className="old-price">{inr(p.regular)}</s> : null);
   // Reading types switched on in /admin; the page shows only those (cards, hero buttons, sticky bar).
-  const on = { standard: pricing.standard.enabled, urgent: pricing.urgent.enabled, video: pricing.video.enabled, q3: pricing.q3.enabled, q3urgent: pricing.q3urgent.enabled };
+  const on = { standard: pricing.standard.enabled, urgent: pricing.urgent.enabled, video: pricing.video.enabled, q3: pricing.q3.enabled, q3urgent: pricing.q3urgent.enabled,
+    written: !!pricing.written?.enabled, writtenurgent: !!pricing.writtenurgent?.enabled };
   const count = Object.values(on).filter(Boolean).length;
-  const order = ["standard", "q3", "video", "urgent", "q3urgent"] as const;
+  const order = ["written", "writtenurgent", "standard", "q3", "video", "urgent", "q3urgent"] as const;
   const primary = order.find((t) => on[t]) || null; // hero price + sticky bar
   const firstBtn = (t: (typeof order)[number]) => primary === t; // the first visible hero button is gold, the rest ghost
-  const HERO = {
+  const HERO: Record<(typeof order)[number], { mins: string; kind: string; lines: readonly string[]; sticky: string; stat?: [string, string] }> = {
+    written: { mins: "", kind: "", lines: ["Personal Reading by Bharti Singh", "3 Questions", "Delivery within 7 days", "Hindi, Hinglish ya English — aapki pasand ki bhasha"], sticky: "3 Questions · Delivery within 7 days", stat: ["3 Sawal", "Detailed Answers on Email"] },
+    writtenurgent: { mins: "", kind: "", lines: ["Urgent Personal Reading by Bharti Singh", "3 Questions", "Delivery within 48 hours", "Hindi, Hinglish ya English — aapki pasand ki bhasha"], sticky: "Urgent · 3 Questions · 48 hours", stat: ["48 Hrs", "Urgent Delivery"] },
     standard: { mins: "40", kind: "Voice Call Reading", lines: ["40 mins Voice Reading", "Appointment Within 7 - 10 Days"], sticky: "40 min voice call reading" },
     video: { mins: "30", kind: "Video Call Reading", lines: ["30 mins Video Call (Google Meet)", "Appointment Within 7 - 10 Days"], sticky: "30 min video call reading" },
     urgent: { mins: "40", kind: "Voice Call Reading", lines: ["40 mins Voice Reading", "Appointment Within 48 Hours"], sticky: "Urgent 40 min voice reading" },
     q3: { mins: "30", kind: "Voice Call · 3 Sawal", lines: ["30 mins Voice Call · 3 Sawal", "Appointment Within 7 - 10 Days"], sticky: "30 min call · 3 sawal" },
     q3urgent: { mins: "30", kind: "Voice Call · 3 Sawal", lines: ["30 mins Voice Call · 3 Sawal", "Appointment Within 48 Hours"], sticky: "Urgent 30 min call · 3 sawal" },
-  } as const;
+  };
   const hp = primary ? pricing[primary] : null, hero = primary ? HERO[primary] : null;
   const voice = on.standard || on.urgent || on.q3 || on.q3urgent;
-  const title = voice && on.video ? <>Voice &amp; Video Call Reading</> : on.video ? <>Video Call Reading</> : <>Voice Call Reading</>;
+  const calls = voice || on.video, writtenOn = on.written || on.writtenurgent;
+  const title = writtenOn && !calls ? <>Personal Reading by Bharti Singh</> : voice && on.video ? <>Voice &amp; Video Call Reading</> : on.video ? <>Video Call Reading</> : <>Voice Call Reading</>;
+  const wPrice = inr(pricing.written?.price || 0), wuPrice = inr(pricing.writtenurgent?.price || 0);
   const q3Price = inr(pricing.q3.price), q3uPrice = inr(pricing.q3urgent.price);
 
   // Old / shared links that name a reading (?tier=urgent, ?type=video, #voice, /3-questions …): jump to that card.
@@ -200,6 +205,8 @@ export default function Landing({ pricing }: { pricing: Prices }) {
             </div>
             ) : <div className="hero-price closed"><p>Bookings abhi band hain. Jald hi dobara shuru hongi.</p></div>}
             <div className="hero-actions">
+              {on.written && <PayButton tier="written" className={firstBtn("written") ? "btn gold" : "btn ghost"} label={`Book Now — ${wPrice}`} />}
+              {on.writtenurgent && <PayButton tier="writtenurgent" className={firstBtn("writtenurgent") ? "btn gold" : "btn ghost"} label={`For Urgent Delivery (within 48 Hours) = ${pricing.writtenurgent.price}/- Rs only`} />}
               {on.standard && <PayButton label={`Book Now — ${price}`} />}
               {on.urgent && <PayButton tier="urgent" className={firstBtn("urgent") ? "btn gold" : "btn ghost"} label={`For Urgent Reading (within 48 Hours) = ${pricing.urgent.price}/- Rs only`} />}
               {on.video && <PayButton tier="video" className={firstBtn("video") ? "btn gold" : "btn ghost"} label={`🎥 Video Call Reading (30 min) = ${pricing.video.price}/- Rs only`} />}
@@ -212,8 +219,8 @@ export default function Landing({ pricing }: { pricing: Prices }) {
                 <span>Seekers Guided</span>
               </div>
               <div>
-                <strong>{hero ? hero.mins : "40"} Min</strong>
-                <span>{hero ? hero.kind : "Call Reading"}</span>
+                <strong>{hero?.stat ? hero.stat[0] : `${hero ? hero.mins : "40"} Min`}</strong>
+                <span>{hero?.stat ? hero.stat[1] : hero ? hero.kind : "Call Reading"}</span>
               </div>
               <div>
                 <strong>100%</strong>
@@ -234,6 +241,51 @@ export default function Landing({ pricing }: { pricing: Prices }) {
 
           {count === 0 && <div className="notes-card" style={{ maxWidth: 640, margin: "0 auto 32px", textAlign: "center" }}><p>Abhi koi booking available nahi hai. Bookings jald hi dobara shuru hongi.</p></div>}
           <div className={`tier-grid n${count}`}>
+            {on.written && <Reveal delay={80}>
+              <div id="written" className={`price-card written${pricing.written.offerName ? " offer" : ""}`}>
+                {pricing.written.offerName && <div className="offer-ribbon">🪔 {pricing.written.offerName} · Valid till {untilText(pricing.written.offerUntil)}</div>}
+                {movedNote("written")}
+                <span className="badge">✍️ 3 Questions · Answers on Email</span>
+                <h3>Personal Reading by Bharti Singh</h3>
+                <div className="amount">
+                  {old(pricing.written)}{wPrice}<small>Tarot, Astro, Numero, Face Reading, Kundli Analysis &amp; Psychic</small>
+                </div>
+
+                <ul className="feature-list">
+                  <li><b>3 Questions</b> — sirf aapki personal reading</li>
+                  <li><b>Delivery within 7 days</b> — har sawal ka detailed jawab, guidance ke saath, aapki email par</li>
+                  <li>Choose preferred language: <b>Hindi, Hinglish ya English</b></li>
+                  <li>Make sure to ask <b>specific questions</b> — jitna clear sawal, utna clear jawab</li>
+                  <li>Bharti Singh khud likh kar bhejengi — koi call ya meeting join nahi karni</li>
+                  <li>No Refund Policy</li>
+                </ul>
+
+                <BookingWidget price={wPrice} tier="written" />
+              </div>
+            </Reveal>}
+
+            {on.writtenurgent && <Reveal delay={130}>
+              <div id="writtenurgent" className="price-card urgent written">
+                {pricing.writtenurgent.offerName && <div className="offer-ribbon">🪔 {pricing.writtenurgent.offerName} · Valid till {untilText(pricing.writtenurgent.offerUntil)}</div>}
+                {movedNote("writtenurgent")}
+                <span className="badge">⚡ Urgent · Delivery within 48 Hours</span>
+                <h3>Urgent Personal Reading</h3>
+                <div className="amount">
+                  {old(pricing.writtenurgent)}{wuPrice}<small>Same reading — jawab 48 ghante ke andar</small>
+                </div>
+
+                <ul className="feature-list">
+                  <li><b>3 Questions</b> — sirf aapki personal reading</li>
+                  <li><b>Delivery within 48 hours</b> — har sawal ka detailed jawab, guidance ke saath, aapki email par</li>
+                  <li>Choose preferred language: <b>Hindi, Hinglish ya English</b></li>
+                  <li>Make sure to ask <b>specific questions</b> — jitna clear sawal, utna clear jawab</li>
+                  <li>No Refund Policy</li>
+                </ul>
+
+                <BookingWidget price={wuPrice} tier="writtenurgent" />
+              </div>
+            </Reveal>}
+
             {on.standard && <Reveal delay={80}>
               <div id="standard" className={`price-card${offer ? " offer" : ""}`}>
                 {offer && <div className="offer-ribbon">🪔 {OFFER.name} · Valid till {OFFER.untilText}</div>}
@@ -371,11 +423,12 @@ export default function Landing({ pricing }: { pricing: Prices }) {
                     <p>We do not provide sugar-coated readings. Our purpose is to deliver honest messages as guided by the universe with complete sincerity.</p>
                     <p>We strictly DO NOT offer any services related to Tantra, Vashikaran, black magic, or any unethical practices. Please do not request such services.</p>
                     <p>We do not provide readings on: legal matters, court cases, share market, lottery, gambling, child gender prediction, or explicit/sexual questions.</p>
-                    <p><strong>Appointment timing:</strong> slots run from 12 October to 30 November, every day from 12 PM to 9 PM IST (last slot 9 PM). A standard booking gets the earliest free slot 7–10 days after payment. No appointments are given on festival days (Dussehra, Karwa Chauth, Dhanteras to Bhai Dooj, Chhath Puja and Guru Nanak Jayanti). If you need the reading sooner, book the Urgent reading ({urgent}), which gets a slot within 48 hours of payment.</p>
+                    {writtenOn && <p><strong>How your reading is delivered:</strong> after payment you fill a short form with your 3 questions and choose the language for your answers (Hindi, Hinglish or English). Bharti Singh personally writes a detailed answer to each question, with guidance, and emails it to the email address in your form within 7 days of submitting the form{on.writtenurgent ? <> — or within 48 hours for the Urgent reading ({wuPrice})</> : null}. This reading is delivered in writing by email; there is no call or meeting to join. Please ask specific questions and check your Spam / Promotions folder.</p>}
+                    {calls && <p><strong>Appointment timing:</strong> slots run from 12 October to 30 November, every day from 12 PM to 9 PM IST (last slot 9 PM). A standard booking gets the earliest free slot 7–10 days after payment. No appointments are given on festival days (Dussehra, Karwa Chauth, Dhanteras to Bhai Dooj, Chhath Puja and Guru Nanak Jayanti). If you need the reading sooner, book the Urgent reading ({urgent}), which gets a slot within 48 hours of payment.</p>}
                     {offerName && <p><strong>{offerName}:</strong> the offer prices shown above apply to payments made till {untilText(pricing[anyOffer!].offerUntil)} (IST). After that the regular prices apply.</p>}
-                    <p>Your call takes place on Google Meet at the slot assigned to you — the slot, link and schedule are emailed to you as soon as you submit the form after payment. Please join on time from a stable network; if repeated connection issues occur, the appointment may be cancelled.</p>
-                    <p><strong>Late arrival:</strong> we wait a maximum of 5 minutes after your slot starts. If you have not joined the Google Meet by then, the appointment is treated as missed. Once your slot time is over, the appointment cannot be rescheduled, and no refund is given.</p>
-                    <p>You may ask about up to 3 people in one reading, only those whose details you submit in the form.</p>
+                    {calls && <p>Your call takes place on Google Meet at the slot assigned to you — the slot, link and schedule are emailed to you as soon as you submit the form after payment. Please join on time from a stable network; if repeated connection issues occur, the appointment may be cancelled.</p>}
+                    {calls && <p><strong>Late arrival:</strong> we wait a maximum of 5 minutes after your slot starts. If you have not joined the Google Meet by then, the appointment is treated as missed. Once your slot time is over, the appointment cannot be rescheduled, and no refund is given.</p>}
+                    {calls ? <p>You may ask about up to 3 people in one reading, only those whose details you submit in the form.</p> : <p>Only the 3 questions written in your form are answered, and the reading is about you (the person whose details and photo are in the form).</p>}
                     <p>All readings are for guidance purposes only. Please use your own judgment and decision-making.</p>
                     <p>When asking about another person&rsquo;s feelings, please understand that energies and emotions can change over time, as every individual has free will.</p>
                     <p>We do not offer FREE readings under any circumstances.</p>

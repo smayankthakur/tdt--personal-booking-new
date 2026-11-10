@@ -6,7 +6,7 @@ import FileDrop, { photoStore } from "./form/FileDrop";
 import { EmailVerify } from "./form/Verify";
 import { CONCERNS, VIDEO_MAX_Q, VIDEO_Q_CHARS, VIDEO_TOPICS, needsPartner } from "@/lib/concerns";
 import { MAX_WORDS, WORD_FIELDS, limitWords, wordCount } from "@/lib/words";
-import { TIER_INFO, isQuestionTier, isUrgentTier, parseTier } from "@/lib/slots";
+import { LANGUAGES, TIER_INFO, isQuestionTier, isUrgentTier, isWrittenTier, parseTier } from "@/lib/slots";
 
 const VOICE_STEPS = ["Aap", "Wajah", "Doosre log"], VIDEO_STEPS = ["Aap", "Sawal"];
 const fmtD = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
@@ -79,6 +79,9 @@ export default function ReadingForm() {
   // Video call reading (bk.tier === "video"): one person, up to 3 written questions — steps Aap → Sawal.
   // (also the two 3-question voice readings q3 / q3urgent — same form)
   const video = isQuestionTier(bk?.tier), STEPS = video ? VIDEO_STEPS : VOICE_STEPS;
+  // Written reading (answers by email): no slot / Meet shown, the customer chooses the answer language.
+  const written = isWrittenTier(bk?.tier), wWhen = isUrgentTier(bk?.tier) ? "48 ghante" : "7 din";
+  const fmtDay = (ms: number) => new Date(ms).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const partner = !video && needsPartner(concern);
   const formRef = useRef<HTMLFormElement>(null);
   const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setNext(j.next ?? null)).catch(() => setNext(null));
@@ -108,6 +111,7 @@ export default function ReadingForm() {
     }
     if (s === 1 && video) {
       const qs = [1, 2, 3].map((i) => ({ i, text: val(`q${i}`), topic: (formRef.current?.querySelector(`input[name=qt${i}]:checked`) as HTMLInputElement | null)?.value || "" }));
+      if (written && !(formRef.current?.querySelector("input[name=lang]:checked") as HTMLInputElement | null)) return bad("Jawab kis bhasha mein chahiye — Hindi, Hinglish ya English chunein.");
       if (!qs.some((q) => q.text)) return bad("Kam se kam ek sawal likhein.");
       const noTopic = qs.find((q) => q.text && !q.topic);
       if (noTopic) return bad(`Sawal ${noTopic.i} ka topic chunein — Love life, Career ya Koi aur issue.`);
@@ -141,6 +145,26 @@ export default function ReadingForm() {
   if (bk.status === "created") return <div className="rf-card"><h1>Payment abhi tak nahi mila</h1><p>Agar payment ho chuka hai toh page refresh karein. Nahi hua hai toh dobara payment karein.</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>Payment page par jayein</a></div>;
   if (bk.status === "cancelled") return <div className="rf-card"><h1>Yeh booking cancel ho chuki hai</h1><p>Is booking ki details aapki email par bheji gayi hain. Nayi reading book karni ho toh neeche button dabayein.</p><a className="btn gold" href="/#book" style={{ marginTop: 14 }}>➕ Nayi booking karein</a></div>;
   if (bk.status !== "paid") return <div className="rf-card"><h1>Payment nahi mila</h1><a className="btn gold" href="/#book">Wapas jayein</a></div>;
+
+  if ((bk.formDone || done) && !editing && written) {
+    const by = done?.deliverBy || bk.deliverBy, lang = done?.lang || bk.lang;
+    const newBooking = <a className={`btn ${bk.edit ? "ghost" : "gold"}`} href="/#book" style={{ marginTop: 14 }}>➕ Nayi booking karein</a>;
+    return (
+      <div className="rf-card rf-success">
+        <svg className="ok-tick" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M14 27l8 8 16-17" /></svg>
+        <h1>{done?.edited ? "Form Update Ho Gaya" : "Booking Confirmed"}</h1>
+        {by && <div className="rf-slot"><span>Aapke jawab kab tak</span><b>{fmtDay(by)} tak</b></div>}
+        <p>Aapka form mil gaya hai. Bharti Singh aapke <b>3 sawalon ke detailed jawab, guidance ke saath</b>{lang ? <>, <b>{lang}</b> mein,</> : ""} {wWhen} ke andar <b>aapki email par</b> bhejengi.</p>
+        <div className="rf-remind">
+          <b>📧 Apni email check karte rahein</b>
+          <p>Booking confirmation abhi aapki email par bhej di gayi hai. Jawab bhi isi email par aayenge — <b>Spam / Promotions folder</b> bhi zaroor dekhein.</p>
+        </div>
+        {bk.edit && <div className="rf-edit"><p>Form mein kuch galat bhar diya? <b>{new Date(bk.edit.until).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} tak</b> edit kar sakte hain.</p><button type="button" className="btn ghost" onClick={startEdit}>✏️ Form edit karein</button></div>}
+        {note && <p className="rf-err">{note}</p>}
+        {!bk.edit && <p className="rf-hint" style={{ marginTop: 14 }}>Is booking ka form submit ho chuka hai. Ek aur reading chahiye toh nayi booking karein.</p>}
+        {newBooking}
+      </div>);
+  }
 
   if ((bk.formDone || done) && !editing) {
     const dd = done?.date || bk.date, tt = done?.time || bk.time, meet = done?.meetLink || bk.meetLink;
@@ -181,12 +205,19 @@ export default function ReadingForm() {
     <form key={editing ? "edit" : "new"} ref={formRef} className="rf-card" onSubmit={submit} onInput={capWords} noValidate>
       <div className="rf-badge">{editing ? "✏️ Edit mode" : "✓ Payment received"}{bk.tier && bk.tier !== "standard" ? ` · ${TIER_INFO[parseTier(bk.tier)].badge}` : ""}{bid ? ` · ID ${bid}` : ""}</div>
       <h1>{editing ? "Form Edit Karein" : "Personal Reading Form"}</h1>
-      {editing && <p className="rf-hint">Jo badalna hai badlein aur neeche <b>Update</b> dabayein. Slot aur Google Meet link same rahenge. <button type="button" className="otp-link" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button></p>}
+      {editing && <p className="rf-hint">Jo badalna hai badlein aur neeche <b>Update</b> dabayein. {written ? "Jawab ki date same rahegi." : "Slot aur Google Meet link same rahenge."} <button type="button" className="otp-link" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button></p>}
       <div className="stepper">
         <div className="stepper-bar"><i style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }} /></div>
         {STEPS.map((s, i) => <div key={s} className={`stepper-dot${i <= step ? " on" : ""}`}><span>{i < step ? "✓" : i + 1}</span><small>{s}</small></div>)}
       </div>
 
+      {written ? (
+      <div className="rf-slot">
+        <span>Aapke jawab</span>
+        {editing && bk.deliverBy ? <b>{fmtDay(bk.deliverBy)} tak — aapki email par</b> : next === undefined ? <b>Check ho raha hai…</b>
+          : next ? <b>Form submit karne ke {wWhen} ke andar — aapki email par</b>
+          : <b className="rf-err">Abhi bookings full hain. Aapki booking (ID {bid}) surakshit hai — hum aapki email par jaankari bhejenge.</b>}
+      </div>) : <>
       <div className="rf-slot">
         <span>Aapka slot{editing ? " (same rahega)" : ""}</span>
         {editing && bk.date ? <b>{fmtD(bk.date)} · {fmtT(bk.time)} IST</b> : next === undefined ? <b>Slot dhoondh rahe hain…</b>
@@ -196,13 +227,14 @@ export default function ReadingForm() {
       {next && !editing && <p className="rf-hint">{isUrgentTier(bk.tier)
         ? "⚡ Urgent booking: 48 ghante ke andar ka slot aapke liye rakha gaya hai."
         : "Aapka appointment payment ke 7–10 din ke andar ka sabse pehla khaali slot hai."} Form submit karte hi final slot aur Google Meet link email par aa jayega.</p>}
+      </>}
 
       <div className={S(0)}>
         <h2 className="rf-sec first">Aapki Details</h2>
         <div className="rf-2">
         <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={editing ? raw.name : bk.name} autoComplete="name" /></Field>
-        <Field label="WhatsApp Number" req hint="Reading ke liye contact isi number par hoga."><input className="rf-in" name="phone" type="tel" defaultValue={editing ? raw.phone : bk.phone} autoComplete="tel" /></Field>
-        <Field label="Email ID" req hint="Google Meet link aur schedule isi email par aayega. Email OTP se verify karein."><EmailVerify key={editing ? "edit" : "new"} defaultValue={editing ? raw.email : /@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} preVerified={editing && !!bk.edit?.emailVerified} onChange={setEmailOk} /></Field>
+        <Field label="WhatsApp Number" req hint={written ? "Zaroorat padne par contact isi number par hoga." : "Reading ke liye contact isi number par hoga."}><input className="rf-in" name="phone" type="tel" defaultValue={editing ? raw.phone : bk.phone} autoComplete="tel" /></Field>
+        <Field label="Email ID" req hint={written ? "Aapke sawalon ke jawab isi email par aayenge. Email OTP se verify karein." : "Google Meet link aur schedule isi email par aayega. Email OTP se verify karein."}><EmailVerify key={editing ? "edit" : "new"} defaultValue={editing ? raw.email : /@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} preVerified={editing && !!bk.edit?.emailVerified} onChange={setEmailOk} /></Field>
         <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" defaultValue={raw.place} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
         <Field label="Date of Birth" hint="Pata ho toh chunein, warna skip."><DateField p="dob" init={{ d: raw.dobd, m: raw.dobm, y: raw.doby }} /></Field>
         <Field label="Birth Time" hint="Pata ho toh clock se chunein, warna skip."><ClockField p="tob" init={{ h: raw.tobh, min: raw.tobmin, ap: raw.tobap }} /></Field>
@@ -213,7 +245,14 @@ export default function ReadingForm() {
       {video && (
       <div className={S(1)}>
         <h2 className="rf-sec first">Aapke Sawal <small>(max {VIDEO_MAX_Q})</small></h2>
-        <p className="rf-hint">{bk.tier === "video" ? "Video call" : "Is call"} mein <b>sirf aapki</b> reading hogi. Apne {VIDEO_MAX_Q} sawal likhein — har sawal {VIDEO_Q_CHARS} characters tak. Pehla sawal zaroori hai.</p>
+        {written ? <>
+        <div className="vq">
+          <label className="rf-label">Jawab kis bhasha mein chahiye? <b>*</b></label>
+          <div className="vq-topics">{LANGUAGES.map((l) => (
+            <label key={l}><input type="radio" name="lang" value={l} defaultChecked={raw.lang === l} /><span>{l}</span></label>))}</div>
+        </div>
+        <p className="rf-hint"><b>Sirf aapki</b> reading hogi. Apne {VIDEO_MAX_Q} sawal likhein — har sawal {VIDEO_Q_CHARS} characters tak. Pehla sawal zaroori hai. <b>Make sure to ask specific questions</b> — jaise &ldquo;Kya meri shaadi 2027 mein hogi?&rdquo; (sirf &ldquo;Meri shaadi?&rdquo; nahi). Jitna clear sawal, utna clear jawab.</p>
+        </> : <p className="rf-hint">{bk.tier === "video" ? "Video call" : "Is call"} mein <b>sirf aapki</b> reading hogi. Apne {VIDEO_MAX_Q} sawal likhein — har sawal {VIDEO_Q_CHARS} characters tak. Pehla sawal zaroori hai.</p>}
         {[1, 2, 3].map((i) => (
           <div key={i} className="vq">
             <label className="rf-label">Sawal {i}{i === 1 && <b> *</b>}</label>

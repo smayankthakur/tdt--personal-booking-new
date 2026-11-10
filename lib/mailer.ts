@@ -1,6 +1,6 @@
 import nodemailer, { type SendMailOptions } from "nodemailer";
 import { logMail, type MailMeta } from "./mailLog";
-import { callMinutes, isQuestionTier, isUrgentTier, slotMs, tierInfo, tierTag } from "./slots";
+import { callMinutes, isQuestionTier, isUrgentTier, isWrittenTier, slotMs, tierInfo, tierTag } from "./slots";
 
 function transporter() {
   const { SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS } = process.env;
@@ -59,7 +59,42 @@ const until = (ms?: number) => ms ? new Date(ms).toLocaleString("en-IN", { timeZ
 const editBox = (link?: string | null, ms?: number) => !link ? "" :
   `<div style="border:1px dashed #6d28d9;border-radius:8px;padding:12px 16px;margin:18px 0;font-size:14px;line-height:1.6">✏️ Form mein kuch galat bhar diya? <b>${until(ms)} tak</b> aap form edit kar sakte hain (slot same rahega).<br/><a href="${link}" style="color:#6d28d9;font-weight:600">Form edit karein →</a></div>`;
 
-export async function sendClientConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; editLink?: string | null; editUntil?: number; updated?: boolean; tier?: string; by?: string }) {
+/** "Mon, 17 Nov 2026" — the date written answers are promised by. */
+export const deliverDate = (ms?: number | null) => ms ? new Date(ms).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", year: "numeric" }) : "";
+const deliverWhen = (tier?: string) => (isUrgentTier(tier) ? "48 ghante" : "7 din");
+const contact = `<p style="font-size:13px;color:#666;margin-top:28px">Contact: thedivinetarothindi@gmail.com | +91 88281 16545</p>`;
+
+/** Written (email) reading booked: NO meeting link, NO calendar invite — answers come by email. */
+async function sendWrittenConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; editLink?: string | null; editUntil?: number; updated?: boolean; tier?: string; by?: string; deliverBy?: number | null; lang?: string }) {
+  const by = deliverDate(b.deliverBy), urgent = isUrgentTier(b.tier);
+  await send({
+    from: from(), to: b.email,
+    subject: `Your personal reading is booked - answers by ${by || `${deliverWhen(b.tier)} se pehle`} - The Divine Tarot`,
+    html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
+      <h2 style="color:#6d28d9">Namaste ${esc(b.name)}</h2>
+      <p>${b.updated ? "Aapka form update ho gaya hai." : "Aapka payment aur form mil gaya hai."} Aapki ${urgent ? "<b>Urgent</b> " : ""}Personal Reading confirm ho chuki hai.</p>
+      <div style="background:#f6f3fb;border-left:3px solid #6d28d9;padding:14px 20px;margin:20px 0;line-height:1.8">
+        <b>Reading:</b> Personal Reading by Bharti Singh — aapke 3 sawal<br/>
+        <b>Jawab kab tak:</b> ${by ? `<b>${by}</b> tak` : ""} (${deliverWhen(b.tier)} ke andar)<br/>
+        ${b.lang ? `<b>Bhasha:</b> ${esc(b.lang)}<br/>` : ""}<b>Booking ID:</b> ${b.bid}
+      </div>
+      <p>Bharti Singh aapke form mein likhe <b>3 sawalon ke detailed jawab, guidance ke saath</b>, khud likh kar <b>isi email (${esc(b.email)}) par</b> bhejengi${b.lang ? ` — ${esc(b.lang)} mein` : ""}.</p>
+      ${editBox(b.editLink, b.editUntil)}
+      <div style="font-size:14px;line-height:1.7">
+        <b>Zaroori baatein:</b>
+        <ul style="padding-left:18px">
+          <li>Jawab isi email par aayenge — <b>Spam / Promotions folder</b> bhi check karte rahein.</li>
+          <li>Sirf aapki reading hoti hai — form mein likhe 3 sawalon ke jawab.</li>
+          <li>Koi call ya meeting nahi hoti; aapko kahin join nahi karna hai.</li>
+          <li>Koi refund nahi diya jata.</li>
+        </ul>
+      </div>
+      ${contact}</div>`,
+  }, { kind: "confirm", bid: b.bid, slot: `${b.date}T${b.time}`, by: b.by });
+}
+
+export async function sendClientConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; editLink?: string | null; editUntil?: number; updated?: boolean; tier?: string; by?: string; deliverBy?: number | null; lang?: string }) {
+  if (isWrittenTier(b.tier)) return sendWrittenConfirmation(b);
   const { day, range } = prettySlot(b.date, b.time, b.tier);
   const video = b.tier === "video", q3 = isQuestionTier(b.tier) && !video;
   const meet = b.meetLink
@@ -101,15 +136,19 @@ export async function sendClientConfirmation(b: { name: string; email: string; b
 /** Sent to the owner with every answer and the uploaded photos attached. */
 export async function sendOwnerNotification(sub: Record<string, any>, photos: { filename: string; content: Buffer; contentType: string }[], meetLink: string | null) {
   const to = (process.env.OWNER_EMAIL || process.env.SMTP_USER || "").split(",").map((x) => x.trim()).filter(Boolean); // one or many addresses
-  const { day, range } = prettySlot(sub.date, sub.time, sub.tier);
+  const { day, range } = prettySlot(sub.date, sub.time, sub.tier), written = isWrittenTier(sub.tier);
   const rows = Object.entries(sub.answers as Record<string, string>).filter(([, v]) => v)
     .map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#555;vertical-align:top">${esc(k)}</td><td style="padding:4px 0"><b>${esc(String(v))}</b></td></tr>`).join("");
+  const head = written
+    ? `<h3 style="color:${isUrgentTier(sub.tier) ? "#c2410c" : "#6d28d9"}">${isUrgentTier(sub.tier) ? "⚡ URGENT · " : ""}✍️ Written reading — jawab ${esc(sub.email)} par bhejna hai <u>${deliverDate(sub.deliverBy)}</u> tak</h3>
+      <p>Language: <b>${esc(sub.answers?.Language || "-")}</b><br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}<br/><span style="color:#666">Plan slot (admin calendar): ${day} · ${range.split(" – ")[0]}</span></p>`
+    : `<h3>${day} · ${range}</h3>
+      <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "<b style='color:#c00'>NOT CREATED — create manually</b>"}<br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}</p>`;
   await send({
     from: from(), to, replyTo: sub.email,
-    subject: `${tierTag(sub.tier)}New reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
+    subject: written ? `${tierTag(sub.tier)}New reading form - ${sub.name} - answer by ${deliverDate(sub.deliverBy)}` : `${tierTag(sub.tier)}New reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
     attachments: photos,
-    html: `<div style="font-family:Arial,sans-serif;max-width:640px"><h3>${day} · ${range}</h3>
-      <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "<b style='color:#c00'>NOT CREATED — create manually</b>"}<br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}</p>
+    html: `<div style="font-family:Arial,sans-serif;max-width:640px">${head}
       <table>${rows}</table><p>Photos attached: ${photos.length}</p></div>`,
   }, { kind: "owner", bid: sub.bid, slot: `${sub.date}T${sub.time}` });
 }
@@ -129,7 +168,7 @@ export async function sendEditLink(b: { name: string; email: string; date: strin
 }
 
 /** Owner copy when a customer edits their form: what changed (old → new) + any new photos. */
-export async function sendOwnerUpdate(sub: { bid: string; tier?: string; date: string; time: string; name: string; email: string }, before: Record<string, string>, after: Record<string, string>, photos: { filename: string; content: Buffer; contentType: string }[], meetLink: string | null) {
+export async function sendOwnerUpdate(sub: { bid: string; tier?: string; date: string; time: string; name: string; email: string; deliverBy?: number | null }, before: Record<string, string>, after: Record<string, string>, photos: { filename: string; content: Buffer; contentType: string }[], meetLink: string | null) {
   const to = (process.env.OWNER_EMAIL || process.env.SMTP_USER || "").split(",").map((x) => x.trim()).filter(Boolean);
   const { day, range } = prettySlot(sub.date, sub.time, sub.tier);
   const keys = Array.from(new Set([...Object.keys(after), ...Object.keys(before)])).filter((k) => k !== "Edited");
@@ -139,10 +178,10 @@ export async function sendOwnerUpdate(sub: { bid: string; tier?: string; date: s
   const all = Object.entries(after).filter(([, v]) => v).map(([k, v]) => `<tr><td style="${td};color:#555">${esc(k)}</td><td style="padding:4px 0"><b>${esc(String(v))}</b></td></tr>`).join("");
   await send({
     from: from(), to, replyTo: sub.email,
-    subject: `${tierTag(sub.tier)}UPDATED reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
+    subject: isWrittenTier(sub.tier) ? `${tierTag(sub.tier)}UPDATED reading form - ${sub.name} - answer by ${deliverDate(sub.deliverBy)}` : `${tierTag(sub.tier)}UPDATED reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
     attachments: photos,
-    html: `<div style="font-family:Arial,sans-serif;max-width:680px"><h3 style="color:#b45309">✏️ Customer ne form edit kiya · ${day} · ${range}</h3>
-      <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "-"}<br/>Booking ID: ${sub.bid}</p>
+    html: `<div style="font-family:Arial,sans-serif;max-width:680px"><h3 style="color:#b45309">✏️ Customer ne form edit kiya · ${isWrittenTier(sub.tier) ? `✍️ Written reading — jawab ${deliverDate(sub.deliverBy)} tak` : `${day} · ${range}`}</h3>
+      <p>${isWrittenTier(sub.tier) ? "" : `Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "-"}<br/>`}Booking ID: ${sub.bid}</p>
       <h4>Kya badla (${changed.length})</h4>${changed.length ? `<table><tr><th align="left">Sawal</th><th align="left">Pehle</th><th align="left">Ab</th></tr>${diff}</table>` : "<p>Koi text change nahi (sirf photo).</p>"}
       <p>Nayi photos attached: ${photos.length}${photos.length ? "" : " (purani photos pichhle email mein hain)"}</p>
       <h4>Poora form (ab)</h4><table>${all}</table></div>`,
@@ -152,7 +191,7 @@ export async function sendOwnerUpdate(sub: { bid: string; tier?: string; date: s
 /** Payment receipt + a personal 24-hour form link, so a customer who loses the payment page (Instagram browser,
  *  UPI app switch, closed tab) can still open the form from any phone/browser. */
 export async function sendPaymentReceived(b: { email: string; bid: string; tier?: string; formLink?: string | null; by?: string }) {
-  const when = isUrgentTier(b.tier) ? "48 ghante ke andar" : "7 se 10 din ke andar";
+  const when = isUrgentTier(b.tier) ? "48 ghante ke andar" : "7 se 10 din ke andar", written = isWrittenTier(b.tier);
   const kind = b.tier && b.tier !== "standard" ? ` (<b>${tierInfo(b.tier).name}</b>)` : "";
   const btn = b.formLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.formLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Reading Form Bharein</a><br/><span style="font-size:12px;color:#555">Yeh link sirf aapke liye hai aur 24 ghante tak valid hai.</span></p>`
@@ -163,7 +202,7 @@ export async function sendPaymentReceived(b: { email: string; bid: string; tier?
       <h2 style="color:#6d28d9">Namaste</h2>
       <p>Aapka payment receive ho gaya hai${kind}. Ab apna <b>reading form bharein</b> (2-3 minute).</p>
       ${btn}
-      <p>Form submit karte hi aapka <b>appointment slot (${when}), Google Meet link aur schedule</b> isi email par aa jayega, aur Google Calendar invite bhi milega.</p>
+      <p>${written ? `Form mein apne <b>3 sawal</b> likhein aur jawab ki <b>bhasha</b> (Hindi, Hinglish ya English) chunein. Form submit karne ke <b>${deliverWhen(b.tier)} ke andar</b> Bharti Singh ke likhe jawab, guidance ke saath, isi email par aa jayenge.` : `Form submit karte hi aapka <b>appointment slot (${when}), Google Meet link aur schedule</b> isi email par aa jayega, aur Google Calendar invite bhi milega.`}</p>
       <p style="background:#fff4e5;padding:12px 16px;border-radius:6px;font-size:14px">Koi dikkat ho toh WhatsApp karein <b>+91 88281 16545</b> aur yeh Booking ID bhejein: <b>${b.bid}</b></p></div>`,
   }, { kind: "payment", bid: b.bid, by: b.by });
 }
@@ -205,12 +244,13 @@ export async function sendReminder(b: { name: string; email: string; bid: string
  *  (sent once automatically ~12 h after payment by the cron, or any time from /admin). */
 export async function sendFormReminder(b: { email: string; bid: string; tier?: string; formLink: string; by?: string }) {
   const when = isUrgentTier(b.tier) ? "48 ghante ke andar" : "7 se 10 din ke andar";
+  const after = isWrittenTier(b.tier) ? `Form mein apne 3 sawal likhte hi, ${deliverWhen(b.tier)} ke andar aapke jawab isi email par aa jayenge.` : `Form bharte hi aapka appointment slot (${when}) aur Google Meet link isi email par aa jayega.`;
   await send({
     from: from(), to: b.email, subject: "Reminder: your reading form is still pending - The Divine Tarot",
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
       <h2 style="color:#6d28d9">Namaste</h2>
       <p>Aapka payment mil chuka hai${b.tier && b.tier !== "standard" ? ` (<b>${tierInfo(b.tier).name}</b>)` : ""}, lekin <b>reading form abhi tak nahi bhara gaya</b>.</p>
-      <p>Form bharte hi aapka appointment slot (${when}) aur Google Meet link isi email par aa jayega.</p>
+      <p>${after}</p>
       <p style="text-align:center;margin:26px 0"><a href="${b.formLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Reading Form Bharein</a><br/><span style="font-size:12px;color:#555">Yeh link sirf aapke liye hai aur 24 ghante tak valid hai.</span></p>
       <p style="font-size:13px;color:#666">Booking ID: ${b.bid}</p></div>`,
   }, { kind: "formReminder", bid: b.bid, by: b.by });
@@ -242,10 +282,10 @@ export async function sendRescheduled(b: { name: string; email: string; bid: str
 export async function sendCancelled(b: { name: string; email: string; bid: string; key: string; tier?: string; refund: boolean; amount?: number; note?: string; by?: string }) {
   const [d, t] = b.key.split("T"), { day, range } = prettySlot(d, t, b.tier);
   await send({
-    from: from(), to: b.email, subject: `Your reading on ${day} has been cancelled - The Divine Tarot`,
+    from: from(), to: b.email, subject: isWrittenTier(b.tier) ? "Your personal reading has been cancelled - The Divine Tarot" : `Your reading on ${day} has been cancelled - The Divine Tarot`,
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
       <h2 style="color:#6d28d9">Namaste ${esc(b.name || "")}</h2>
-      <p>Aapki <b>${day}, ${range}</b> wali reading <b>cancel</b> kar di gayi hai.</p>
+      <p>Aapki ${isWrittenTier(b.tier) ? `Personal Reading (Booking ID ${b.bid})` : `<b>${day}, ${range}</b> wali reading`} <b>cancel</b> kar di gayi hai.</p>
       ${b.note ? `<p style="background:#f6f3fb;padding:12px 16px;border-radius:6px">${esc(b.note)}</p>` : ""}
       ${b.refund ? `<p style="background:#edfaef;padding:12px 16px;border-radius:6px">Aapka refund${b.amount ? ` <b>₹${Number(b.amount).toLocaleString("en-IN")}</b>` : ""} process kar diya gaya hai. Bank ke hisaab se 5–7 working days mein aapke account mein aa jayega.</p>` : ""}
       <p style="font-size:13px;color:#666">Booking ID: ${b.bid}</p></div>`,
@@ -260,10 +300,21 @@ export async function sendFeedbackRequest(b: { name: string; email: string; bid:
     from: from(), to: b.email, subject: "How was your reading? - The Divine Tarot",
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
       <h2 style="color:#6d28d9">Namaste ${esc(b.name || "")}</h2>
-      <p>Aapki <b>${day}</b> wali reading kaisi lagi? Aapka feedback humein aur behtar banne mein madad karta hai — sirf 30 second lagenge.</p>
+      <p>${isWrittenTier(b.tier) ? "Aapki Personal Reading (email par bheje gaye jawab)" : `Aapki <b>${day}</b> wali reading`} kaisi lagi? Aapka feedback humein aur behtar banne mein madad karta hai — sirf 30 second lagenge.</p>
       <p style="text-align:center;margin:22px 0 6px">${[1, 2, 3, 4, 5].map(star).join("")}</p>
       <p style="text-align:center;font-size:12px;color:#555;margin:0 0 22px">Star par click karein (5 = bahut achhi)</p>
       <p style="text-align:center"><a href="${b.link}" style="background:#6d28d9;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Feedback dein</a></p>
       <p style="font-size:13px;color:#666">Booking ID: ${b.bid}</p></div>`,
   }, { kind: "feedback", bid: b.bid, slot: `${b.date}T${b.time}`, by: b.by });
+}
+
+/** Owner alert the moment an URGENT reading is paid (before the form) — urgent ones must never be missed. */
+export async function sendOwnerUrgentPaid(o: { bid: string; tier?: string; amount?: number; email?: string; phone?: string }) {
+  const to = (process.env.OWNER_EMAIL || process.env.SMTP_USER || "").split(",").map((x) => x.trim()).filter(Boolean);
+  await send({
+    from: from(), to, subject: `⚡ URGENT payment received - ${tierInfo(o.tier).name} - ₹${Number(o.amount || 0).toLocaleString("en-IN")}`,
+    html: `<div style="font-family:Arial,sans-serif;max-width:640px"><h3 style="color:#c2410c">⚡ URGENT booking ka payment aa gaya</h3>
+      <p><b>${esc(tierInfo(o.tier).name)}</b> · ₹${Number(o.amount || 0).toLocaleString("en-IN")}<br/>Customer: ${esc(o.email || "-")} · ${esc(o.phone || "-")}<br/>Booking ID: ${o.bid}</p>
+      <p>${isWrittenTier(o.tier) ? "Customer form bharte hi aapko sawalon wali email aayegi — jawab <b>48 ghante ke andar</b> bhejne hain." : "Customer form bharte hi slot confirm hoga (48 ghante ke andar)."}</p></div>`,
+  }, { kind: "owner", bid: o.bid });
 }

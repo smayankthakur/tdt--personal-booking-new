@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { sendFeedbackRequest, sendFormReminder, sendReminder } from "@/lib/mailer";
 import { realEmail } from "@/lib/payments";
 import { feedbackToken, resumeToken } from "@/lib/session";
-import { addDays, istDate, slotMs } from "@/lib/slots";
+import { addDays, isWrittenTier, istDate, slotMs } from "@/lib/slots";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 60;
 
 const BEFORE_MS = 3 * 3600 * 1000; // reminder goes out once, ~3 hours before the slot
@@ -27,7 +27,8 @@ export async function GET(req: Request) {
     .where(FieldPath.documentId(), "<=", addDays(today, 1) + "~").get();
   const due = snap.docs.filter((d) => {
     const b = d.data(), [date, time] = d.id.split("T"), start = time ? slotMs(date, time) : 0;
-    return b.status === "confirmed" && b.email && !b.reminderAt && !b.soonReminderAt && start > now && start - now <= BEFORE_MS;
+    // call readings only — written (email) readings have no call, so no "reading in 3 hours" mail
+    return b.status === "confirmed" && b.email && !isWrittenTier(b.tier) && !b.reminderAt && !b.soonReminderAt && start > now && start - now <= BEFORE_MS;
   });
 
   const out: string[] = [];
@@ -75,10 +76,14 @@ export async function GET(req: Request) {
   const fsnap = await db.collection("bookings").where(FieldPath.documentId(), ">=", addDays(today, -3)).where(FieldPath.documentId(), "<=", today + "~").get();
   const site = String(process.env.SITE_URL || "https://booking.thedivinetarotonline.com").replace(/\/$/, "");
   const fbs: string[] = [];
-  for (const d of fsnap.docs) {
-    const b = d.data(), [date, time] = d.id.split("T"), start = time ? slotMs(date, time) : 0;
+  // Written readings: the feedback mail goes ~1 day after the admin marks the reading "Done" (answers sent),
+  // not after the plan slot. Call readings: ~1 day after the slot.
+  const wsnap = await db.collection("bookings").where("outcomeAt", ">=", now - 72 * 3600e3).get();
+  const fdocs = [...fsnap.docs.filter((d) => !isWrittenTier(d.data().tier)), ...wsnap.docs.filter((d) => isWrittenTier(d.data().tier) && d.data().outcome === "done")];
+  for (const d of fdocs) {
+    const b = d.data(), [date, time] = d.id.split("T"), start = isWrittenTier(b.tier) ? Number(b.outcomeAt || 0) : time ? slotMs(date, time) : 0;
     if (b.status !== "confirmed" || !b.email || !b.bid || b.feedbackAt || b.outcome === "noshow" || b.outcome === "refunded") continue;
-    if (now - start < FEEDBACK_AFTER_MS || now - start > 72 * 3600e3) continue;
+    if (!start || now - start < FEEDBACK_AFTER_MS || now - start > 72 * 3600e3) continue;
     const claimed = await db.runTransaction(async (tx) => {
       const s = (await tx.get(d.ref)).data();
       if (!s || s.feedbackAt) return false;

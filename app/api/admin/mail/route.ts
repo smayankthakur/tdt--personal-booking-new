@@ -9,7 +9,7 @@ import { logActivity } from "@/lib/activity";
 import { sendClientConfirmation, sendFormReminder, sendReminder } from "@/lib/mailer";
 import { realEmail } from "@/lib/payments";
 import { editToken, originOf, resumeToken } from "@/lib/session";
-import { slotMs } from "@/lib/slots";
+import { slotMs, isWrittenTier } from "@/lib/slots";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
 const no = (error: string, status = 400) => NextResponse.json({ error }, { status });
@@ -58,12 +58,13 @@ export async function POST(req: Request) {
 
     if (kind === "confirm") {
       const until = editUntil(o.formAt, o.slot), open = until > Date.now() + 60e3;
-      await sendClientConfirmation({ name: b.name, email: b.email, bid, date, time, meetLink: b.meetLink || null, tier: b.tier, by: who,
+      await sendClientConfirmation({ name: b.name, email: b.email, bid, date, time, meetLink: b.meetLink || null, tier: b.tier, by: who, deliverBy: b.deliverBy, lang: b.lang,
         editUntil: until, editLink: open ? `${site}/api/edit?t=${editToken(bid, until)}` : null });
       await bRef.update({ clientMailOk: true, mailErr: "" });
       { await logActivity(who, "Mail dobara bheja", `Confirmation mail · ${bid}`); return NextResponse.json({ result: `Confirmation mail bhej di → ${b.email} ✓` }); }
     }
     if (kind === "reminder") {
+      if (isWrittenTier(b.tier)) return no("Written reading mein call nahi hoti — reminder mail nahi jata.");
       if (slotMs(date, time) < Date.now()) return no("Slot ka time nikal chuka hai — reminder ka matlab nahi.");
       await sendReminder({ name: b.name, email: b.email, bid, date, time, meetLink: b.meetLink || null, tier: b.tier, by: who });
       await bRef.update({ reminderAt: Date.now() });

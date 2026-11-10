@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { CFG_DOC, db, getCfg } from "@/lib/db";
 import { createMeet, sendInvite } from "@/lib/calendar";
-import { slotMs } from "@/lib/slots";
+import { slotMs, isWrittenTier } from "@/lib/slots";
 import { sendClientConfirmation, sendEditLink } from "@/lib/mailer";
 import { editUntil } from "@/lib/formEdit";
 import { editToken, originOf, resumeToken } from "@/lib/session";
@@ -74,12 +74,13 @@ export async function POST(req: Request) {
   if (!s.exists) return NextResponse.json({ error: "booking nahi mili" }, { status: 404 });
   const b = s.data() as any, [date, time] = String(slot).split("T"), out: string[] = [];
   let meetLink: string | null = b.meetLink || null, calendarErr = "", mailErr = "";
-  if (!meetLink) {
+  const written = isWrittenTier(b.tier); // written (email) readings never get a Meet link / invite
+  if (!meetLink && !written) {
     try { const m = await createMeet(slot, b); meetLink = m.meetLink || null; await ref.update({ meetLink, eventId: m.eventId || null, calendarOk: true, calendarErr: "" }); await logMail({ kind: "invite", bid: b.bid, slot, by: who }, b.email, true); out.push("Meet link ban gaya ✓"); }
     catch (e: any) { await logMail({ kind: "invite", bid: b.bid, slot, by: who }, b.email, false, e); calendarErr = String(e?.message || e).slice(0, 300); await ref.update({ calendarOk: false, calendarErr }); out.push("Meet link ERROR: " + calendarErr); }
   }
   if (meetLink || !calendarErr) {
-    try { await sendClientConfirmation({ name: b.name, email: b.email, bid: b.bid, date, time, meetLink, tier: b.tier, by: who }); await ref.update({ clientMailOk: true, mailErr: "" }); out.push("Customer ko email bhej di ✓"); }
+    try { await sendClientConfirmation({ name: b.name, email: b.email, bid: b.bid, date, time, meetLink, tier: b.tier, by: who, deliverBy: b.deliverBy, lang: b.lang }); await ref.update({ clientMailOk: true, mailErr: "" }); out.push("Customer ko email bhej di ✓"); }
     catch (e: any) { mailErr = String(e?.message || e).slice(0, 300); await ref.update({ clientMailOk: false, mailErr }); out.push("Email ERROR: " + mailErr); }
   }
   await logActivity(who, "Meet link + email retry", `${slot} · ${out.join(" · ")}`);

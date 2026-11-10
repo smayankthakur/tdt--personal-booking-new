@@ -1,7 +1,7 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { db } from "./db";
-import { sendPaymentReceived } from "./mailer";
-import { slotMs, tierInfo } from "./slots";
+import { sendOwnerUrgentPaid, sendPaymentReceived } from "./mailer";
+import { isUrgentTier, slotMs, tierInfo } from "./slots";
 import { notifyAdmins } from "./push";
 import { resumeToken } from "./session";
 
@@ -30,7 +30,9 @@ export async function markPaid(bid: string, plinkId: string, paymentId: string |
     }
     return d;
   });
-  if (order) await notifyAdmins(`💳 Naya payment ₹${Number(order.amount || 0).toLocaleString("en-IN")}`, `${tierInfo(order.tier).name}${order.coupon ? ` · 🎟 ${order.coupon}` : ""} · ${realEmail(order.customerEmail, email) || phone || "—"}`, "/admin");
+  // Urgent payments get their own, clearly marked notification (push + owner email) so they are never missed.
+  if (order && isUrgentTier(order.tier)) await sendOwnerUrgentPaid({ bid, tier: order.tier, amount: order.amount, email: realEmail(order.customerEmail, email), phone }).catch((e) => console.error("urgent owner mail failed", e));
+  if (order) await notifyAdmins(`${isUrgentTier(order.tier) ? "⚡ URGENT · " : ""}💳 Naya payment ₹${Number(order.amount || 0).toLocaleString("en-IN")}`, `${tierInfo(order.tier).name}${order.coupon ? ` · 🎟 ${order.coupon}` : ""} · ${realEmail(order.customerEmail, email) || phone || "—"}`, "/admin");
   const to = realEmail(order?.customerEmail, email); // email typed on our site first, then Razorpay's
   if (order && to) {
     // Personal 24-hour form link (same signed token as the admin "Form link banao" button).
