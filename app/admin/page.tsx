@@ -256,8 +256,8 @@ export default function Admin() {
           <div className="wpa-postbox"><h2>Coupons</h2><div className="inside">
             <div className="wpa-inline-form">
               <input value={nc.code} onChange={(e) => setNc({ ...nc, code: e.target.value.toUpperCase().replace(/\s/g, "") })} placeholder="CODE (jaise SAVE10)" />
-              <select value={nc.type} onChange={(e) => setNc({ ...nc, type: e.target.value })}><option value="percent">% off</option><option value="flat">₹ off</option></select>
-              <input className="sm" type="number" value={nc.value} onChange={(e) => setNc({ ...nc, value: e.target.value })} placeholder={nc.type === "percent" ? "10" : "500"} />
+              <select value={nc.type} onChange={(e) => setNc({ ...nc, type: e.target.value })}><option value="percent">% off</option><option value="flat">₹ off</option><option value="free">🧪 Test (payment skip, ₹0)</option></select>
+              {nc.type !== "free" && <input className="sm" type="number" value={nc.value} onChange={(e) => setNc({ ...nc, value: e.target.value })} placeholder={nc.type === "percent" ? "10" : "500"} />}
               <span className="wpa-muted">Expiry</span><input type="date" min={today} value={nc.expires} onChange={(e) => setNc({ ...nc, expires: e.target.value })} />
               <input type="number" min={1} value={nc.maxUses} onChange={(e) => setNc({ ...nc, maxUses: e.target.value })} placeholder="Max uses (khaali = unlimited)" />
             </div>
@@ -273,7 +273,7 @@ export default function Admin() {
                   <button className="wpa-btn" onClick={() => setEditCode("")}>Cancel</button></div></td></tr>) : (
                 <tr key={c.code} className={expired || full || c.paused ? "past" : ""}>
                   <td><b>{c.code}</b>{c.paused ? <span className="wpa-status warn">paused</span> : expired ? <span className="wpa-status">expired</span> : full ? <span className="wpa-status">limit poori</span> : null}</td>
-                  <td>{c.type === "percent" ? `${c.value}%` : `₹${c.value}`} off</td>
+                  <td>{c.type === "free" ? "🧪 TEST · payment skip (₹0)" : `${c.type === "percent" ? `${c.value}%` : `₹${c.value}`} off`}</td>
                   <td>{(c.tiers || []).map((t: string) => TIERS.find(([k]) => k === t)?.[1]).join(", ")}</td>
                   <td>{c.expires || "—"}</td>
                   <td>{c.used || 0}{c.maxUses ? ` / ${c.maxUses}` : ""}</td>

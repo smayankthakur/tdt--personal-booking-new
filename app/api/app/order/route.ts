@@ -46,6 +46,7 @@ export async function POST(req: Request) {
   }
   const q = await quote(tier, body?.coupon); // server-side price: regular / seasonal offer / coupon (from /admin)
   if ("error" in q) { if (heldSlot) await db.doc(`bookings/${heldSlot}`).delete().catch(() => {}); return NextResponse.json({ error: q.error, code: "coupon" }, { status: 400 }); }
+  if (q.test) { if (heldSlot) await db.doc(`bookings/${heldSlot}`).delete().catch(() => {}); return NextResponse.json({ error: "Yeh test coupon sirf website par chalta hai.", code: "coupon" }, { status: 400 }); }
   const amount = q.final;
   await ref.set({ status: "created", tier, amount, regularPrice: q.regular, offerName: q.offerName, coupon: q.coupon, discount: q.discount, heldSlot, origin: "app", createdAt: Date.now(), ...(customerEmail ? { customerEmail } : {}) });
 

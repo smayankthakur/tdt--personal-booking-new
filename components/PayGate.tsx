@@ -86,6 +86,7 @@ function EmailModal({ busy, err, onClose, onSubmit, tier, moved, onSwitch }: { b
             <span>Payable</span>
             <b>{q.final < q.regular && <s>₹{q.regular.toLocaleString("en-IN")}</s>} ₹{q.final.toLocaleString("en-IN")}</b>
             {q.offerName && <small>🪔 {q.offerName}</small>}
+            {(q as any).test && <small>🧪 Test coupon — payment skip hoga, seedha form khulega</small>}
           </div>)}
         {!showCode && !q?.coupon ? <button type="button" className="otp-link" onClick={() => setShowCode(true)}>Coupon code hai?</button> : (
           <div className="pg-coupon">
@@ -95,7 +96,7 @@ function EmailModal({ busy, err, onClose, onSubmit, tier, moved, onSwitch }: { b
           </div>)}
         {cMsg && <p className={cMsg.startsWith("✓") ? "rf-hint" : "rf-err"} style={{ color: cMsg.startsWith("✓") ? "#7ee2a8" : undefined }}>{cMsg}</p>}
         {(local || err) && <p className="rf-err">{local || err}</p>}
-        <button className="btn gold" disabled={busy} style={{ width: "100%", justifyContent: "center", marginTop: 12 }}>{busy ? "Payment page khul raha hai…" : "Continue to Payment →"}</button>
+        <button className="btn gold" disabled={busy} style={{ width: "100%", justifyContent: "center", marginTop: 12 }}>{busy ? ((q as any)?.test ? "Test booking ban rahi hai…" : "Payment page khul raha hai…") : (q as any)?.test ? "🧪 Continue — Test Booking (₹0) →" : "Continue to Payment →"}</button>
         <p className="pg-note">🔒 Payment Razorpay par secure hota hai. Email sirf booking ke liye use hoti hai — <a href="https://thedivinetarotonline.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Privacy Policy</a></p>
       </form>
     </div>, document.body);

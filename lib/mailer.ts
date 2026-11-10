@@ -146,7 +146,7 @@ export async function sendOwnerNotification(sub: Record<string, any>, photos: { 
       <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "<b style='color:#c00'>NOT CREATED — create manually</b>"}<br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}</p>`;
   await send({
     from: from(), to, replyTo: sub.email,
-    subject: written ? `${tierTag(sub.tier)}New reading form - ${sub.name} - answer by ${deliverDate(sub.deliverBy)}` : `${tierTag(sub.tier)}New reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
+    subject: sub.test ? `🧪 TEST · ${tierTag(sub.tier)}New reading form - ${sub.name}` : written ? `${tierTag(sub.tier)}New reading form - ${sub.name} - answer by ${deliverDate(sub.deliverBy)}` : `${tierTag(sub.tier)}New reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
     attachments: photos,
     html: `<div style="font-family:Arial,sans-serif;max-width:640px">${head}
       <table>${rows}</table><p>Photos attached: ${photos.length}</p></div>`,

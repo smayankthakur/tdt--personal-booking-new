@@ -4,7 +4,8 @@ import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
 import { HOLD_MS, TIER_INFO, isTaken, isUrgentTier, type Tier, parseTier } from "@/lib/slots";
 import { liveTier, quote, tierOff } from "@/lib/pricing";
-import { originOf } from "@/lib/session";
+import { COOKIE, cookieOpts, originOf, sealBid } from "@/lib/session";
+import { markTestPaid } from "@/lib/payments";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
 const NO_URGENT = "Agle 48 ghante mein koi urgent slot khaali nahi hai. Normal booking karein ya baad mein dobara dekhein.";
@@ -49,7 +50,15 @@ export async function POST(req: Request) {
     });
     if (!heldSlot) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
   }
-  await ref.set({ status: "created", tier, amount: q.final, regularPrice: q.regular, offerName: q.offerName, coupon: q.coupon, discount: q.discount, heldSlot, origin, customerEmail, createdAt: Date.now() });
+  await ref.set({ status: "created", tier, amount: q.final, regularPrice: q.regular, offerName: q.offerName, coupon: q.coupon, discount: q.discount, heldSlot, origin, customerEmail, createdAt: Date.now(), ...(q.test ? { test: true } : {}) });
+
+  // 🧪 TEST coupon (₹0): no Razorpay — mark paid, unlock the form with the same signed cookie as a real payment.
+  if (q.test) {
+    if (!(await markTestPaid(bid))) return NextResponse.json({ error: "Test booking nahi ban payi. Dobara try karein." }, { status: 500 });
+    const res = NextResponse.json({ url: `${origin}/form` });
+    res.cookies.set(COOKIE, sealBid(bid), cookieOpts(req));
+    return res;
+  }
 
   const auth = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString("base64");
   const r = await fetch("https://api.razorpay.com/v1/payment_links", {

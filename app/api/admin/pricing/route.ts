@@ -54,10 +54,11 @@ export async function PUT(req: Request) {
 export async function POST(req: Request) {
   const who = await adminFrom(req); if (!who) return unauth();
   const b = await req.json().catch(() => ({}));
-  const code = normCode(b?.code), type = b?.type === "flat" ? "flat" : "percent", value = Math.round(Number(b?.value));
+  const code = normCode(b?.code), type = b?.type === "flat" ? "flat" : b?.type === "free" ? "free" : "percent", value = type === "free" ? 0 : Math.round(Number(b?.value));
   if (!CODE_RE.test(code)) return bad("Code 3–20 characters ka ho: sirf A–Z, 0–9 aur -");
   if (type === "percent" && !(value >= 1 && value <= 90)) return bad("Percent discount 1 se 90 ke beech ho.");
   if (type === "flat" && !(value >= 1 && value <= 100000)) return bad("₹ discount sahi bharein.");
+  if (type === "free" && !(Number(b?.maxUses) >= 1 && Number(b?.maxUses) <= 50)) return bad("Test coupon ke liye Max uses (1–50) zaroori hai.");
   const tiers = (Array.isArray(b?.tiers) ? b.tiers : []).filter((t: any) => TIERS.includes(t));
   if (!tiers.length) return bad("Kam se kam ek reading type chunein.");
   const expires = b?.expires ? String(b.expires) : null;
@@ -68,7 +69,7 @@ export async function POST(req: Request) {
   if ((await ref.get()).exists) return bad("Yeh code pehle se hai.");
   const c: Coupon = { code, type, value, tiers, expires, maxUses, used: 0, createdAt: Date.now(), createdBy: who };
   await ref.set(c);
-  await logActivity(who, "Coupon banaya", `${code} · ${type === "percent" ? `${value}%` : `₹${value}`} off${expires ? ` · till ${expires}` : ""}${maxUses ? ` · max ${maxUses}` : ""}`);
+  await logActivity(who, "Coupon banaya", `${code} · ${type === "free" ? "🧪 TEST (payment skip)" : type === "percent" ? `${value}%` : `₹${value}`} off${expires ? ` · till ${expires}` : ""}${maxUses ? ` · max ${maxUses}` : ""}`);
   return NextResponse.json({ ok: true, coupon: c });
 }
 

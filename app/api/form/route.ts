@@ -105,7 +105,8 @@ export async function POST(req: Request) {
     "Verified": web ? "Email ✓ (OTP)" : "Email ✓ (OTP) · App booking", "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
   };
 
-  if (b.amount) answers["Price paid"] = `₹${Number(b.amount).toLocaleString("en-IN")}${b.offerName ? ` · ${b.offerName}` : ""}${b.coupon ? ` · coupon ${b.coupon} (−₹${b.discount})` : ""}`;
+  if (b.test) answers["Price paid"] = `₹0 — 🧪 TEST booking (coupon ${b.coupon || "-"}, no payment)`;
+  else if (b.amount) answers["Price paid"] = `₹${Number(b.amount).toLocaleString("en-IN")}${b.offerName ? ` · ${b.offerName}` : ""}${b.coupon ? ` · coupon ${b.coupon} (−₹${b.discount})` : ""}`;
 
   // Raw field values (form names) so the form can be prefilled when the customer edits it later.
   const raw: Record<string, string> = {};
@@ -178,7 +179,7 @@ export async function POST(req: Request) {
   const eu = editUntil(Date.now(), key);
   const mails = await Promise.allSettled([
     sendClientConfirmation({ name: p1.name, email, bid, date, time, meetLink, tier, deliverBy, lang: written ? lang : undefined, editUntil: eu, editLink: eu > Date.now() + 60e3 ? `${originOf(req)}/api/edit?t=${editToken(bid, eu)}` : null }),
-    sendOwnerNotification({ bid, tier, date, time, name: p1.name, email, paymentId: b.paymentId, answers, deliverBy }, photos, meetLink),
+    sendOwnerNotification({ bid, tier, date, time, name: p1.name, email, paymentId: b.paymentId, answers, deliverBy, test: !!b.test }, photos, meetLink),
   ]);
   mails.forEach((x) => x.status === "rejected" && console.error("mail failed", x.reason));
   const why = (r: PromiseSettledResult<unknown>) => (r.status === "rejected" ? String((r.reason as any)?.message || r.reason).slice(0, 300) : "");

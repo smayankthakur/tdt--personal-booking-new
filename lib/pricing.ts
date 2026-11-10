@@ -12,7 +12,9 @@ export const MIN_PRICE = 100; // nothing is ever charged below ₹100 (offers an
 
 export type Offer = { on: boolean; name: string; from: string; until: string; prices: Partial<Record<Tier, number | null>> };
 export type Pricing = { prices: Record<Tier, number>; offer: Offer; enabled: Record<Tier, boolean> };
-export type Coupon = { code: string; type: "percent" | "flat"; value: number; tiers: Tier[]; expires?: string | null; maxUses?: number | null; used: number; createdAt: number; createdBy?: string; paused?: boolean };
+/** type "free" = TEST coupon: amount ₹0, Razorpay is skipped and the order is marked paid as a 🧪 TEST booking
+ *  (to check the whole flow: form → emails → admin). Website only; keep its code private and its uses limited. */
+export type Coupon = { code: string; type: "percent" | "flat" | "free"; value: number; tiers: Tier[]; expires?: string | null; maxUses?: number | null; used: number; createdAt: number; createdBy?: string; paused?: boolean };
 
 export const DEFAULT_PRICING: Pricing = {
   prices: { standard: Number(process.env.PRICE_INR || REGULAR_PRICE), urgent: Number(process.env.PRICE_URGENT_INR || URGENT_PRICE), video: Number(process.env.PRICE_VIDEO_INR || VIDEO_PRICE), q3: 4500, q3urgent: 9000, written: 5500, writtenurgent: 10500 }, // q3 prices = placeholders; admin sets them
@@ -68,7 +70,7 @@ export async function tierOff(tier: Tier) {
 }
 
 /** Checks a coupon for a tier and returns the final amount (never below MIN_PRICE). */
-export async function quote(tier: Tier, rawCode?: unknown): Promise<{ regular: number; price: number; offerName: string | null; coupon: string | null; discount: number; final: number } | { error: string }> {
+export async function quote(tier: Tier, rawCode?: unknown): Promise<{ regular: number; price: number; offerName: string | null; coupon: string | null; discount: number; final: number; test?: boolean } | { error: string }> {
   const p = await getPricing(), { enabled, ...base } = priceOf(p, tier);
   if (!enabled) return { error: `${TIER_NAME[tier]} abhi available nahi hai. Doosri reading chunein.` };
   const code = normCode(rawCode);
@@ -80,9 +82,10 @@ export async function quote(tier: Tier, rawCode?: unknown): Promise<{ regular: n
   if (c.expires && istDate(Date.now()) > c.expires) return { error: "Yeh coupon expire ho chuka hai." };
   if (c.maxUses && (c.used || 0) >= c.maxUses) return { error: "Yeh coupon ki limit poori ho chuki hai." };
   if (c.tiers?.length && !c.tiers.includes(tier)) return { error: `Yeh coupon ${TIER_NAME[tier]} par nahi lagta.` };
+  if (c.type === "free") return { ...base, coupon: code, discount: base.price, final: 0, test: true }; // TEST: no payment
   const off = c.type === "percent" ? Math.round((base.price * c.value) / 100) : c.value;
   const final = Math.max(MIN_PRICE, base.price - off);
   return { ...base, coupon: code, discount: base.price - final, final };
 }
 
-export const couponLabel = (c: Pick<Coupon, "type" | "value">) => (c.type === "percent" ? `${c.value}% off` : `₹${c.value} off`);
+export const couponLabel = (c: Pick<Coupon, "type" | "value">) => (c.type === "free" ? "🧪 TEST — 100% off, payment skip" : c.type === "percent" ? `${c.value}% off` : `₹${c.value} off`);

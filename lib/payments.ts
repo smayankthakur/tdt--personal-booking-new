@@ -42,6 +42,32 @@ export async function markPaid(bid: string, plinkId: string, paymentId: string |
   }
 }
 
+/** TEST coupon (type "free", ₹0): marks the order paid WITHOUT Razorpay, exactly once, as a 🧪 TEST booking.
+ *  Everything after payment then runs as for a real booking (payment mail, form, emails, admin). */
+export async function markTestPaid(bid: string) {
+  const ref = db.doc(`orders/${bid}`);
+  const order = await db.runTransaction(async (tx) => {
+    const d = (await tx.get(ref)).data();
+    if (!d || d.status !== "created" || !d.test || Number(d.amount) !== 0) return null;
+    const hRef = d.heldSlot ? db.doc(`bookings/${d.heldSlot}`) : null, h = hRef ? await tx.get(hRef) : null;
+    const cRef = d.coupon ? db.doc(`coupons/${d.coupon}`) : null, c = cRef ? await tx.get(cRef) : null;
+    tx.update(ref, { status: "paid", paymentId: `TEST-${d.coupon || "FREE"}`, email: d.customerEmail || "", phone: "", paidAt: Date.now() });
+    if (cRef && c?.exists) tx.update(cRef, { used: FieldValue.increment(1) });
+    if (hRef && h?.exists && h.data()!.bid === bid && h.data()!.status === "held") {
+      const [sd, st] = String(d.heldSlot).split("T");
+      tx.update(hRef, { holdUntil: slotMs(sd, st) });
+    }
+    return d;
+  });
+  if (!order) return false;
+  await notifyAdmins(`🧪 TEST booking (₹0) · coupon ${order.coupon}`, `${tierInfo(order.tier).name} · ${order.customerEmail || "—"}`, "/admin");
+  if (order.customerEmail) {
+    const site = String(order.origin || process.env.SITE_URL || "https://booking.thedivinetarotonline.com").replace(/\/$/, "");
+    await sendPaymentReceived({ email: order.customerEmail, bid, tier: order.tier, formLink: `${site}/api/resume?t=${resumeToken(bid)}` }).catch((e) => console.error("payment-received mail failed", e));
+  }
+  return true;
+}
+
 /** Asks Razorpay directly whether this order's payment link is paid — works even if the webhook never arrives. */
 export async function verifyWithRazorpay(bid: string, plinkId: string) {
   const pl = await rz(`payment_links/${plinkId}`);
