@@ -1071,3 +1071,50 @@ footer a {
 .moved-note { margin: 0 0 16px; background: rgba(245, 185, 66, .12); border: 1px solid rgba(245, 185, 66, .45); border-radius: 12px; padding: 12px 16px; text-align: center; font-size: 15px; }
 .price-card { scroll-margin-top: 90px; }
 .price-card.card-focus { box-shadow: 0 0 0 3px #f5b942, 0 0 40px rgba(245, 185, 66, .45); transition: box-shadow .3s; }
+
+
+/* ---------- header: matches the thedivinetarotonline.com header (Nov 2026) ---------- */
+.navbar { background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.navbar .container.navbar-inner { max-width: 1280px; padding: 0 24px; height: 68px; gap: 12px; }
+.navbar .brand { gap: 12px; font-family: "Inter", sans-serif; font-weight: 400; font-size: 16px; color: #eaeaf0; min-width: 0; }
+.navbar .brand .mark { width: 40px; height: auto; border: 0; border-radius: 0; background: none; object-fit: contain; }
+.navbar .brand .brand-title { display: block; font-family: "Cinzel", serif; font-size: 18px; font-weight: 700; color: #fff; line-height: 1.3; }
+.navbar .brand small { font-family: "Inter", sans-serif; font-size: 11px; font-weight: 400; letter-spacing: 0.15em; color: rgba(255, 215, 0, 0.8); margin-top: 0; }
+.navbar .nav-links { gap: 24px; font-size: 14px; font-weight: 500; }
+.navbar .nav-links a { color: rgba(255, 255, 255, 0.7); padding: 8px 0; border: 0; transition: color .2s ease; }
+.navbar .nav-links a::after { display: none; }
+.navbar .nav-links a:hover { color: #fff; }
+.navbar .nav-links a.active { color: #FFD700; border: 0; }
+.navbar .nav-active-bar { position: absolute; left: 0; bottom: -4px; width: 100%; height: 2px; background: #FFD700; }
+.navbar .nav-right { gap: 12px; }
+.nav-cta { background: linear-gradient(to right, #FF4D4D, #FFD700); color: #000; font-size: 14px; font-weight: 600; padding: 8px 20px; border-radius: 9999px; transition: filter .2s ease, transform .2s ease; }
+.nav-cta:hover { background: linear-gradient(to right, #FF4D4D, #FFD700); filter: brightness(1.08); }
+.nav-burger { display: none; width: 44px; height: 44px; min-width: 44px; padding: 0; align-items: center; justify-content: center; color: #fff; background: transparent; border: 0; border-radius: 8px; cursor: pointer; transition: background .2s ease, transform .1s ease; }
+.nav-burger:hover { background: rgba(255, 255, 255, 0.1); }
+.nav-burger:active { transform: scale(.95); }
+.mobile-menu { display: none; }
+@media (max-width: 1279px) {
+  .navbar .nav-links { display: none; }
+  .navbar .nav-right .nav-cta { display: none; }
+  .nav-burger { display: flex; }
+}
+@media (max-width: 560px) {
+  .navbar .container.navbar-inner { padding: 0 16px; }
+  .navbar .brand .brand-title { font-size: 17px; }
+  .navbar .brand small { font-size: 10px; letter-spacing: 0.12em; }
+}
+/* side drawer (phones / tablets) */
+.drawer-back { position: fixed; inset: 0; z-index: 100; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px); animation: drawerFade .2s ease both; }
+.drawer { position: absolute; top: 0; right: 0; bottom: 0; width: min(288px, 85vw); overflow-y: auto; background: #0a0a0a; border-left: 1px solid rgba(255, 255, 255, 0.1); padding: 10px 0 24px; animation: drawerIn .25s cubic-bezier(.22,1,.36,1) both; }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; padding: 0 24px; height: 58px; }
+.drawer-head b { font-family: "Cinzel", serif; font-size: 18px; color: #fff; }
+.drawer-x { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; color: #fff; background: rgba(255, 255, 255, 0.1); border: 0; border-radius: 10px; cursor: pointer; }
+.drawer-links { display: flex; flex-direction: column; gap: 4px; padding: 16px 24px; }
+.drawer-links a { display: flex; align-items: center; min-height: 44px; padding: 12px 16px; border-radius: 8px; font-size: 16px; color: rgba(255, 255, 255, 0.7); text-decoration: none; transition: color .2s ease, background .2s ease; }
+.drawer-links a:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
+.drawer-links a.active { color: #FFD700; font-weight: 500; background: rgba(255, 215, 0, 0.1); }
+.drawer-foot { margin: 8px 24px 0; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.1); }
+.drawer-foot .nav-cta { display: block; width: 100%; text-align: center; padding: 14px 20px; border-radius: 12px; font-size: 16px; text-decoration: none; }
+@keyframes drawerIn { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes drawerFade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .drawer, .drawer-back { animation: none; } }

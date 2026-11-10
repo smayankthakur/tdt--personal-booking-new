@@ -49,14 +49,18 @@ function Reveal({
   );
 }
 
-const NAV = [
+// Same menu, same order and same links as the header of thedivinetarotonline.com (third value = opens in a new tab).
+const NAV: readonly (readonly [string, string, boolean?])[] = [
   ["Home", "https://thedivinetarotonline.com/"],
   ["About", "https://thedivinetarotonline.com/about"],
-  ["Reading", "https://thedivinetarotonline.com/reading"],
-  ["Course", "https://learn.thedivinetarotonline.com/"],
+  ["Reading", "https://reading.thedivinetarotonline.com/"],
+  ["Course", "https://learn.thedivinetarotonline.com/", true],
   ["Kundli Milan", "https://thedivinetarotonline.com/kundli-milan"],
+  ["Reports", "https://thedivinetarotonline.com/reports"],
   ["Personal Reading", "https://booking.thedivinetarotonline.com/"],
-] as const;
+];
+const ACTIVE = "Personal Reading";
+const tab = (n?: boolean) => (n ? { target: "_blank", rel: "noopener noreferrer" } : {});
 const ASK_URL = "https://reading.thedivinetarotonline.com/";
 
 /** Prices + seasonal offer come from /admin (lib/pricing.ts), passed in by app/page.tsx. */
@@ -68,8 +72,8 @@ export default function Landing({ pricing }: { pricing: Prices }) {
   useEffect(() => {
     if (!menu) return;
     const esc = (e: KeyboardEvent) => e.key === "Escape" && setMenu(false);
-    window.addEventListener("keydown", esc);
-    return () => window.removeEventListener("keydown", esc);
+    window.addEventListener("keydown", esc); document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", esc); document.body.style.overflow = ""; };
   }, [menu]);
   const std = pricing.standard, offer = !!std.offerName;
   const OFFER = { name: std.offerName || "", price: std.price, untilText: untilText(std.offerUntil) };
@@ -125,42 +129,51 @@ export default function Landing({ pricing }: { pricing: Prices }) {
   return (
     <>
       <ResumeBanner />
-      {/* NAV — exact structure/order per thedivinetarotonline.com header */}
-      <nav className="navbar">
+      {/* NAV — same look, links and order as the thedivinetarotonline.com header */}
+      <header className="navbar">
         <div className="container navbar-inner">
           <a href="https://thedivinetarotonline.com/" className="brand">
             <img src="/logo.png" alt="The Divine Tarot" className="mark" />
             <span>
-              The Divine Tarot
+              <span className="brand-title">The Divine Tarot</span>
               <small>Premium Tarot Guidance</small>
             </span>
           </a>
 
-          <div className="nav-links">
-            {NAV.map(([label, href]) => <a key={label} href={href} className={label === "Personal Reading" ? "active" : undefined}>{label}</a>)}
-          </div>
+          <nav className="nav-links" aria-label="Main">
+            {NAV.map(([label, href, newTab]) => (
+              <a key={label} href={href} {...tab(newTab)} className={label === ACTIVE ? "active" : undefined} aria-current={label === ACTIVE ? "page" : undefined}>
+                {label}{label === ACTIVE && <i className="nav-active-bar" />}
+              </a>))}
+          </nav>
 
           <div className="nav-right">
-            {/* <div className="lang-toggle">
-              <span className="active">EN</span>
-              <span>हिंदी</span>
-              <span>Hinglish</span>
-            </div> */}
             <a href={ASK_URL} className="nav-cta">Ask your question here</a>
-            {/* Phones/tablets: three-line menu instead of the CTA pill (the CTA moves inside the menu) */}
-            <button type="button" className={`nav-burger${menu ? " open" : ""}`} aria-label={menu ? "Close menu" : "Open menu"}
-              aria-expanded={menu} aria-controls="mobile-menu" onClick={() => setMenu(!menu)}>
-              <span /><span /><span />
+            {/* below 1280px: menu button + side drawer, like the main site */}
+            <button type="button" className="nav-burger" aria-label="Open menu" aria-expanded={menu} aria-controls="mobile-menu" onClick={() => setMenu(true)}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 5h16" /><path d="M4 12h16" /><path d="M4 19h16" /></svg>
             </button>
           </div>
         </div>
-        {menu && (
-          <div id="mobile-menu" className="mobile-menu">
-            {NAV.map(([label, href]) => (
-              <a key={label} href={href} className={label === "Personal Reading" ? "active" : undefined} onClick={() => setMenu(false)}>{label}</a>))}
-            <a href={ASK_URL} className="nav-cta" onClick={() => setMenu(false)}>Ask your question here</a>
-          </div>)}
-      </nav>
+      </header>
+      {menu && (
+        <div className="drawer-back" onMouseDown={(e) => e.target === e.currentTarget && setMenu(false)}>
+          <aside id="mobile-menu" className="drawer" role="dialog" aria-modal="true" aria-label="Menu">
+            <div className="drawer-head">
+              <b>Menu</b>
+              <button type="button" className="drawer-x" aria-label="Close menu" onClick={() => setMenu(false)}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+              </button>
+            </div>
+            <nav className="drawer-links" aria-label="Main">
+              {NAV.map(([label, href, newTab]) => (
+                <a key={label} href={href} {...tab(newTab)} className={label === ACTIVE ? "active" : undefined} onClick={() => setMenu(false)}>{label}</a>))}
+            </nav>
+            <div className="drawer-foot">
+              <a href={ASK_URL} className="nav-cta" onClick={() => setMenu(false)}>Ask your question here</a>
+            </div>
+          </aside>
+        </div>)}
 
       {/* HERO — 50/50 image + text, matching thedivinetarotonline.com's split layout */}
       <section className="hero-split">
