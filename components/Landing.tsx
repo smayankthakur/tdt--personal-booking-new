@@ -458,63 +458,64 @@ export default function Landing({ pricing }: { pricing: Prices }) {
         </div>
       </section>
 
-      {/* FOOTER — replicates thedivinetarotonline.com footer layout */}
-      <footer>
-        <div className="container footer-grid">
-          <div className="footer-brand">
-            <a href="https://thedivinetarotonline.com/" className="brand">
-              <img src="/logo.png" alt="The Divine Tarot" className="mark" />
-              <span>
-                The Divine Tarot
-                <small>Premium Tarot Guidance</small>
-              </span>
-            </a>
-            <p className="footer-tagline">Clarity for your path. Guidance for your soul.</p>
+      {/* FOOTER — same layout, links and look as the thedivinetarotonline.com footer */}
+      <footer className="site-footer">
+        <div className="sf-grid">
+          <div className="sf-col sf-brand">
+            <div className="sf-brand-row">
+              <div className="sf-logo"><img src="/logo.png" alt="The Divine Tarot Logo" width={40} height={40} loading="lazy" /></div>
+              <div>
+                <h3>The Divine Tarot</h3>
+                <p className="sf-sub">Premium Tarot Guidance</p>
+              </div>
+            </div>
+            <p className="sf-tagline">Clarity for your path. Guidance for your soul.</p>
           </div>
 
-          <div className="footer-col">
-            <div className="footer-heading">Quick Links</div>
-            <ul className="footer-links">
-              <li><a href="https://thedivinetarotonline.com/about">About</a></li>
-              <li><a href="https://thedivinetarotonline.com/reading">Readings</a></li>
-              <li><a href="https://thedivinetarotonline.com/reading?upgrade=1">Premium</a></li>
+          <div className="sf-col">
+            <h4>Quick Links</h4>
+            <ul className="sf-links">
+              <li><a href="https://thedivinetarotonline.com/about"><span />About</a></li>
+              <li><a href="https://support.thedivinetarotonline.com/"><span />Support</a></li>
             </ul>
           </div>
 
-          <div className="footer-col">
-            <div className="footer-heading">Connect With Us</div>
-            <div className="social-row">
-              <a href="https://instagram.com/thedivineetarot" target="_blank" rel="noreferrer" aria-label="Instagram">◎</a>
-              <a href="https://facebook.com/profile.php?id=61578567343068" target="_blank" rel="noreferrer" aria-label="Facebook">f</a>
-              <a href="https://youtube.com/@TheDivineTarot" target="_blank" rel="noreferrer" aria-label="YouTube">▶</a>
-              <a href="https://youtube.com/@thedivineetarot" target="_blank" rel="noreferrer" aria-label="YouTube (2nd Channel)">▶</a>
+          <div className="sf-col">
+            <h4>Connect With Us</h4>
+            <div className="sf-social">
+              <a href="https://instagram.com/thedivineetarot" target="_blank" rel="noopener noreferrer" title="Instagram" aria-label="Instagram"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" y1="6.5" x2="17.51" y2="6.5" /></svg></a>
+              <a href="https://facebook.com/profile.php?id=61578567343068" target="_blank" rel="noopener noreferrer" title="Facebook" aria-label="Facebook"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" /></svg></a>
+              <a href="https://youtube.com/@TheDivineTarot" target="_blank" rel="noopener noreferrer" title="YouTube" aria-label="YouTube"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" /><polygon points="9.75 15.02 15.5 11.75 9.75 8.48" /></svg></a>
+              <a href="https://youtube.com/@thedivineetarot" target="_blank" rel="noopener noreferrer" title="YouTube (2nd Channel)" aria-label="YouTube (2nd Channel)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.25 29 29 0 0 0-.46-5.33z" /><polygon points="9.75 15.02 15.5 11.75 9.75 8.48" /></svg></a>
             </div>
-            <a href="https://thedivinetarotonline.com/privacy" className="footer-privacy-link">Privacy</a>
+            <a className="sf-privacy" href="https://thedivinetarotonline.com/privacy">Privacy</a>
           </div>
 
-          <div className="footer-col">
-            <div className="footer-heading">Get Daily Divine Insights</div>
-            <form className="newsletter-form" onSubmit={(e) => e.preventDefault()}>
-              <input type="email" placeholder="Your email" aria-label="Email" />
-              <input type="tel" placeholder="WhatsApp number (optional)" aria-label="WhatsApp number" />
-              <button type="submit" className="btn gold" style={{ width: "100%", justifyContent: "center" }}>
-                Subscribe
-              </button>
+          <div className="sf-col">
+            <h4>Get Daily Divine Insights</h4>
+            <form className="sf-form" onSubmit={(e) => e.preventDefault()}>
+              <input type="email" placeholder="Your email" aria-label="Email for daily insights" />
+              <input type="tel" placeholder="WhatsApp number (optional)" aria-label="WhatsApp number for daily insights (optional)" />
+              <button type="submit">Subscribe</button>
             </form>
           </div>
         </div>
 
-        <div className="trust-row">
-          <span>🔒 Secure &amp; Private Readings</span>
-          <span>♡ Trusted by 7L+ Seekers</span>
-          <span>✦ Authentic Spiritual Guidance</span>
+        <div className="sf-trust">
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg><span>Secure &amp; Private Readings</span></div>
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M2 9.5a5.5 5.5 0 0 1 9.591-3.676.56.56 0 0 0 .818 0A5.49 5.49 0 0 1 22 9.5c0 2.29-1.5 4-3 5.5l-5.492 5.313a2 2 0 0 1-3 .019L5 15c-1.5-1.5-3-3.2-3-5.5" /></svg><span>Trusted by 7L+ Seekers</span></div>
+          <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z" /><path d="M20 2v4" /><path d="M22 4h-4" /><circle cx="4" cy="20" r="2" /></svg><span>Authentic Spiritual Guidance</span></div>
         </div>
 
-        <div className="footer-bottom">
-          <span>Designed by <a href="https://sitelytc.com/" target="_blank" rel="noreferrer">Sitelytc</a></span>
-          <span className="footer-bottom-right">
-            <a href="https://thedivinetarotonline.com/privacy">Privacy</a> · © {new Date().getFullYear()} The Divine Tarot. All rights reserved.
-          </span>
+        <div className="sf-bottom">
+          <div>Designed by <a href="https://sitelytc.com/" target="_blank" rel="noopener noreferrer" className="sf-maker">Sitelytc</a></div>
+          <div className="sf-legal">
+            <a href="https://thedivinetarotonline.com/privacy">Privacy</a>
+            <span className="sf-sep" />
+            <a href="https://thedivinetarotonline.com/refund-policy">Refunds</a>
+            <span className="sf-sep" />
+            <span>© {new Date().getFullYear()} The Divine Tarot. All rights reserved.</span>
+          </div>
         </div>
       </footer>
       {primary && hp && hero && <StickyBook price={inr(hp.price)} tier={primary} label={hero.sticky} />}
