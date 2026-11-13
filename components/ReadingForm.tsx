@@ -1,14 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import DateField from "./form/DateField";
-import ClockField from "./form/ClockField";
-import FileDrop, { photoStore } from "./form/FileDrop";
-import { EmailVerify } from "./form/Verify";
-import { CONCERNS, VIDEO_MAX_Q, VIDEO_Q_CHARS, VIDEO_TOPICS, needsPartner } from "@/lib/concerns";
-import { ISSUE_WORDS, MAX_WORDS, WORD_FIELDS, limitWords, wordCount } from "@/lib/words";
-import { LANGUAGES, TIER_INFO, isQuestionTier, isUrgentTier, isWrittenTier, parseTier } from "@/lib/slots";
+import { photoStore } from "./form/FileDrop";
+import { StepFields, type FieldCtx } from "./form/Fields";
+import { limitWords, wordCount } from "@/lib/words";
+import { TIER_INFO, isUrgentTier, isWrittenTier, parseTier } from "@/lib/slots";
+import { checkStep, defaultForm, kindOf, limits as limitsOf, partnerConcern, photoFields, visibleSteps, type FormDef, type Reader } from "@/lib/formSchema";
 
-const VOICE_STEPS = ["Aap", "Wajah", "Doosre log"], VIDEO_STEPS = ["Aap", "Sawal"];
 const fmtD = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
 const gcalLink = (d: string, t: string, meet: string | null) => {
   const s = Date.parse(`${d}T${t}:00+05:30`), u = (ms: number) => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
@@ -18,28 +15,7 @@ const gcalLink = (d: string, t: string, meet: string | null) => {
 };
 const fmtT = (t: string) => { const [h, m] = t.split(":").map(Number); return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
 
-function Field({ label, req, hint, children }: { label: string; req?: boolean; hint?: string; children: React.ReactNode }) {
-  return <div className="rf-field"><label className="rf-label">{label}{req && <b> *</b>}</label>{hint && <p className="rf-hint">{hint}</p>}{children}</div>;
-}
 type Raw = Record<string, string>;
-function Person({ n, on, toggle, req, init, keepPhoto }: { n: "2" | "3"; on: boolean; toggle: () => void; req?: boolean; init?: Raw; keepPhoto?: boolean }) {
-  const r = init || {};
-  const ord = n === "2" ? "Second Person / Partner" : "Third Person / Third Party";
-  return (
-    <div className={`person${on ? " open" : ""}${req ? " req" : ""}`}>
-      <button type="button" className="person-head" onClick={req ? undefined : toggle} aria-disabled={req || undefined}><span className="plus">{on ? "−" : "+"}</span><div><b>{ord}{req && " *"}</b><small>{req ? "Zaroori — aapki wajah partner ke baare mein hai. Partner ka naam aur photo dein." : "Optional — love life ya family ke liye"}</small></div></button>
-      {on && (
-        <div className="person-body">
-          <div className="rf-2">
-          <Field label="Naam" req={req}><input className="rf-in" name={"name" + n} defaultValue={r["name" + n]} /></Field>
-          <Field label="Place of Birth"><input className="rf-in" name={"place" + n} defaultValue={r["place" + n]} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
-          <Field label="Date of Birth" hint="Pata ho toh, warna skip."><DateField p={"dob" + n} init={{ d: r[`dob${n}d`], m: r[`dob${n}m`], y: r[`dob${n}y`] }} /></Field>
-          <Field label="Birth Time" hint="Pata ho toh, warna skip."><ClockField p={"tob" + n} init={{ h: r[`tob${n}h`], min: r[`tob${n}min`], ap: r[`tob${n}ap`] }} /></Field>
-          </div>
-          <Field label="One Clear Photo" req={req && !keepPhoto} hint={keepPhoto ? "Pehle wali photo rahegi — badalni ho tabhi nayi upload karein." : undefined}><FileDrop name={"photo" + n} /></Field>
-        </div>)}
-    </div>);
-}
 
 export default function ReadingForm() {
   const [waited, setWaited] = useState(false), [bid, setBid] = useState(""), [bk, setBk] = useState<any>(null);
@@ -47,27 +23,27 @@ export default function ReadingForm() {
   // Slot is auto-assigned (earliest free one). undefined = loading, null = nothing free.
   const [next, setNext] = useState<{ date: string; time: string } | null | undefined>(undefined);
   const [step, setStep] = useState(0), [concern, setConcern] = useState(""), [p2, setP2] = useState(false), [p3, setP3] = useState(false);
-  const [photo1, setPhoto1] = useState(false), [emailOk, setEmailOk] = useState(false);
+  const [emailOk, setEmailOk] = useState(false);
   // Edit mode: a submitted form can be changed for 24 h (closes 3 h before the slot); bk.edit carries the saved answers.
   const [editing, setEditing] = useState(false), [note, setNote] = useState("");
-  // 25-word cap on every free-text answer: extra words are cut while typing; notes / "Other" show a counter.
+  // Form layout from admin → Form Builder (sent with the booking); the built-in default if it didn't come.
+  const def: FormDef = bk?.form?.steps?.length ? bk.form : defaultForm(kindOf(bk?.tier));
+  const steps = visibleSteps(def), lim = limitsOf(def);
+  // Word / character limits from the layout: extra words are cut while typing; long-text fields show a counter.
   const [words, setWords] = useState<Record<string, number>>({});
   const capWords = (e: React.FormEvent<HTMLFormElement>) => {
-    const t = e.target as HTMLInputElement;
-    if (/^q[1-3]$/.test(t.name)) { setWords((w) => ({ ...w, [t.name]: t.value.length })); return; }
-    if (t.name === "issue") { if (wordCount(t.value) > ISSUE_WORDS) t.value = limitWords(t.value, ISSUE_WORDS); setWords((w) => ({ ...w, issue: wordCount(t.value) })); return; }
-    if (!WORD_FIELDS.includes(t.name)) return;
-    if (wordCount(t.value) > MAX_WORDS) t.value = limitWords(t.value);
-    setWords((w) => ({ ...w, [t.name]: wordCount(t.value) }));
+    const t = e.target as HTMLInputElement, l = lim[t.name];
+    if (!l) return;
+    if (l.words && wordCount(t.value) > l.words) t.value = limitWords(t.value, l.words);
+    setWords((w) => ({ ...w, [t.name]: l.words ? wordCount(t.value) : t.value.length }));
   };
-  const Count = ({ n }: { n: string }) => <p className="rf-hint" style={{ textAlign: "right", margin: "4px 0 0" }}>{words[n] || 0}/{MAX_WORDS} shabd</p>;
   const raw: Raw = (editing && bk?.edit?.raw) || {};
   const refresh = () => fetch("/api/booking", { cache: "no-store" }).then((r) => r.json()).then((j) => setBk(j)).catch(() => {});
   const startEdit = () => {
     const r: Raw = bk.edit.raw || {};
-    for (const k of ["photo1", "photo2", "photo3"]) delete photoStore[k];
-    setConcern(r.concern || ""); setP2(!!r.name2); setP3(!!r.name3); setEmailOk(!!bk.edit.emailVerified); setPhoto1(false);
-    setWords({ notes: wordCount(r.notes || ""), concernOther: wordCount(r.concernOther || ""), q1: (r.q1 || "").length, q2: (r.q2 || "").length, q3: (r.q3 || "").length, issue: wordCount(r.issue || "") });
+    for (const { name } of photoFields(def)) delete photoStore[name];
+    setConcern(r.concern || ""); setP2(!!r.name2); setP3(!!r.name3); setEmailOk(!!bk.edit.emailVerified);
+    setWords(Object.fromEntries(Object.entries(lim).map(([k, l]) => [k, l.words ? wordCount(r[k] || "") : (r[k] || "").length])));
     setStep(0); setErr(""); setDone(null); setEditing(true); window.scrollTo({ top: 0, behavior: "smooth" });
   };
   useEffect(() => { // link from the email: /form#edit
@@ -77,13 +53,11 @@ export default function ReadingForm() {
     if (h === "#edit-expired" || (h === "#edit" && !bk.edit)) setNote("Form edit karne ka time khatam ho gaya hai.");
     if (h) window.history.replaceState(null, "", "/form");
   }, [bk?.formDone]);
-  // Video call reading (bk.tier === "video"): one person, up to 3 written questions — steps Aap → Sawal.
-  // (also the two 3-question voice readings q3 / q3urgent — same form)
-  const video = isQuestionTier(bk?.tier), STEPS = video ? VIDEO_STEPS : VOICE_STEPS;
+  const STEPS = steps.map((s) => s.title);
   // Written reading (answers by email): no slot / Meet shown, the customer chooses the answer language.
   const written = isWrittenTier(bk?.tier), wWhen = isUrgentTier(bk?.tier) ? "48 ghante" : "7 din";
   const fmtDay = (ms: number) => new Date(ms).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  const partner = !video && needsPartner(concern);
+  const partner = partnerConcern(def, concern);
   const formRef = useRef<HTMLFormElement>(null);
   const loadSlots = () => fetch("/api/slots").then((r) => r.json()).then((j) => setNext(j.next ?? null)).catch(() => setNext(null));
   useEffect(() => { if (bk?.status === "paid" && !bk.formDone && next === undefined) loadSlots(); }, [bk]);
@@ -98,41 +72,33 @@ export default function ReadingForm() {
     return () => clearInterval(t);
   }, []);
 
-  const val = (n: string) => String((formRef.current?.elements.namedItem(n) as HTMLInputElement | null)?.value || "").trim();
+  // Reads the form like the server reads FormData, so the same checks (lib/formSchema) run here and in /api/form.
+  const reader: Reader = {
+    str: (n) => {
+      const el = formRef.current?.elements.namedItem(n) as any;
+      if (!el) return "";
+      if (typeof RadioNodeList !== "undefined" && el instanceof RadioNodeList) return String(el.value || "").trim();
+      if (el.type === "checkbox") return el.checked ? "1" : "";
+      return String(el.value || "").trim();
+    },
+    file: (n) => !!photoStore[n],
+  };
   const bad = (m: string) => { setErr(m); setShake((s) => s + 1); return false; };
   function valid(s: number) {
     setErr("");
     if (!next && !editing) return bad("Abhi koi slot khaali nahi hai. Aapki booking surakshit hai — hum aapki email par jaankari bhejenge.");
-    if (s === 0) {
-      if (!val("name")) return bad("Apna poora naam likhein.");
-      if (val("phone").replace(/\D/g, "").length < 10) return bad("Sahi WhatsApp number likhein.");
-      if (!emailOk) return bad("Apni email OTP se verify karein.");
-      if (!val("place")) return bad("Place of Birth likhein.");
-      if (!photo1 && !editing) return bad("Apni ek clear photo upload karein.");
-    }
-    if (s === 1 && video) {
-      const qs = [1, 2, 3].map((i) => ({ i, text: val(`q${i}`), topic: (formRef.current?.querySelector(`input[name=qt${i}]:checked`) as HTMLInputElement | null)?.value || "" }));
-      if (written && !(formRef.current?.querySelector("input[name=lang]:checked") as HTMLInputElement | null)) return bad("Jawab kis bhasha mein chahiye — Hindi, Hinglish ya English chunein.");
-      if (!qs.some((q) => q.text)) return bad("Kam se kam ek sawal likhein.");
-      const noTopic = qs.find((q) => q.text && !q.topic);
-      if (noTopic) return bad(`Sawal ${noTopic.i} ka topic chunein — Love life, Career ya Koi aur issue.`);
-      if (written && !val("issue")) return bad("Apne sawalon se judi problem / situation thoda explain karein.");
-      return true;
-    }
-    if (s === 1 && (!concern || (concern === "Other" && !val("concernOther")))) return bad("Reading ki wajah chunein.");
-    if (s === 2 && partner) {
-      if (!val("name2")) return bad("Partner ka naam likhein.");
-      if (!photoStore.photo2 && !(editing && bk.edit?.hadPartner)) return bad("Partner ki ek clear photo upload karein.");
-    }
-    return true;
+    const e = steps[s] ? checkStep(steps[s], reader, { editing, emailOk, hadPartner: editing && !!bk.edit?.hadPartner }, def) : "";
+    return e ? bad(e) : true;
   }
   const go = (d: number) => { if (d < 0 || valid(step)) { setStep(step + d); window.scrollTo({ top: 0, behavior: "smooth" }); } };
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault(); if (!valid(0) || !valid(1) || (!video && !valid(2))) return; setBusy(true);
+    e.preventDefault();
+    for (let i = 0; i < steps.length; i++) if (!valid(i)) { setStep(i); return; }
+    setBusy(true);
     const fd = new FormData(e.currentTarget);
     if (editing) fd.set("mode", "edit");
-    for (const k of ["photo1", "photo2", "photo3"]) if (photoStore[k]) fd.set(k, photoStore[k]);
+    for (const { name } of photoFields(def)) if (photoStore[name]) fd.set(name, photoStore[name]);
     try {
       const j = await (await fetch("/api/form", { method: "POST", body: fd })).json();
       if (j.ok) { setDone(j); setEditing(false); refresh(); window.scrollTo({ top: 0, behavior: "smooth" }); }
@@ -203,10 +169,11 @@ export default function ReadingForm() {
   }
 
   const S = (i: number) => `step${step === i ? " active" : ""}`;
+  const fc: FieldCtx = { raw, editing, bk, words, limits: lim, concern, setConcern, p2, p3, setP2, setP3, partner, setEmailOk };
   return (
     <form key={editing ? "edit" : "new"} ref={formRef} className="rf-card" onSubmit={submit} onInput={capWords} noValidate>
       <div className="rf-badge">{editing ? "✏️ Edit mode" : "✓ Payment received"}{bk.tier && bk.tier !== "standard" ? ` · ${TIER_INFO[parseTier(bk.tier)].badge}` : ""}{bid ? ` · ID ${bid}` : ""}</div>
-      <h1>{editing ? "Form Edit Karein" : "Personal Reading Form"}</h1>
+      <h1>{editing ? "Form Edit Karein" : def.title || "Personal Reading Form"}</h1>
       {editing && <p className="rf-hint">Jo badalna hai badlein aur neeche <b>Update</b> dabayein. {written ? "Jawab ki date same rahegi." : "Slot aur Google Meet link same rahenge."} <button type="button" className="otp-link" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button></p>}
       <div className="stepper">
         <div className="stepper-bar"><i style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }} /></div>
@@ -231,63 +198,7 @@ export default function ReadingForm() {
         : "Aapka appointment payment ke 7–10 din ke andar ka sabse pehla khaali slot hai."} Form submit karte hi final slot aur Google Meet link email par aa jayega.</p>}
       </>}
 
-      <div className={S(0)}>
-        <h2 className="rf-sec first">Aapki Details</h2>
-        <div className="rf-2">
-        <Field label="Full Name with Surname" req hint="Pura naam likhein"><input className="rf-in" name="name" defaultValue={editing ? raw.name : bk.name} autoComplete="name" /></Field>
-        <Field label="WhatsApp Number" req hint={written ? "Zaroorat padne par contact isi number par hoga." : "Reading ke liye contact isi number par hoga."}><input className="rf-in" name="phone" type="tel" defaultValue={editing ? raw.phone : bk.phone} autoComplete="tel" /></Field>
-        <Field label="Email ID" req hint={written ? "Aapke sawalon ke jawab isi email par aayenge. Email OTP se verify karein." : "Google Meet link aur schedule isi email par aayega. Email OTP se verify karein."}><EmailVerify key={editing ? "edit" : "new"} defaultValue={editing ? raw.email : /@razorpay\.com$/i.test(bk.email || "") ? "" : bk.email} preVerified={editing && !!bk.edit?.emailVerified} onChange={setEmailOk} /></Field>
-        <Field label="Place of Birth" req hint="Jis shehar mein janm hua."><input className="rf-in" name="place" defaultValue={raw.place} placeholder="Jaise Mumbai, Jaipur, Delhi" /></Field>
-        <Field label="Date of Birth" hint="Pata ho toh chunein, warna skip."><DateField p="dob" init={{ d: raw.dobd, m: raw.dobm, y: raw.doby }} /></Field>
-        <Field label="Birth Time" hint="Pata ho toh clock se chunein, warna skip."><ClockField p="tob" init={{ h: raw.tobh, min: raw.tobmin, ap: raw.tobap }} /></Field>
-        </div>
-        <Field label="Your One Clear Photo" req={!editing} hint={editing ? "Pehle wali photo rahegi — badalni ho tabhi nayi upload karein." : "Face reading analysis ke liye."}><FileDrop name="photo1" onChange={setPhoto1} /></Field>
-      </div>
-
-      {video && (
-      <div className={S(1)}>
-        <h2 className="rf-sec first">Aapke Sawal <small>(max {VIDEO_MAX_Q})</small></h2>
-        {written ? <>
-        <div className="vq">
-          <label className="rf-label">Jawab kis bhasha mein chahiye? <b>*</b></label>
-          <div className="vq-topics">{LANGUAGES.map((l) => (
-            <label key={l}><input type="radio" name="lang" value={l} defaultChecked={raw.lang === l} /><span>{l}</span></label>))}</div>
-        </div>
-        <p className="rf-hint"><b>Sirf aapki</b> reading hogi. Apne {VIDEO_MAX_Q} sawal likhein — har sawal {VIDEO_Q_CHARS} characters tak. Pehla sawal zaroori hai. <b>Make sure to ask specific questions</b> — jaise &ldquo;Kya meri shaadi 2027 mein hogi?&rdquo; (sirf &ldquo;Meri shaadi?&rdquo; nahi). Jitna clear sawal, utna clear jawab.</p>
-        </> : <p className="rf-hint">{bk.tier === "video" ? "Video call" : "Is call"} mein <b>sirf aapki</b> reading hogi. Apne {VIDEO_MAX_Q} sawal likhein — har sawal {VIDEO_Q_CHARS} characters tak. Pehla sawal zaroori hai.</p>}
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="vq">
-            <label className="rf-label">Sawal {i}{i === 1 && <b> *</b>}</label>
-            <div className="vq-topics">{VIDEO_TOPICS.map((t) => (
-              <label key={t}><input type="radio" name={`qt${i}`} value={t} defaultChecked={raw[`qt${i}`] === t} /><span>{t === "Love life" ? "❤️" : t === "Career" ? "💼" : "🧭"} {t}</span></label>))}</div>
-            <input className="rf-in" name={`q${i}`} maxLength={VIDEO_Q_CHARS} defaultValue={raw[`q${i}`]} placeholder={i === 1 ? "Jaise: Kya meri shaadi is saal hogi?" : "Optional"} />
-            <p className="rf-hint" style={{ textAlign: "right", margin: "4px 0 0" }}>{words[`q${i}`] || 0}/{VIDEO_Q_CHARS}</p>
-          </div>))}
-        {written && (
-          <Field label="Explain your issues related to your questions" req hint="Apne sawalon se judi problem ya situation thoda detail mein likhein — kya ho raha hai, kab se, kis baare mein confusion hai. Isse jawab zyada sateek milega.">
-            <textarea className="rf-in" name="issue" rows={5} defaultValue={raw.issue} placeholder={`Jaise: 2 saal se rishta chal raha hai, ghar wale nahi maan rahe, isliye shaadi ko lekar confusion hai… (max ${ISSUE_WORDS} shabd)`} />
-            <p className="rf-hint" style={{ textAlign: "right", margin: "4px 0 0" }}>{words.issue || 0}/{ISSUE_WORDS} shabd</p>
-          </Field>)}
-      </div>)}
-
-      {!video && <>
-      <div className={S(1)}>
-        <h2 className="rf-sec first">Reading Book Karne Ki Wajah <b>*</b></h2>
-        <div className="concerns">
-          {[...CONCERNS, ["✍️", "Other"] as [string, string]].map(([ic, c]) => (
-            <label key={c} className={concern === c ? "on" : ""}><input type="radio" name="concern" value={c} checked={concern === c} onChange={() => { setConcern(c); if (needsPartner(c)) setP2(true); }} /><span>{ic}</span>{c === "Other" ? "Other (khud likhein)" : c}</label>))}
-        </div>
-        {concern === "Other" && <><input className="rf-in" name="concernOther" defaultValue={raw.concernOther} placeholder={`Apni wajah likhein (max ${MAX_WORDS} shabd)`} style={{ marginTop: 10 }} /><Count n="concernOther" /></>}
-        <Field label="Kuch aur batana chahte hain? (optional)"><textarea className="rf-in" name="notes" defaultValue={raw.notes} rows={3} placeholder={`Jaise: date/time ka koi hissa pata nahi, ya kuch aur. (max ${MAX_WORDS} shabd)`} /><Count n="notes" /></Field>
-      </div>
-
-      <div className={S(2)}>
-        <h2 className="rf-sec first">Kisi Aur Ke Baare Mein? <small>{partner ? "(partner zaroori)" : "(optional)"}</small></h2>
-        <p className="rf-hint">Sirf unhi logon ki reading hogi jinki details yahan doge. {partner ? "Aapki wajah partner ke baare mein hai, isliye partner ka naam aur photo zaroori hai. Third person optional hai." : "Nahi chahiye toh seedha Submit dabayein."}</p>
-        <Person n="2" init={raw} keepPhoto={editing && bk.edit?.hadPartner} on={p2 || partner} req={partner} toggle={() => { if (p2) delete photoStore.photo2; setP2(!p2); }} />
-        <Person n="3" init={raw} keepPhoto={editing && !!raw.name3} on={p3} toggle={() => { if (p3) delete photoStore.photo3; setP3(!p3); }} />
-      </div>
-      </>}
+      {steps.map((st, i) => <div key={st.id} className={S(i)}><StepFields step={st} c={fc} /></div>)}
 
       {step === STEPS.length - 1 && <p className="rf-hint" style={{ marginTop: 14 }}>Submit karke aap hamari <a href="https://thedivinetarotonline.com/privacy" target="_blank" rel="noopener noreferrer" style={{ color: "inherit", textDecoration: "underline" }}>Privacy Policy</a> se sahmat hain. Aapki details aur photos sirf reading ke liye use hoti hain.</p>}
       {err && <p className="rf-err" key={shake} style={{ animation: "shake .4s" }}>{err}</p>}

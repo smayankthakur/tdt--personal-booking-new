@@ -12,11 +12,12 @@ import Reports from "./Reports";
 import Feedback from "./Feedback";
 import Activity from "./Activity";
 import Account from "./Account";
+import FormBuilder from "./FormBuilder";
 import { buildCustomers } from "./customers";
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-type Tab = "dash" | "book" | "cal" | "cust" | "pay" | "report" | "feedback" | "slots" | "price" | "tools" | "activity" | "account";
-const TABS: Tab[] = ["dash", "book", "cal", "cust", "pay", "report", "feedback", "slots", "price", "tools", "activity", "account"];
+type Tab = "dash" | "book" | "cal" | "cust" | "pay" | "report" | "feedback" | "slots" | "price" | "form" | "tools" | "activity" | "account";
+const TABS: Tab[] = ["dash", "book", "cal", "cust", "pay", "report", "feedback", "slots", "price", "form", "tools", "activity", "account"];
 
 export default function Admin() {
   const [token, setToken] = useState(""), [cfg, setCfg] = useState<Cfg | null>(null), [rows, setRows] = useState<any[]>([]), [orders, setOrders] = useState<any[]>([]), [tab, setTab] = useState<Tab>("dash"), [msg, setMsg] = useState(""), [openId, setOpenId] = useState(""), [missing, setMissing] = useState<string[]>([]), [note, setNote] = useState("");
@@ -142,11 +143,12 @@ export default function Admin() {
     ["feedback", "⭐", "Feedback", 0],
     ["slots", "🕒", "Slots", 0],
     ["price", "🏷️", "Prices & Offers", 0],
+    ["form", "📝", "Form Builder", 0],
     ["tools", "🛠️", "Tools", 0],
     ["activity", "🕘", "Activity", 0],
     ["account", "👤", "Account", 0],
   ] as const;
-  const TITLE = { dash: "Dashboard", book: "Bookings", cal: "Calendar", cust: "Customers", report: "Revenue Report", feedback: "Customer Feedback", activity: "Activity Log", account: "Account & Notifications", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", tools: "Tools" } as const;
+  const TITLE = { dash: "Dashboard", book: "Bookings", cal: "Calendar", cust: "Customers", report: "Revenue Report", feedback: "Customer Feedback", activity: "Activity Log", account: "Account & Notifications", pay: "Payments", slots: "Slot Settings", price: "Prices & Offers", form: "Form Builder", tools: "Tools" } as const;
   return (
     <div className="wpa">
       <div className="wpa-bar">
@@ -179,6 +181,8 @@ export default function Admin() {
         {tab === "feedback" && <Feedback api={api} onNote={setNote} />}
 
         {tab === "activity" && <Activity api={api} />}
+
+        {tab === "form" && <FormBuilder api={api} onNote={setNote} />}
 
         {tab === "account" && <Account api={api} me={who} onNote={setNote} onToken={newToken} />}
 

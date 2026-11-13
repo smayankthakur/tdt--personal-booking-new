@@ -3,20 +3,18 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db } from "@/lib/db";
 import { changeGuest, createMeet } from "@/lib/calendar";
 import { freeSlots } from "@/lib/freeSlots";
-import { LANGUAGES, deliverByMs, isQuestionTier, isTaken, isUrgentTier, isWrittenTier, parseTier, tierInfo, tierLabel } from "@/lib/slots";
+import { deliverByMs, isTaken, isUrgentTier, parseTier, tierInfo, tierLabel } from "@/lib/slots";
 import { sendClientConfirmation, sendOwnerNotification, sendOwnerUpdate } from "@/lib/mailer";
 import { bidFrom, editToken, originOf } from "@/lib/session";
 import { editUntil } from "@/lib/formEdit";
 import { logMail } from "@/lib/mailLog";
 import { notifyAdmins } from "@/lib/push";
-import { ISSUE_WORDS, MAX_WORDS, WORD_FIELDS, wordCount } from "@/lib/words";
-import { VIDEO_MAX_Q, VIDEO_Q_CHARS, VIDEO_TOPICS, needsPartner } from "@/lib/concerns";
+import { MAX_PHOTOS, answersOf, checkForm, findField, kindOf, photoFields, questionsOf, textLimit } from "@/lib/formSchema";
+import { getForm } from "@/lib/formConfig";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 30;
 
-const MAX_PHOTO = 1.4 * 1024 * 1024; // client compresses first; Vercel body limit is ~4.5MB for all 3
-const PHOTOS = ["photo1", "photo2", "photo3"];
+const MAX_PHOTO = 1.4 * 1024 * 1024; // client compresses first; Vercel body limit is ~4.5MB for all photos
 const S = (f: FormData, k: string) => String(f.get(k) ?? "").trim().slice(0, 300);
-const S2000 = (f: FormData, k: string) => String(f.get(k) ?? "").trim().slice(0, 2000);
 
 export async function POST(req: Request) {
   const f = await req.formData();
@@ -39,85 +37,49 @@ export async function POST(req: Request) {
   const email = S(f, "email").toLowerCase() || b.email; // customer may use a different email than the payment one
   if (!/^\S+@\S+\.\S+$/.test(email)) return NextResponse.json({ error: "Sahi email bharein." }, { status: 400 });
 
-  const dob = (p: string) => [S(f, p + "d"), S(f, p + "m"), S(f, p + "y")];
-  const tob = (p: string) => (S(f, p + "h") ? `${S(f, p + "h")}:${S(f, p + "min") || "00"} ${S(f, p + "ap") || "AM"}` : "");
-  // Video call reading: one person only, up to 3 written questions (100 characters each) with a topic each.
-  const video = isQuestionTier(b.tier); // video, q3, q3urgent, written: one person + 3 written questions
-  // Written (email) readings: the customer picks the language the answers are written in.
-  // (the mobile app may not have the language field yet → Hinglish, the site's own language)
-  const written = isWrittenTier(b.tier), lang = S(f, "lang") || (req.headers.get("x-tdt-booking") ? "Hinglish" : "");
-  if (written && !LANGUAGES.includes(lang)) return NextResponse.json({ error: "Jawab kis bhasha mein chahiye — Hindi, Hinglish ya English chunein.", code: "lang" }, { status: 400 });
-  const questions: { topic: string; text: string }[] = [];
-  if (video) {
-    for (let i = 1; i <= VIDEO_MAX_Q; i++) {
-      const text = String(f.get(`q${i}`) ?? "").trim(), topic = S(f, `qt${i}`);
-      if (!text) continue;
-      if (text.length > VIDEO_Q_CHARS) return NextResponse.json({ error: `Har sawal ${VIDEO_Q_CHARS} characters tak hi ho sakta hai (sawal ${i}).`, code: "q_long" }, { status: 400 });
-      if (!VIDEO_TOPICS.includes(topic)) return NextResponse.json({ error: `Sawal ${i} ka topic chunein (Love life, Career ya Koi aur issue).`, code: "q_topic" }, { status: 400 });
-      questions.push({ topic, text });
-    }
-    if (!questions.length) return NextResponse.json({ error: "Kam se kam ek sawal likhein.", code: "q_none" }, { status: 400 });
-  }
-  // Written readings: "Explain your issues related to your questions" (required, max 100 words; the app may not send it yet).
-  const issue = S2000(f, "issue");
-  if (written) {
-    if (!issue && !req.headers.get("x-tdt-booking")) return NextResponse.json({ error: "Apne sawalon se judi problem / situation thoda explain karein.", code: "issue" }, { status: 400 });
-    if (wordCount(issue) > ISSUE_WORDS) return NextResponse.json({ error: `Problem explain karne wala jawab ${ISSUE_WORDS} shabdon tak hi likh sakte hain.`, code: "issue_long" }, { status: 400 });
-  }
-  const concern = video ? `${tierInfo(b.tier).name} — ${questions.length} sawal (${Array.from(new Set(questions.map((q) => q.topic))).join(", ")})`
-    : S(f, "concern") === "Other" ? `Other: ${S(f, "concernOther")}` : S(f, "concern");
-  const p1 = { name: S(f, "name"), phone: S(f, "phone"), place: S(f, "place") };
-  if (!p1.name || p1.phone.replace(/\D/g, "").length < 10 || !p1.place || !concern || concern === "Other: ")
-    return NextResponse.json({ error: "Zaroori (*) sawal bharein." }, { status: 400 });
-
-  // Every free-text answer: max 25 words.
-  const long = WORD_FIELDS.find((k) => wordCount(S2000(f, k)) > MAX_WORDS);
-  if (long) return NextResponse.json({ error: `Har jawab ${MAX_WORDS} shabdon tak hi likh sakte hain — chhota karke dobara bhejein.`, code: "too_long", field: long }, { status: 400 });
+  // The form layout (fields, required, limits) comes from admin → Form Builder (lib/formSchema defaults).
+  const kind = kindOf(b.tier), def = await getForm(kind);
+  const app = !!req.headers.get("x-tdt-booking"), web = !app;
+  const video = kind !== "voice"; // video, q3, q3urgent, written: one person + written questions
+  const written = kind === "written";
+  f.set("email", email);
+  // Written readings: the customer picks the answer language (the mobile app may not have the field yet → Hinglish).
+  if (written && app && !S(f, "lang")) { const o = (findField(def, "lang")?.options || []).map((x) => x.label); f.set("lang", o.includes("Hinglish") || !o.length ? "Hinglish" : o[0]); }
+  const lang = S(f, "lang");
+  const hasFile = (k: string) => { const x = f.get(k); return x instanceof File && x.size > 0; };
+  const reader = { str: (k: string) => String(f.get(k) ?? "").trim().slice(0, textLimit(def, k)), file: hasFile };
+  const hadPartner = editing && !!String(cur.answers?.["2nd person name"] || "").trim(); // edit: earlier partner photo is already with the owner
+  const problem = checkForm(def, reader, { editing, app, hadPartner });
+  if (problem) return NextResponse.json({ error: problem, code: "invalid" }, { status: 400 });
 
   // Email must ALWAYS be OTP-verified (website and app, new form and edits): orders/{bid}.verifiedEmail is set
-  // only by a correct OTP for this booking. Partner reasons need the partner's name + photo.
-  const web = !req.headers.get("x-tdt-booking");
-  const hasFile = (k: string) => { const x = f.get(k); return x instanceof File && x.size > 0; };
+  // only by a correct OTP for this booking.
   if (b.verifiedEmail !== email) return NextResponse.json({ error: "Pehle apni email OTP se verify karein.", code: "verify_email" }, { status: 400 });
-  {
-    const hadPartner = editing && !!String(cur.answers?.["2nd person name"] || "").trim(); // edit: earlier partner photo is already with the owner
-    if (!video && needsPartner(S(f, "concern")) && (!S(f, "name2") || (!hasFile("photo2") && !hadPartner)))
-      return NextResponse.json({ error: "Aapki wajah partner ke baare mein hai — partner ka naam aur ek clear photo zaroori hai.", code: "partner" }, { status: 400 });
-  }
+
+  const qField = findField(def, "q"), questions = qField ? questionsOf(qField, reader) : [];
+  const topics = Array.from(new Set(questions.map((q) => q.topic).filter(Boolean)));
+  const p1 = { name: reader.str("name") || b.name || email.split("@")[0], phone: reader.str("phone") || b.phone || "", place: reader.str("place") };
 
   const photos: { filename: string; content: Buffer; contentType: string }[] = [];
-  for (const k of PHOTOS) {
+  for (const { name: k, who } of photoFields(def).slice(0, MAX_PHOTOS)) {
     const file = f.get(k);
-    if (!(file instanceof File) || !file.size || (video && k !== "photo1")) continue; // video: one person only
+    if (!(file instanceof File) || !file.size) continue;
     if (!file.type.startsWith("image/") || file.size > MAX_PHOTO)
       return NextResponse.json({ error: "Photo sirf image ho aur chhoti size ki (auto-compress fail hua)." }, { status: 400 });
-    const who = k === "photo1" ? "you" : k === "photo2" ? "second-person" : "third-person";
     photos.push({ filename: `${who}-${bid}.jpg`, content: Buffer.from(await file.arrayBuffer()), contentType: file.type });
   }
-  if (!editing && !hasFile("photo1"))
-    return NextResponse.json({ error: "Apni ek clear photo upload karein." }, { status: 400 });
 
-  let answers: Record<string, string> = video ? {
-    "Full name": p1.name, "WhatsApp": p1.phone, "Email (payment)": email,
-    "Date of birth (D/M/Y)": dob("dob").filter(Boolean).join(" / "), "Place of birth": p1.place, "Birth time": tob("tob"),
-    "Verified": web ? "Email ✓ (OTP)" : "Email ✓ (OTP) · App booking", "Concern": concern,
-    ...(written ? { "Language": lang } : {}),
-    ...Object.fromEntries(questions.map((q, i) => [`Sawal ${i + 1} (${q.topic})`, q.text])),
-    ...(written && issue ? { "Issue (explained)": issue } : {}),
-  } : {
-    "Full name": p1.name, "WhatsApp": p1.phone, "Email (payment)": email,
-    "Date of birth (D/M/Y)": dob("dob").filter(Boolean).join(" / "), "Place of birth": p1.place, "Birth time": tob("tob"),
-    "2nd person name": S(f, "name2"), "2nd DOB": dob("dob2").filter(Boolean).join(" / "), "2nd birth time": tob("tob2"), "2nd place": S(f, "place2"),
-    "3rd person name": S(f, "name3"), "3rd DOB": dob("dob3").filter(Boolean).join(" / "), "3rd birth time": tob("tob3"), "3rd place": S(f, "place3"),
-    "Verified": web ? "Email ✓ (OTP)" : "Email ✓ (OTP) · App booking", "Concern": concern, "Anything else": String(f.get("notes") ?? "").trim().slice(0, 2000),
-  };
+  let answers: Record<string, string> = answersOf(def, reader, {
+    verified: web ? "Email ✓ (OTP)" : "Email ✓ (OTP) · App booking",
+    concern: video ? `${tierInfo(b.tier).name} — ${questions.length} sawal${topics.length ? ` (${topics.join(", ")})` : ""}` : undefined,
+  });
 
   if (b.test) answers["Price paid"] = `₹0 — 🧪 TEST booking (coupon ${b.coupon || "-"}, no payment)`;
   else if (b.amount) answers["Price paid"] = `₹${Number(b.amount).toLocaleString("en-IN")}${b.offerName ? ` · ${b.offerName}` : ""}${b.coupon ? ` · coupon ${b.coupon} (−₹${b.discount})` : ""}`;
 
   // Raw field values (form names) so the form can be prefilled when the customer edits it later.
   const raw: Record<string, string> = {};
-  f.forEach((v, k) => { if (typeof v === "string" && k !== "mode" && !(video && /^(name|place|dob|tob)[23]|^concern|^notes/.test(k))) raw[k] = v.trim().slice(0, k === "notes" || k === "issue" ? 2000 : 300); });
+  f.forEach((v, k) => { if (typeof v === "string" && k !== "mode") raw[k] = v.trim().slice(0, textLimit(def, k)); });
   raw.email = email;
 
   if (editing) {

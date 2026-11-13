@@ -199,3 +199,46 @@
   .wpa-cards { grid-template-columns: 1fr 1fr; gap: 8px; } .wpa-card { padding: 8px 10px; } .wpa-card .n { font-size: 18px; } .wpa-bar-right b { display: none; }
   .wpa-table { display: block; overflow-x: auto; }
 }
+
+/* Form Builder */
+.fb-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0 16px; position: sticky; top: 32px; z-index: 5; background: #f0f0f1; padding: 8px 0; }
+.fb-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 460px); gap: 20px; align-items: start; }
+@media (max-width: 1100px) { .fb-cols { grid-template-columns: 1fr; } }
+.fb-side { position: sticky; top: 90px; max-height: calc(100vh - 100px); overflow: auto; border: 1px solid #c3c4c7; background: #fff; }
+@media (max-width: 1100px) { .fb-side { position: static; max-height: none; } }
+.fb-side-head { padding: 8px 12px; border-bottom: 1px solid #c3c4c7; font-size: 13px; }
+.fb-step > h2 { display: flex; align-items: center; gap: 8px; }
+.fb-acts { display: inline-flex; gap: 4px; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
+.fb-acts .wpa-btn { min-height: 26px; padding: 0 8px; font-size: 13px; }
+.fb-del { color: #b32d2e; border-color: #b32d2e; }
+.fb-stephead { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px; margin: 12px 0; }
+.fb-stephead label { display: grid; gap: 3px; font-size: 12px; color: #50575e; }
+.fb-stephead label.full { grid-column: 1 / -1; }
+@media (max-width: 700px) { .fb-stephead { grid-template-columns: 1fr; } }
+.fb-field { border: 1px solid #dcdcde; border-radius: 4px; margin: 6px 0; background: #fff; }
+.fb-field.open { border-color: #2271b1; box-shadow: 0 0 0 1px #2271b1; }
+.fb-field.off { background: #f6f7f7; } .fb-field.off .fb-name b { color: #8c8f94; text-decoration: line-through; }
+.fb-row { display: flex; align-items: center; gap: 10px; padding: 8px 10px; }
+.fb-ic { font-size: 18px; width: 24px; text-align: center; }
+.fb-name { min-width: 0; flex: 1; } .fb-name b { color: #1d2327; word-break: break-word; }
+.fb-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.fb-tags span { font-size: 11px; padding: 0 6px; border-radius: 3px; background: #f0f0f1; color: #50575e; }
+.fb-tags .req { background: #fcf0f1; color: #b32d2e; } .fb-tags .hid { background: #fcf9e8; color: #996800; }
+.fb-edit { border-top: 1px solid #dcdcde; padding: 4px 12px 8px; background: #fbfbfc; }
+.fb-edit .wpa-form-table th { width: 170px; font-size: 13px; }
+@media (max-width: 700px) { .fb-edit .wpa-form-table th, .fb-edit .wpa-form-table td { display: block; width: auto; padding: 4px 0; } }
+.fb-movestep { margin: 0; padding: 6px 12px 10px; background: #fbfbfc; font-size: 13px; }
+.fb-add { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; padding-top: 10px; border-top: 1px dashed #dcdcde; }
+.fb-preview { background: var(--ink); color: var(--ivory); font-family: "Inter", sans-serif; line-height: 1.6; padding: 14px; }
+.fb-preview .rf-card { padding: 18px 16px; }
+.fb-preview .rf-2 { grid-template-columns: 1fr; }
+.fb-preview .concerns { grid-template-columns: 1fr 1fr; }
+.wpa .fb-preview .rf-in, .wpa .fb-preview select { width: 100%; min-height: 0; padding: 9px 12px; border-radius: 9px; border: 1px solid var(--panel-line); background: rgba(255,255,255,.04); color: var(--ivory); font-size: 14px; }
+.wpa .fb-preview a { color: var(--gold-soft); }
+.fb-pstep { margin-top: 18px; padding-top: 10px; border-top: 1px dashed rgba(255,255,255,.15); }
+.fb-pstep:first-of-type { border-top: 0; margin-top: 6px; }
+.fb-pstep-tag { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ivory-dim); margin-bottom: 4px; }
+.wpa .fb-preview h1 { color: var(--gold-soft); font-family: "Cinzel", serif; font-size: 22px; font-weight: 400; }
+.wpa .fb-preview .rf-sec { color: var(--ivory); font-family: "Cormorant Garamond", serif; font-weight: 400; }
+.wpa .fb-preview .rf-label, .wpa .fb-preview .person-head b { color: var(--ivory); }
+@media (max-width: 700px) { .fb-row { flex-wrap: wrap; } .fb-row .fb-acts { width: 100%; justify-content: flex-start; margin-left: 34px; } }
