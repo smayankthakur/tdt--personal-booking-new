@@ -5,7 +5,7 @@ import ClockField from "./form/ClockField";
 import FileDrop, { photoStore } from "./form/FileDrop";
 import { EmailVerify } from "./form/Verify";
 import { CONCERNS, VIDEO_MAX_Q, VIDEO_Q_CHARS, VIDEO_TOPICS, needsPartner } from "@/lib/concerns";
-import { MAX_WORDS, WORD_FIELDS, limitWords, wordCount } from "@/lib/words";
+import { ISSUE_WORDS, MAX_WORDS, WORD_FIELDS, limitWords, wordCount } from "@/lib/words";
 import { LANGUAGES, TIER_INFO, isQuestionTier, isUrgentTier, isWrittenTier, parseTier } from "@/lib/slots";
 
 const VOICE_STEPS = ["Aap", "Wajah", "Doosre log"], VIDEO_STEPS = ["Aap", "Sawal"];
@@ -55,6 +55,7 @@ export default function ReadingForm() {
   const capWords = (e: React.FormEvent<HTMLFormElement>) => {
     const t = e.target as HTMLInputElement;
     if (/^q[1-3]$/.test(t.name)) { setWords((w) => ({ ...w, [t.name]: t.value.length })); return; }
+    if (t.name === "issue") { if (wordCount(t.value) > ISSUE_WORDS) t.value = limitWords(t.value, ISSUE_WORDS); setWords((w) => ({ ...w, issue: wordCount(t.value) })); return; }
     if (!WORD_FIELDS.includes(t.name)) return;
     if (wordCount(t.value) > MAX_WORDS) t.value = limitWords(t.value);
     setWords((w) => ({ ...w, [t.name]: wordCount(t.value) }));
@@ -66,7 +67,7 @@ export default function ReadingForm() {
     const r: Raw = bk.edit.raw || {};
     for (const k of ["photo1", "photo2", "photo3"]) delete photoStore[k];
     setConcern(r.concern || ""); setP2(!!r.name2); setP3(!!r.name3); setEmailOk(!!bk.edit.emailVerified); setPhoto1(false);
-    setWords({ notes: wordCount(r.notes || ""), concernOther: wordCount(r.concernOther || ""), q1: (r.q1 || "").length, q2: (r.q2 || "").length, q3: (r.q3 || "").length });
+    setWords({ notes: wordCount(r.notes || ""), concernOther: wordCount(r.concernOther || ""), q1: (r.q1 || "").length, q2: (r.q2 || "").length, q3: (r.q3 || "").length, issue: wordCount(r.issue || "") });
     setStep(0); setErr(""); setDone(null); setEditing(true); window.scrollTo({ top: 0, behavior: "smooth" });
   };
   useEffect(() => { // link from the email: /form#edit
@@ -115,6 +116,7 @@ export default function ReadingForm() {
       if (!qs.some((q) => q.text)) return bad("Kam se kam ek sawal likhein.");
       const noTopic = qs.find((q) => q.text && !q.topic);
       if (noTopic) return bad(`Sawal ${noTopic.i} ka topic chunein — Love life, Career ya Koi aur issue.`);
+      if (written && !val("issue")) return bad("Apne sawalon se judi problem / situation thoda explain karein.");
       return true;
     }
     if (s === 1 && (!concern || (concern === "Other" && !val("concernOther")))) return bad("Reading ki wajah chunein.");
@@ -261,6 +263,11 @@ export default function ReadingForm() {
             <input className="rf-in" name={`q${i}`} maxLength={VIDEO_Q_CHARS} defaultValue={raw[`q${i}`]} placeholder={i === 1 ? "Jaise: Kya meri shaadi is saal hogi?" : "Optional"} />
             <p className="rf-hint" style={{ textAlign: "right", margin: "4px 0 0" }}>{words[`q${i}`] || 0}/{VIDEO_Q_CHARS}</p>
           </div>))}
+        {written && (
+          <Field label="Explain your issues related to your questions" req hint="Apne sawalon se judi problem ya situation thoda detail mein likhein — kya ho raha hai, kab se, kis baare mein confusion hai. Isse jawab zyada sateek milega.">
+            <textarea className="rf-in" name="issue" rows={5} defaultValue={raw.issue} placeholder={`Jaise: 2 saal se rishta chal raha hai, ghar wale nahi maan rahe, isliye shaadi ko lekar confusion hai… (max ${ISSUE_WORDS} shabd)`} />
+            <p className="rf-hint" style={{ textAlign: "right", margin: "4px 0 0" }}>{words.issue || 0}/{ISSUE_WORDS} shabd</p>
+          </Field>)}
       </div>)}
 
       {!video && <>

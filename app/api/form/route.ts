@@ -9,7 +9,7 @@ import { bidFrom, editToken, originOf } from "@/lib/session";
 import { editUntil } from "@/lib/formEdit";
 import { logMail } from "@/lib/mailLog";
 import { notifyAdmins } from "@/lib/push";
-import { MAX_WORDS, WORD_FIELDS, wordCount } from "@/lib/words";
+import { ISSUE_WORDS, MAX_WORDS, WORD_FIELDS, wordCount } from "@/lib/words";
 import { VIDEO_MAX_Q, VIDEO_Q_CHARS, VIDEO_TOPICS, needsPartner } from "@/lib/concerns";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic"; export const maxDuration = 30;
 
@@ -58,6 +58,12 @@ export async function POST(req: Request) {
     }
     if (!questions.length) return NextResponse.json({ error: "Kam se kam ek sawal likhein.", code: "q_none" }, { status: 400 });
   }
+  // Written readings: "Explain your issues related to your questions" (required, max 100 words; the app may not send it yet).
+  const issue = S2000(f, "issue");
+  if (written) {
+    if (!issue && !req.headers.get("x-tdt-booking")) return NextResponse.json({ error: "Apne sawalon se judi problem / situation thoda explain karein.", code: "issue" }, { status: 400 });
+    if (wordCount(issue) > ISSUE_WORDS) return NextResponse.json({ error: `Problem explain karne wala jawab ${ISSUE_WORDS} shabdon tak hi likh sakte hain.`, code: "issue_long" }, { status: 400 });
+  }
   const concern = video ? `${tierInfo(b.tier).name} — ${questions.length} sawal (${Array.from(new Set(questions.map((q) => q.topic))).join(", ")})`
     : S(f, "concern") === "Other" ? `Other: ${S(f, "concernOther")}` : S(f, "concern");
   const p1 = { name: S(f, "name"), phone: S(f, "phone"), place: S(f, "place") };
@@ -97,6 +103,7 @@ export async function POST(req: Request) {
     "Verified": web ? "Email ✓ (OTP)" : "Email ✓ (OTP) · App booking", "Concern": concern,
     ...(written ? { "Language": lang } : {}),
     ...Object.fromEntries(questions.map((q, i) => [`Sawal ${i + 1} (${q.topic})`, q.text])),
+    ...(written && issue ? { "Issue (explained)": issue } : {}),
   } : {
     "Full name": p1.name, "WhatsApp": p1.phone, "Email (payment)": email,
     "Date of birth (D/M/Y)": dob("dob").filter(Boolean).join(" / "), "Place of birth": p1.place, "Birth time": tob("tob"),
@@ -110,7 +117,7 @@ export async function POST(req: Request) {
 
   // Raw field values (form names) so the form can be prefilled when the customer edits it later.
   const raw: Record<string, string> = {};
-  f.forEach((v, k) => { if (typeof v === "string" && k !== "mode" && !(video && /^(name|place|dob|tob)[23]|^concern|^notes/.test(k))) raw[k] = v.trim().slice(0, k === "notes" ? 2000 : 300); });
+  f.forEach((v, k) => { if (typeof v === "string" && k !== "mode" && !(video && /^(name|place|dob|tob)[23]|^concern|^notes/.test(k))) raw[k] = v.trim().slice(0, k === "notes" || k === "issue" ? 2000 : 300); });
   raw.email = email;
 
   if (editing) {

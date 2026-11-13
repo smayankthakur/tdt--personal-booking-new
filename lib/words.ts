@@ -5,5 +5,7 @@ export function limitWords(s: string, n = MAX_WORDS) {
   const parts = String(s || "").match(/\s*\S+/g) || [];
   return parts.length <= n ? s : parts.slice(0, n).join("");
 }
+/** Written readings: "explain your issues related to your questions" box — longer than the other fields. */
+export const ISSUE_WORDS = 100;
 /** Text fields the limit applies to (form field names). */
 export const WORD_FIELDS = ["name", "place", "name2", "place2", "name3", "place3", "concernOther", "notes"];
