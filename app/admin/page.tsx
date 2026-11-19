@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { ALL_TIERS, TIER_INFO, slotMs, type Cfg } from "@/lib/slots";
+import { ALL_TIERS, READING_ORDER, TIER_INFO, slotMs, tierSummary, type Cfg } from "@/lib/slots";
 import "./admin.css";
 import { Notice, TypeTag, tone } from "./ui";
 import Dashboard from "./Dashboard";
@@ -62,7 +62,7 @@ export default function Admin() {
   const openBooking = (slot: string) => { go("book"); setOpenId(slot); setTimeout(() => document.getElementById("bk-" + slot)?.scrollIntoView({ behavior: "smooth", block: "center" }), 60); };
   const formReminder = async (bid: string) => { setNote("Form reminder bheja ja raha hai…"); const j = await api("/api/admin/mail", "POST", { bid, kind: "formReminder" }); setNote(j.result || j.error || "Kuch galat hua"); load(); };
   // ---- Prices, seasonal offer, coupons (/api/admin/pricing) ----
-  const TIERS = ALL_TIERS.map((t) => [t, TIER_INFO[t].name] as const);
+  const TIERS = READING_ORDER.filter((t) => ALL_TIERS.includes(t)).map((t) => [t, TIER_INFO[t].name] as const);
   const [pricing, setPricing] = useState<any>(null), [coupons, setCoupons] = useState<any[]>([]), [pmsg, setPmsg] = useState(""), [delCode, setDelCode] = useState("");
   const [nc, setNc] = useState<any>({ code: "", type: "percent", value: "", tiers: [...ALL_TIERS], expires: "", maxUses: "" });
   const papi = (method: string, body?: object, q = "") => fetch(`/api/admin/pricing${q}`, { method, headers: { "x-admin-session": token, "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined }).then(async (r) => { if (r.status === 401) logout(); return r.json(); });
@@ -210,6 +210,12 @@ export default function Admin() {
 
         {tab === "slots" && (<>
           {msg && <Notice kind={tone(msg)}>{msg}</Notice>}
+          <div className="wpa-postbox"><h2>📞 Abhi chalne wali readings — timing</h2><div className="inside">
+            <table className="wpa-table compact" style={{ marginTop: 12 }}><tbody>
+              {READING_ORDER.filter((t) => TIER_INFO[t].withinHours).map((t) => <tr key={t}><td style={{ width: 280 }}><b>{TIER_INFO[t].name}</b></td><td>{tierSummary(t)}</td></tr>)}
+            </tbody></table>
+            <p className="description">In readings ka time payment se gina jaata hai, isliye neeche wali &quot;Booking dates&quot; (se / tak) inpar nahi lagti — lekin <b>band dates, din aur time (12 PM – 9 PM)</b> lagte hain. Urgent call ke liye &quot;Urgent bookings&quot; wale din/time lagte hain. Sab readings 1 ghante ki hain, isliye <b>Slot gap 60 min</b> rakhein (taaki do sessions overlap na hon). Face to Face aur call ek hi calendar share karte hain — ek time par ek hi booking.</p>
+          </div></div>
           <div className="wpa-postbox"><h2>Booking dates</h2><div className="inside">
             <p>Bookings <input type="date" value={cfg.fromDate || ""} onChange={(e) => setCfg({ ...cfg, fromDate: e.target.value })} /> se <input type="date" value={cfg.toDate || ""} onChange={(e) => setCfg({ ...cfg, toDate: e.target.value })} /> tak</p>
             <p>Band karne wali dates / festivals (YYYY-MM-DD, comma se alag):<br />
@@ -228,7 +234,7 @@ export default function Admin() {
                 <tr key={"u" + i}><th><label><input type="checkbox" checked={uday(i).on} onChange={(e) => setUday(i, { on: e.target.checked })} /> {n}</label></th>
                   <td><input type="time" value={uday(i).start} onChange={(e) => setUday(i, { start: e.target.value })} /> to <input type="time" value={uday(i).end} onChange={(e) => setUday(i, { end: e.target.value })} /></td></tr>))}</tbody></table>
               <p>Payment ke <input className="sm" type="number" value={cfg.urgentHours} onChange={(e) => setCfg({ ...cfg, urgentHours: +e.target.value })} /> ghante ke andar · kam se kam <input className="sm" type="number" value={cfg.urgentLeadHours} onChange={(e) => setCfg({ ...cfg, urgentLeadHours: +e.target.value })} /> ghante baad</p>
-              <p className="description">Normal aur urgent ke start time ek jaise rakhein (12:00, 13:00…) taaki slots overlap na hon. Band dates dono par lagti hain.</p>
+              <p className="description">Normal aur urgent ke start time ek jaise rakhein (12:00, 13:00…) taaki slots overlap na hon. Band dates dono par lagti hain. &quot;Payment ke … ghante ke andar&quot; aur upar wala &quot;kam se kam … din baad&quot; sirf purani readings (40-min voice / 3 sawal) par lagte hain — naye 1-hour call / Face to Face ka time upar wale box mein hai.</p>
             </div></div>
           </div>
           <p><button className="wpa-btn primary" onClick={save}>Save Changes</button></p>
@@ -240,7 +246,7 @@ export default function Admin() {
             <p className="description">OFF karne par woh reading website se hat jaati hai (card, buttons, sticky bar) aur uski nayi booking nahi hoti. Pehle se bani bookings par koi asar nahi.</p>
             <table className="wpa-table compact"><thead><tr><th>Reading</th><th style={{ width: 120 }}>Website par</th><th style={{ width: 160 }}>Regular price</th><th style={{ width: 200 }}>Offer price <small>(khaali = nahi)</small></th></tr></thead><tbody>
               {TIERS.map(([t, l]) => { const off = pricing.enabled?.[t] === false; return (
-                <tr key={t} className={off ? "past" : ""}><td><b>{l}</b></td>
+                <tr key={t} className={off ? "past" : ""}><td><b>{l}</b><div className="wpa-muted" style={{ fontSize: 12 }}>{tierSummary(t)}</div></td>
                   <td><label className={`wpa-toggle ${off ? "" : "on"}`}><input type="checkbox" checked={!off} onChange={(e) => setPricing({ ...pricing, enabled: { ...pricing.enabled, [t]: e.target.checked } })} /><span />{off ? "OFF" : "ON"}</label></td>
                   <td><input type="number" min={100} value={pricing.prices[t] ?? ""} onChange={(e) => setPrice(t, e.target.value)} /></td>
                   <td><input type="number" min={100} value={pricing.offer.prices?.[t] ?? ""} onChange={(e) => setOfferPrice(t, e.target.value)} placeholder="—" /></td></tr>); })}
@@ -273,8 +279,9 @@ export default function Admin() {
                 <tr key={c.code}><td><b>{c.code}</b></td><td colSpan={5}><div className="wpa-inline-form" style={{ margin: 0 }}>
                   <span className="wpa-muted">Expiry</span><input type="date" value={ec.expires || ""} onChange={(e) => setEc({ ...ec, expires: e.target.value })} />
                   <input type="number" min={1} value={ec.maxUses || ""} onChange={(e) => setEc({ ...ec, maxUses: e.target.value })} placeholder="Max uses (khaali = unlimited)" />
-                  <button className="wpa-btn primary" onClick={() => patchCoupon({ code: c.code, expires: ec.expires || null, maxUses: ec.maxUses ? Number(ec.maxUses) : null })}>Save</button>
-                  <button className="wpa-btn" onClick={() => setEditCode("")}>Cancel</button></div></td></tr>) : (
+                  <button className="wpa-btn primary" disabled={!ec.tiers?.length} onClick={() => patchCoupon({ code: c.code, expires: ec.expires || null, maxUses: ec.maxUses ? Number(ec.maxUses) : null, tiers: ec.tiers })}>Save</button>
+                  <button className="wpa-btn" onClick={() => setEditCode("")}>Cancel</button></div>
+                  <div className="wpa-inline-form" style={{ margin: "6px 0 0" }}><span className="wpa-muted">Kin readings par lagega:</span>{TIERS.map(([t, l]) => <label key={t}><input type="checkbox" checked={!!ec.tiers?.includes(t)} onChange={(e) => setEc({ ...ec, tiers: e.target.checked ? [...(ec.tiers || []), t] : (ec.tiers || []).filter((x: string) => x !== t) })} /> {l}</label>)}</div></td></tr>) : (
                 <tr key={c.code} className={expired || full || c.paused ? "past" : ""}>
                   <td><b>{c.code}</b>{c.paused ? <span className="wpa-status warn">paused</span> : expired ? <span className="wpa-status">expired</span> : full ? <span className="wpa-status">limit poori</span> : null}</td>
                   <td>{c.type === "free" ? "🧪 TEST · payment skip (₹0)" : `${c.type === "percent" ? `${c.value}%` : `₹${c.value}`} off`}</td>
@@ -283,7 +290,7 @@ export default function Admin() {
                   <td>{c.used || 0}{c.maxUses ? ` / ${c.maxUses}` : ""}</td>
                   <td style={{ textAlign: "right" }}>{delCode === c.code
                     ? <><button className="wpa-btn danger" onClick={() => deleteCoupon(c.code)}>Pakka delete?</button> <button className="wpa-btn" onClick={() => setDelCode("")}>Nahi</button></>
-                    : <><a onClick={() => patchCoupon({ code: c.code, paused: !c.paused })}>{c.paused ? "Chalu karein" : "Pause"}</a> | <a onClick={() => { setEditCode(c.code); setEc({ expires: c.expires || "", maxUses: c.maxUses || "" }); }}>Edit</a> | <a className="wpa-link-delete" onClick={() => setDelCode(c.code)}>Delete</a></>}</td>
+                    : <><a onClick={() => patchCoupon({ code: c.code, paused: !c.paused })}>{c.paused ? "Chalu karein" : "Pause"}</a> | <a onClick={() => { setEditCode(c.code); setEc({ expires: c.expires || "", maxUses: c.maxUses || "", tiers: [...(c.tiers || [])] }); }}>Edit</a> | <a className="wpa-link-delete" onClick={() => setDelCode(c.code)}>Delete</a></>}</td>
                 </tr>); })}
             </tbody></table>
             <p className="description">Pause karne par coupon turant band ho jaata hai (delete nahi hota, baad mein chalu kar sakte hain). Coupon offer price ke upar lagta hai. Koi bhi price ₹100 se kam nahi hoti. &quot;Used&quot; sirf payment hone par badhta hai.</p>

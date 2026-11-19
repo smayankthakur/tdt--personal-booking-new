@@ -92,6 +92,7 @@ export async function PATCH(req: Request) {
   if ("paused" in b) up.paused = !!b.paused;
   if ("expires" in b) { const e = b.expires ? String(b.expires) : null; if (e && !DATE.test(e)) return bad("Expiry date sahi bharein."); up.expires = e; }
   if ("maxUses" in b) { const m = b.maxUses ? Math.round(Number(b.maxUses)) : null; if (m !== null && !(m >= 1)) return bad("Max uses 1 ya zyada ho."); up.maxUses = m; }
+  if ("tiers" in b) { const t = (Array.isArray(b.tiers) ? b.tiers : []).filter((x: any) => TIERS.includes(x)); if (!t.length) return bad("Kam se kam ek reading type chunein."); up.tiers = Array.from(new Set(t)); }
   if (!Object.keys(up).length) return bad("Kuch badla nahi.");
   await ref.update({ ...up, updatedAt: Date.now(), updatedBy: who });
   await logActivity(who, "Coupon badla", `${code} · ${Object.entries(up).map(([k, v]) => `${k}=${v ?? "—"}`).join(", ")}`);

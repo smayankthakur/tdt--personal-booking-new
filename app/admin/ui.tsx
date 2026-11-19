@@ -11,7 +11,7 @@ export const tone = (m: string) =>
   (/✓|ban gaya|delete ho gaya|Saved/.test(m) ? "success" : /ERROR|nahi|galat|error|fail|⚠/i.test(m) ? "error" : "info") as "success" | "error" | "info";
 
 export const TypeTag = ({ t }: { t?: string }) => (t && t !== "standard"
-  ? <span className={`wpa-tag ${t === "video" ? "blue" : "gold"}`}>{TIER_INFO[t as keyof typeof TIER_INFO]?.badge || t}</span>
+  ? <span className={`wpa-tag ${t === "video" || t === "call" ? "blue" : "gold"}`}>{TIER_INFO[t as keyof typeof TIER_INFO]?.badge || t}</span>
   : <span className="wpa-tag">Voice (40 min)</span>);
 
 export const inr = (n: unknown) => `₹${Number(n || 0).toLocaleString("en-IN")}`;

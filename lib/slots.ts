@@ -38,6 +38,17 @@ export const TIER_INFO: Record<Tier, Info> = {
   f2f: { mins: 60, urgent: false, questions: false, video: false, written: false, deliveryHours: 0, withinHours: 72, leadHours: 24, place: "Grand Hyatt Lounge, Mumbai", name: "Face to Face Meeting — Mumbai (1 hour)", label: "FACE TO FACE MEETING (Mumbai · 1 hour · within 3 days)", tag: "🤝 F2F ", badge: "🤝 Face to Face · Mumbai (1 hour)" },
 };
 export const ALL_TIERS = Object.keys(TIER_INFO) as Tier[];
+/** Order on the website and in /admin: the readings sold now first, the older ones after. */
+export const READING_ORDER: Tier[] = ["call", "callurgent", "f2f", "written", "writtenurgent", "standard", "q3", "video", "urgent", "q3urgent"];
+/** One-line summary of a reading for /admin (what it is + when it happens). */
+export function tierSummary(t: Tier) {
+  const i = TIER_INFO[t], f = (x: number) => `${x % 12 || 12} ${x < 12 ? "AM" : "PM"}`;
+  if (i.written) return `Jawab email par · ${i.deliveryHours / 24 >= 2 && i.deliveryHours % 24 === 0 && i.deliveryHours > 48 ? `${i.deliveryHours / 24} din` : `${i.deliveryHours} ghante`} ke andar · 3 sawal`;
+  const len = i.mins >= 60 ? `${i.mins / 60} hour` : `${i.mins} min`;
+  const where = i.place ? `📍 ${i.place}` : t === "call" || t === "callurgent" ? "Google Meet video / audio" : t === "video" ? "Google Meet video" : "Google Meet voice";
+  const when = i.withinHours ? `payment ke ${i.withinHours % 24 === 0 && i.withinHours >= 72 ? `${i.withinHours / 24} din` : `${i.withinHours} ghante`} ke andar (kam se kam ${i.leadHours || 0} ghante baad)` : i.urgent ? "48 ghante ke andar" : "7–10 din ke andar";
+  return `${len} · ${where} · ${when}${i.bookHours ? ` · booking sirf ${f(i.bookHours[0])}–${f(i.bookHours[1])}` : ""}${i.questions ? " · 3 sawal" : " · teen log tak"}`;
+}
 export const parseTier = (x: unknown): Tier => (ALL_TIERS.includes(x as Tier) ? (x as Tier) : "standard");
 export const tierInfo = (t?: unknown) => TIER_INFO[parseTier(t)];
 export const isUrgentTier = (t?: unknown) => tierInfo(t).urgent;

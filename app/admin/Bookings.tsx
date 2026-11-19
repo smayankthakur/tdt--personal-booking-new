@@ -110,7 +110,7 @@ export default function Bookings({ api, rows, orders, cancelled, customers, open
                 <div className="wpa-notice error inline">
                   {b.calendarErr && <p>Meet error: {b.calendarErr}</p>}
                   {b.mailErr && <p>Email error: {b.mailErr}</p>}
-                  <p><button className="wpa-btn primary" onClick={() => retry(b.slot)}>↻ Meet link + email dobara bhejein</button></p>
+                  <p><button className="wpa-btn primary" onClick={() => retry(b.slot)}>{b.tier === "f2f" ? "↻ Calendar event + email dobara bhejein" : "↻ Meet link + email dobara bhejein"}</button></p>
                 </div>)}
               {!b.answers && <p className="wpa-muted">Is booking ka form data nahi mila (purani booking).</p>}
               {b.bid && <MailLog api={api} bid={b.bid} form slotAhead={!past} hasEvent={!!b.eventId} onNote={onNote} written={!!TIER_INFO[(b.tier || "standard") as keyof typeof TIER_INFO]?.written} />}
