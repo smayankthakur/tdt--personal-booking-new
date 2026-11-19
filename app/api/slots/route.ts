@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
-import { parseTier } from "@/lib/slots";
+import { bookingClosed, parseTier } from "@/lib/slots";
 import { liveTier } from "@/lib/pricing";
 import { bidFrom } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
@@ -20,6 +20,8 @@ export async function GET(req: Request) {
   }
   const q = new URL(req.url).searchParams.get("tier"), tier = q ? parseTier(q) : "urgent";
   if ((await liveTier(tier)) !== tier) return NextResponse.json({ available: false, next: null, off: true }); // switched off in /admin
+  const closed = bookingClosed(tier); // urgent 3-hour call outside 12 PM – 6 PM IST
+  if (closed) return NextResponse.json({ available: false, next: null, closed });
   const free = await freeSlots({ tier });
   return NextResponse.json({ available: free.length > 0, next: split(free[0]) });
 }

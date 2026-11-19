@@ -89,7 +89,7 @@ export default function Bookings({ api, rows, orders, cancelled, customers, open
                 <div className="wpa-row-actions"><a onClick={() => setOpenId(open ? "" : b.slot)}>{open ? "Band karein" : "Details"}</a> | <a onClick={() => openCustomer(custKey(b.email, b.phone))}>Customer history</a>{b.meetLink && <> | <a href={b.meetLink} target="_blank" rel="noopener noreferrer">Meet link</a></>}</div></td>
               <td><TypeTag t={b.tier} />{o?.amount ? <div className="wpa-muted">{inr(o.amount)}{o.coupon ? ` · 🎟 ${o.coupon}` : ""}</div> : null}</td>
               <td>{a["Concern"] || "—"}</td>
-              <td>{b.calendarOk === false ? <span className="wpa-status err">Meet link nahi bana</span> : b.clientMailOk === false ? <span className="wpa-status err">Client mail fail</span>
+              <td>{b.calendarOk === false ? <span className="wpa-status err">{b.tier === "f2f" ? "Calendar event nahi bana" : "Meet link nahi bana"}</span> : b.clientMailOk === false ? <span className="wpa-status err">Client mail fail</span>
                 : b.outcome ? <span className={`wpa-status ${OUTCOME[b.outcome]?.[1]}`}>{OUTCOME[b.outcome]?.[0]}</span>
                 : TIER_INFO[(b.tier || "standard") as keyof typeof TIER_INFO]?.written ? <span className="wpa-status warn" title="Jawab email karke Details mein 'Done' dabayein">✍️ Jawab bhejna hai{b.deliverBy ? ` · ${new Date(b.deliverBy).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short" })} tak` : ""}</span>
                 : past ? <span className="wpa-status" title="Details kholkar Done / No-show set karein">Ho gayi · status?</span> : <span className="wpa-status ok">Confirmed</span>}

@@ -82,12 +82,16 @@ export default function Landing({ pricing }: { pricing: Prices }) {
   const old = (p: PublicPrice) => (p.offerName ? <s className="old-price">{inr(p.regular)}</s> : null);
   // Reading types switched on in /admin; the page shows only those (cards, hero buttons, sticky bar).
   const on = { standard: pricing.standard.enabled, urgent: pricing.urgent.enabled, video: pricing.video.enabled, q3: pricing.q3.enabled, q3urgent: pricing.q3urgent.enabled,
-    written: !!pricing.written?.enabled, writtenurgent: !!pricing.writtenurgent?.enabled };
+    written: !!pricing.written?.enabled, writtenurgent: !!pricing.writtenurgent?.enabled,
+    call: !!pricing.call?.enabled, callurgent: !!pricing.callurgent?.enabled, f2f: !!pricing.f2f?.enabled };
   const count = Object.values(on).filter(Boolean).length;
-  const order = ["written", "writtenurgent", "standard", "q3", "video", "urgent", "q3urgent"] as const;
+  const order = ["call", "callurgent", "f2f", "written", "writtenurgent", "standard", "q3", "video", "urgent", "q3urgent"] as const;
   const primary = order.find((t) => on[t]) || null; // hero price + sticky bar
   const firstBtn = (t: (typeof order)[number]) => primary === t; // the first visible hero button is gold, the rest ghost
   const HERO: Record<(typeof order)[number], { mins: string; kind: string; lines: readonly string[]; sticky: string; stat?: [string, string] }> = {
+    call: { mins: "60", kind: "Video / Audio Call", lines: ["One Hour Video / Audio Call Session", "Google Meet link will be shared", "Appointment within 3 days"], sticky: "1 hour video / audio call · within 3 days", stat: ["1 Hour", "Video / Audio Call"] },
+    callurgent: { mins: "60", kind: "Urgent Call", lines: ["Urgent Video / Audio Call (1 hour)", "Call within 3 hours", "Booking 12 PM – 6 PM IST"], sticky: "Urgent call within 3 hours", stat: ["3 Hrs", "Urgent Call"] },
+    f2f: { mins: "60", kind: "Face to Face", lines: ["Face to Face Meeting — One Hour Session", "Grand Hyatt Lounge, Mumbai", "Appointment within 3 days"], sticky: "Face to face meeting · Mumbai", stat: ["1 Hour", "Face to Face"] },
     written: { mins: "", kind: "", lines: ["Personal Reading by Bharti Singh", "3 Questions", "Delivery within 7 days", "Hindi, Hinglish ya English — aapki pasand ki bhasha"], sticky: "3 Questions · Delivery within 7 days", stat: ["3 Sawal", "Detailed Answers on Email"] },
     writtenurgent: { mins: "", kind: "", lines: ["Urgent Personal Reading by Bharti Singh", "3 Questions", "Delivery within 48 hours", "Hindi, Hinglish ya English — aapki pasand ki bhasha"], sticky: "Urgent · 3 Questions · 48 hours", stat: ["48 Hrs", "Urgent Delivery"] },
     standard: { mins: "40", kind: "Voice Call Reading", lines: ["40 mins Voice Reading", "Appointment Within 7 - 10 Days"], sticky: "40 min voice call reading" },
@@ -98,8 +102,11 @@ export default function Landing({ pricing }: { pricing: Prices }) {
   };
   const hp = primary ? pricing[primary] : null, hero = primary ? HERO[primary] : null;
   const voice = on.standard || on.urgent || on.q3 || on.q3urgent;
-  const calls = voice || on.video, writtenOn = on.written || on.writtenurgent;
-  const title = writtenOn && !calls ? <>Personal Reading by Bharti Singh</> : voice && on.video ? <>Voice &amp; Video Call Reading</> : on.video ? <>Video Call Reading</> : <>Voice Call Reading</>;
+  const newCalls = on.call || on.callurgent, f2fOn = on.f2f;
+  const calls = voice || on.video || newCalls, writtenOn = on.written || on.writtenurgent, oldCalls = voice || on.video;
+  const title = (newCalls || f2fOn) ? <>{newCalls && f2fOn ? "Video / Audio Call & Face to Face Reading" : f2fOn ? "Face to Face Reading" : "Video / Audio Call Reading"}</>
+    : writtenOn && !calls ? <>Personal Reading by Bharti Singh</> : voice && on.video ? <>Voice &amp; Video Call Reading</> : on.video ? <>Video Call Reading</> : <>Voice Call Reading</>;
+  const cPrice = inr(pricing.call?.price || 0), cuPrice = inr(pricing.callurgent?.price || 0), fPrice = inr(pricing.f2f?.price || 0);
   const wPrice = inr(pricing.written?.price || 0), wuPrice = inr(pricing.writtenurgent?.price || 0);
   const q3Price = inr(pricing.q3.price), q3uPrice = inr(pricing.q3urgent.price);
 
@@ -218,6 +225,9 @@ export default function Landing({ pricing }: { pricing: Prices }) {
             </div>
             ) : <div className="hero-price closed"><p>Bookings abhi band hain. Jald hi dobara shuru hongi.</p></div>}
             <div className="hero-actions">
+              {on.call && <PayButton tier="call" className={firstBtn("call") ? "btn gold" : "btn ghost"} label={`📞 Video / Audio Call (1 hour) = ${pricing.call.price}/- Rs`} />}
+              {on.callurgent && <PayButton tier="callurgent" className={firstBtn("callurgent") ? "btn gold" : "btn ghost"} label={`⚡ Urgent Call within 3 Hours = ${pricing.callurgent.price}/- Rs`} />}
+              {on.f2f && <PayButton tier="f2f" className={firstBtn("f2f") ? "btn gold" : "btn ghost"} label={`🤝 Face to Face Meeting, Mumbai = ${pricing.f2f.price}/- Rs`} />}
               {on.written && <PayButton tier="written" className={firstBtn("written") ? "btn gold" : "btn ghost"} label={`Book Now — ${wPrice}`} />}
               {on.writtenurgent && <PayButton tier="writtenurgent" className={firstBtn("writtenurgent") ? "btn gold" : "btn ghost"} label={`For Urgent Delivery (within 48 Hours) = ${pricing.writtenurgent.price}/- Rs only`} />}
               {on.standard && <PayButton label={`Book Now — ${price}`} />}
@@ -254,6 +264,75 @@ export default function Landing({ pricing }: { pricing: Prices }) {
 
           {count === 0 && <div className="notes-card" style={{ maxWidth: 640, margin: "0 auto 32px", textAlign: "center" }}><p>Abhi koi booking available nahi hai. Bookings jald hi dobara shuru hongi.</p></div>}
           <div className={`tier-grid n${count}`}>
+            {on.call && <Reveal delay={80}>
+              <div id="call" className={`price-card video${pricing.call.offerName ? " offer" : ""}`}>
+                {pricing.call.offerName && <div className="offer-ribbon">🪔 {pricing.call.offerName} · Valid till {untilText(pricing.call.offerUntil)}</div>}
+                {movedNote("call")}
+                <span className="badge">📞 1 Hour · Video / Audio Call</span>
+                <h3>Video / Audio Call Session</h3>
+                <div className="amount">
+                  {old(pricing.call)}{cPrice}<small>Tarot, Astro, Numero, Face Reading, Kundli Analysis &amp; Psychic</small>
+                </div>
+
+                <ul className="feature-list">
+                  <li><b>One Hour</b> Video / Audio Call Session</li>
+                  <li>Google Meet link will be shared</li>
+                  <li><b>Appointment within 3 days</b> — time will be provided by us (12 PM – 9 PM IST)</li>
+                  <li>99% Accuracy. No confusion. Straight answers with guidance</li>
+                  <li>Deep analysis, detailed reading — up to 3 people including you</li>
+                  <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
+                </ul>
+
+                <BookingWidget price={cPrice} tier="call" />
+              </div>
+            </Reveal>}
+
+            {on.callurgent && <Reveal delay={130}>
+              <div id="callurgent" className={`price-card urgent${pricing.callurgent.offerName ? " offer" : ""}`}>
+                {pricing.callurgent.offerName && <div className="offer-ribbon">🪔 {pricing.callurgent.offerName} · Valid till {untilText(pricing.callurgent.offerUntil)}</div>}
+                {movedNote("callurgent")}
+                <span className="badge">⚡ Urgent · Call within 3 Hours</span>
+                <h3>Urgent Video / Audio Call</h3>
+                <div className="amount">
+                  {old(pricing.callurgent)}{cuPrice}<small>Same 1 hour reading — call 3 ghante ke andar</small>
+                </div>
+
+                <ul className="feature-list">
+                  <li><b>Audio / Video call within 3 hours</b> of booking (One Hour Session)</li>
+                  <li><b>Urgent booking time: 12 PM – 6 PM IST</b> only</li>
+                  <li>Google Meet link will be shared · time will be provided by us</li>
+                  <li>99% Accuracy. No confusion. Straight answers with guidance</li>
+                  <li>Deep analysis, detailed reading — up to 3 people including you</li>
+                  <li>No Refund Policy · No reschedule after slot time · 5-min wait only</li>
+                </ul>
+
+                <BookingWidget price={cuPrice} tier="callurgent" />
+              </div>
+            </Reveal>}
+
+            {on.f2f && <Reveal delay={180}>
+              <div id="f2f" className={`price-card f2f${pricing.f2f.offerName ? " offer" : ""}`}>
+                {pricing.f2f.offerName && <div className="offer-ribbon">🪔 {pricing.f2f.offerName} · Valid till {untilText(pricing.f2f.offerUntil)}</div>}
+                {movedNote("f2f")}
+                <span className="badge">🤝 Face to Face · Mumbai</span>
+                <h3>Face to Face Meeting</h3>
+                <div className="amount">
+                  {old(pricing.f2f)}{fPrice}<small>One hour session in person with Bharti Singh</small>
+                </div>
+
+                <ul className="feature-list">
+                  <li><b>One Hour</b> session, face to face</li>
+                  <li>Meeting @ <b>Mumbai — Grand Hyatt Lounge</b></li>
+                  <li><b>Appointment within 3 days</b> — time will be provided by us</li>
+                  <li>99% Accuracy. No confusion. Straight answers with guidance</li>
+                  <li>Deep analysis, detailed reading — up to 3 people including you</li>
+                  <li>No Refund Policy · No reschedule after slot time</li>
+                </ul>
+
+                <BookingWidget price={fPrice} tier="f2f" />
+              </div>
+            </Reveal>}
+
             {on.written && <Reveal delay={80}>
               <div id="written" className={`price-card written${pricing.written.offerName ? " offer" : ""}`}>
                 {pricing.written.offerName && <div className="offer-ribbon">🪔 {pricing.written.offerName} · Valid till {untilText(pricing.written.offerUntil)}</div>}
@@ -437,11 +516,13 @@ export default function Landing({ pricing }: { pricing: Prices }) {
                     <p>We strictly DO NOT offer any services related to Tantra, Vashikaran, black magic, or any unethical practices. Please do not request such services.</p>
                     <p>We do not provide readings on: legal matters, court cases, share market, lottery, gambling, child gender prediction, or explicit/sexual questions.</p>
                     {writtenOn && <p><strong>How your reading is delivered:</strong> after payment you fill a short form with your 3 questions and choose the language for your answers (Hindi, Hinglish or English). Bharti Singh personally writes a detailed answer to each question, with guidance, and emails it to the email address in your form within 7 days of submitting the form{on.writtenurgent ? <> — or within 48 hours for the Urgent reading ({wuPrice})</> : null}. This reading is delivered in writing by email; there is no call or meeting to join. Please ask specific questions and check your Spam / Promotions folder.</p>}
-                    {calls && <p><strong>Appointment timing:</strong> slots run from 12 October to 30 November, every day from 12 PM to 9 PM IST (last slot 9 PM). A standard booking gets the earliest free slot 7–10 days after payment. No appointments are given on festival days (Dussehra, Karwa Chauth, Dhanteras to Bhai Dooj, Chhath Puja and Guru Nanak Jayanti). If you need the reading sooner, book the Urgent reading ({urgent}), which gets a slot within 48 hours of payment.</p>}
+                    {(newCalls || f2fOn) && <p><strong>Appointment timing:</strong> appointments are given every day between 12 PM and 9 PM IST (one-hour sessions; last session starts at 9 PM). The time is provided by us: {on.call || f2fOn ? <>a {on.call ? "Video / Audio Call" : ""}{on.call && f2fOn ? " or " : ""}{f2fOn ? "Face to Face Meeting" : ""} booking gets the earliest free time within 3 days of payment{on.callurgent ? "; " : "."}</> : null}{on.callurgent ? <>the Urgent Call ({cuPrice}) gets a time within 3 hours of payment and can be booked only between 12 PM and 6 PM IST.</> : null} No appointments are given on festival days.</p>}
+                    {f2fOn && <p><strong>Face to Face Meeting:</strong> the one-hour meeting takes place at the Grand Hyatt Lounge, Mumbai, at the time emailed to you after you submit the form. Please reach 10 minutes early; your own travel is not included. A late arrival does not extend the session, and a missed meeting cannot be rescheduled or refunded.</p>}
+                    {oldCalls && <p><strong>Appointment timing:</strong> slots run from 12 October to 30 November, every day from 12 PM to 9 PM IST (last slot 9 PM). A standard booking gets the earliest free slot 7–10 days after payment. No appointments are given on festival days (Dussehra, Karwa Chauth, Dhanteras to Bhai Dooj, Chhath Puja and Guru Nanak Jayanti). If you need the reading sooner, book the Urgent reading ({urgent}), which gets a slot within 48 hours of payment.</p>}
                     {offerName && <p><strong>{offerName}:</strong> the offer prices shown above apply to payments made till {untilText(pricing[anyOffer!].offerUntil)} (IST). After that the regular prices apply.</p>}
-                    {calls && <p>Your call takes place on Google Meet at the slot assigned to you — the slot, link and schedule are emailed to you as soon as you submit the form after payment. Please join on time from a stable network; if repeated connection issues occur, the appointment may be cancelled.</p>}
-                    {calls && <p><strong>Late arrival:</strong> we wait a maximum of 5 minutes after your slot starts. If you have not joined the Google Meet by then, the appointment is treated as missed. Once your slot time is over, the appointment cannot be rescheduled, and no refund is given.</p>}
-                    {calls ? <p>You may ask about up to 3 people in one reading, only those whose details you submit in the form.</p> : <p>Only the 3 questions written in your form are answered, and the reading is about you (the person whose details and photo are in the form).</p>}
+                    {(oldCalls || newCalls) && <p>Your call takes place on Google Meet{newCalls ? " (video or audio, as you prefer)" : ""} at the slot assigned to you — the slot, link and schedule are emailed to you as soon as you submit the form after payment. Please join on time from a stable network; if repeated connection issues occur, the appointment may be cancelled.</p>}
+                    {(oldCalls || newCalls) && <p><strong>Late arrival:</strong> we wait a maximum of 5 minutes after your slot starts. If you have not joined the Google Meet by then, the appointment is treated as missed. Once your slot time is over, the appointment cannot be rescheduled, and no refund is given.</p>}
+                    {calls || f2fOn ? <p>You may ask about up to 3 people in one reading, only those whose details you submit in the form.</p> : <p>Only the 3 questions written in your form are answered, and the reading is about you (the person whose details and photo are in the form).</p>}
                     <p>All readings are for guidance purposes only. Please use your own judgment and decision-making.</p>
                     <p>When asking about another person&rsquo;s feelings, please understand that energies and emotions can change over time, as every individual has free will.</p>
                     <p>We do not offer FREE readings under any circumstances.</p>

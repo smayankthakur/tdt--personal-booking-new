@@ -2,13 +2,13 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
-import { HOLD_MS, TIER_INFO, isTaken, isUrgentTier, type Tier, parseTier } from "@/lib/slots";
+import { HOLD_MS, TIER_INFO, bookingClosed, isTaken, isUrgentTier, whenText, type Tier, parseTier } from "@/lib/slots";
 import { liveTier, quote, tierOff } from "@/lib/pricing";
 import { COOKIE, cookieOpts, originOf, sealBid } from "@/lib/session";
 import { markTestPaid } from "@/lib/payments";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
-const NO_URGENT = "Agle 48 ghante mein koi urgent slot khaali nahi hai. Normal booking karein ya baad mein dobara dekhein.";
+const noUrgent = (t: Tier) => `Agle ${whenText(t).replace(" ke andar", "")} mein koi urgent slot khaali nahi hai. Normal booking karein ya baad mein dobara dekhein.`;
 const NO_SLOTS = "Abhi saare slots full hain. Kripya baad mein dobara dekhein.";
 
 // Step 1 of the flow: payment FIRST. Nobody can pay unless a slot is actually free.
@@ -27,6 +27,9 @@ export async function POST(req: Request) {
   // Switched-off reading (old link / page opened before the admin turned it off): never charge a different reading
   // silently — tell the popup which ON reading replaces it, so the customer sees that price and confirms.
   if ((await liveTier(tier, true)) !== tier) return NextResponse.json(await tierOff(tier), { status: 409 });
+  // urgent 3-hour call: bookable only 12 PM – 6 PM IST (so the call is over by ~10 PM)
+  const closed = bookingClosed(tier);
+  if (closed) return NextResponse.json({ error: closed, code: "closed_hours" }, { status: 409 });
   const origin = originOf(req); // always return the customer to the domain they are actually on
   // Price (regular / seasonal offer) and any coupon are computed on the server from /admin's settings.
   const q = await quote(tier, body?.coupon);
@@ -38,7 +41,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: NO_SLOTS, code: "no_slots" }, { status: 409 });
   if (isUrgentTier(tier)) { // urgent readings: a slot within 48 h is held before payment
     const cands = (await freeSlots({ tier })).slice(0, 15);
-    if (!cands.length) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
+    if (!cands.length) return NextResponse.json({ error: noUrgent(tier), code: "no_slots" }, { status: 409 });
     heldSlot = await db.runTransaction(async (tx) => {
       for (const k of cands) {
         const r = db.doc(`bookings/${k}`), s = await tx.get(r);
@@ -48,7 +51,7 @@ export async function POST(req: Request) {
       }
       return null;
     });
-    if (!heldSlot) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
+    if (!heldSlot) return NextResponse.json({ error: noUrgent(tier), code: "no_slots" }, { status: 409 });
   }
   await ref.set({ status: "created", tier, amount: q.final, regularPrice: q.regular, offerName: q.offerName, coupon: q.coupon, discount: q.discount, heldSlot, origin, customerEmail, createdAt: Date.now(), ...(q.test ? { test: true } : {}) });
 

@@ -2,12 +2,12 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { db } from "@/lib/db";
 import { freeSlots } from "@/lib/freeSlots";
-import { HOLD_MS, TIER_INFO, isTaken, isUrgentTier, type Tier, parseTier } from "@/lib/slots";
+import { HOLD_MS, TIER_INFO, bookingClosed, isTaken, isUrgentTier, whenText, type Tier, parseTier } from "@/lib/slots";
 import { liveTier, quote, tierOff } from "@/lib/pricing";
 import { sealBid } from "@/lib/session";
 export const runtime = "nodejs"; export const dynamic = "force-dynamic";
 
-const NO_URGENT = "Agle 48 ghante mein koi urgent slot khaali nahi hai. Normal booking karein ya baad mein dobara dekhein.";
+const noUrgent = (t: Tier) => `Agle ${whenText(t).replace(" ke andar", "")} mein koi urgent slot khaali nahi hai. Normal booking karein ya baad mein dobara dekhein.`;
 const NO_SLOTS = "Abhi saare slots full hain. Kripya baad mein dobara dekhein.";
 
 // Mobile app (The Divine Tarot app) — step 1: same rules as /api/book, but pays with Razorpay Checkout (an ORDER)
@@ -18,6 +18,9 @@ export async function POST(req: Request) {
   const tier: Tier = parseTier(body?.tier);
   // Switched-off reading (older app build / screen opened earlier): reply which ON reading replaces it (code tier_off, alt).
   if ((await liveTier(tier, true)) !== tier) return NextResponse.json(await tierOff(tier), { status: 409 });
+  // urgent 3-hour call: bookable only 12 PM – 6 PM IST (so the call is over by ~10 PM)
+  const closed = bookingClosed(tier);
+  if (closed) return NextResponse.json({ error: closed, code: "closed_hours" }, { status: 409 });
   // The customer's email, asked in the app before paying (as on the website): the "payment received" mail and the form
   // link go to it, and it prefills Razorpay Checkout. Optional so older app versions keep working.
   const customerEmail = String(body?.email || "").trim().toLowerCase().slice(0, 200);
@@ -32,7 +35,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: NO_SLOTS, code: "no_slots" }, { status: 409 });
   if (isUrgentTier(tier)) { // urgent readings: a slot within 48 h is held before payment
     const cands = (await freeSlots({ tier })).slice(0, 15);
-    if (!cands.length) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
+    if (!cands.length) return NextResponse.json({ error: noUrgent(tier), code: "no_slots" }, { status: 409 });
     heldSlot = await db.runTransaction(async (tx) => {
       for (const k of cands) {
         const r = db.doc(`bookings/${k}`), s = await tx.get(r);
@@ -42,7 +45,7 @@ export async function POST(req: Request) {
       }
       return null;
     });
-    if (!heldSlot) return NextResponse.json({ error: NO_URGENT, code: "no_slots" }, { status: 409 });
+    if (!heldSlot) return NextResponse.json({ error: noUrgent(tier), code: "no_slots" }, { status: 409 });
   }
   const q = await quote(tier, body?.coupon); // server-side price: regular / seasonal offer / coupon (from /admin)
   if ("error" in q) { if (heldSlot) await db.doc(`bookings/${heldSlot}`).delete().catch(() => {}); return NextResponse.json({ error: q.error, code: "coupon" }, { status: 400 }); }

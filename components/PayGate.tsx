@@ -71,6 +71,7 @@ function EmailModal({ busy, err, onClose, onSubmit, tier, moved, onSwitch }: { b
         {moved && <p className="pg-moved">ℹ️ <b>{TIER_INFO[moved].name}</b> abhi available nahi hai — aapke liye iski jagah <b>{TIER_INFO[tier].name}</b> chuna gaya hai. Neeche iski price dekh lein.</p>}
         <p>{TIER_INFO[tier]?.written
           ? <>Payment ke baad <b>reading form ka link</b> aur aapke <b>sawalon ke jawab</b> isi email par aayenge. Dhyan se likhein.</>
+          : TIER_INFO[tier]?.place ? <>Payment ke baad <b>reading form ka link</b>, aapka <b>slot aur meeting ki jagah</b> isi email par aayenge. Dhyan se likhein.</>
           : <>Payment ke baad <b>reading form ka link</b>, aapka <b>slot, Google Meet link</b> aur reminder isi email par aayenge. Dhyan se likhein.</>}</p>
         <input ref={input} className="rf-in" type="email" inputMode="email" autoComplete="email" placeholder="aapka@gmail.com" value={email} onChange={(e) => { setEmail(e.target.value); setSugg(""); }} disabled={busy} />
         {sugg && (

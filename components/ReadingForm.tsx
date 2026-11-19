@@ -3,14 +3,15 @@ import { useEffect, useRef, useState } from "react";
 import { photoStore } from "./form/FileDrop";
 import { StepFields, type FieldCtx } from "./form/Fields";
 import { limitWords, wordCount } from "@/lib/words";
-import { TIER_INFO, isUrgentTier, isWrittenTier, parseTier } from "@/lib/slots";
+import { TIER_INFO, callMinutes, isInPerson, isUrgentTier, isWrittenTier, parseTier, placeOf, whenText } from "@/lib/slots";
 import { checkStep, defaultForm, kindOf, limits as limitsOf, partnerConcern, photoFields, visibleSteps, type FormDef, type Reader } from "@/lib/formSchema";
 
 const fmtD = (d: string) => new Date(d + "T00:00:00Z").toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" });
-const gcalLink = (d: string, t: string, meet: string | null) => {
+const gcalLink = (d: string, t: string, meet: string | null, tier?: string) => {
   const s = Date.parse(`${d}T${t}:00+05:30`), u = (ms: number) => new Date(ms).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const q = new URLSearchParams({ action: "TEMPLATE", text: "Personal Reading — The Divine Tarot", dates: `${u(s)}/${u(s + 40 * 60000)}`,
-    details: `Google Meet: ${meet || "link aapki email mein"}\nSirf 5 minute wait kiya jayega — time par join karein.`, location: meet || "Google Meet" });
+  const place = placeOf(tier);
+  const q = new URLSearchParams({ action: "TEMPLATE", text: "Personal Reading — The Divine Tarot", dates: `${u(s)}/${u(s + callMinutes(tier) * 60000)}`,
+    details: place ? `Face to Face meeting — ${place}\nTime se 10 minute pehle pahunchein.` : `Google Meet: ${meet || "link aapki email mein"}\nSirf 5 minute wait kiya jayega — time par join karein.`, location: place || meet || "Google Meet" });
   return `https://calendar.google.com/calendar/render?${q}`;
 };
 const fmtT = (t: string) => { const [h, m] = t.split(":").map(Number); return `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`; };
@@ -138,7 +139,7 @@ export default function ReadingForm() {
     const dd = done?.date || bk.date, tt = done?.time || bk.time, meet = done?.meetLink || bk.meetLink;
     // One form per payment: once submitted it can only be EDITED inside the edit window. After that this page offers a
     // NEW booking (new payment + new form) — the old booking is never reopened.
-    const past = !!dd && Date.parse(`${dd}T${tt}:00+05:30`) + 40 * 60000 < Date.now();
+    const past = !!dd && Date.parse(`${dd}T${tt}:00+05:30`) + callMinutes(bk.tier) * 60000 < Date.now(), f2f = isInPerson(bk.tier);
     const newBooking = <a className={`btn ${bk.edit && !past ? "ghost" : "gold"}`} href="/#book" style={{ marginTop: 14 }}>➕ Nayi booking karein</a>;
     if (past) return (
       <div className="rf-card rf-success">
@@ -152,8 +153,9 @@ export default function ReadingForm() {
         <svg className="ok-tick" viewBox="0 0 52 52"><circle cx="26" cy="26" r="24" /><path d="M14 27l8 8 16-17" /></svg>
         <h1>{done?.edited ? "Form Update Ho Gaya" : "Appointment Confirmed"}</h1>
         {dd && <div className="rf-slot"><span>Aapka slot</span><b>{fmtD(dd)} · {fmtT(tt)} IST</b></div>}
-        <p>Aapka form mil gaya hai. <b>Google Meet link aur schedule aapki email par bhej diya gaya hai</b> — spam folder bhi check kar lein.</p>
-        {meet && <a className="btn gold" href={meet} target="_blank" rel="noopener noreferrer">Google Meet Link</a>}
+        {f2f && <div className="rf-slot"><span>Meeting ki jagah</span><b>📍 {placeOf(bk.tier)}</b></div>}
+        <p>Aapka form mil gaya hai. <b>{f2f ? "Meeting ka time aur jagah" : "Google Meet link aur schedule"} aapki email par bhej diya gaya hai</b> — spam folder bhi check kar lein.</p>
+        {meet && !f2f && <a className="btn gold" href={meet} target="_blank" rel="noopener noreferrer">Google Meet Link</a>}
         {bk.edit && <div className="rf-edit"><p>Form mein kuch galat bhar diya? <b>{new Date(bk.edit.until).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })} tak</b> edit kar sakte hain. Slot same rahega.</p><button type="button" className="btn ghost" onClick={startEdit}>✏️ Form edit karein</button></div>}
         {note && <p className="rf-err">{note}</p>}
         {!bk.edit && <p className="rf-hint" style={{ marginTop: 14 }}>Is booking ka form submit ho chuka hai. Ek aur reading chahiye toh nayi booking karein.</p>}
@@ -161,10 +163,11 @@ export default function ReadingForm() {
         <div className="rf-remind">
           <b>⏰ Please set a reminder in your calendar or clock so you don't miss your consultation.</b>
           <p>Abhi apne phone ke Calendar ya Alarm mein reminder laga lein. <b>Hum alag se koi reminder call ya message nahi karte.</b></p>
-          <p><b>Slot time par sirf 5 minute wait kiya jayega.</b> 5 minute ke andar join nahi kiya toh appointment miss maani jayegi — koi refund ya reschedule nahi.</p>
-          {dd && <a className="btn ghost" href={gcalLink(dd, tt, meet)} target="_blank" rel="noopener noreferrer">📅 Add to Google Calendar</a>}
+          {f2f ? <p><b>Time se 10 minute pehle pahunchein.</b> Der se aane par meeting utni hi chhoti ho jayegi — koi refund ya reschedule nahi.</p>
+            : <p><b>Slot time par sirf 5 minute wait kiya jayega.</b> 5 minute ke andar join nahi kiya toh appointment miss maani jayegi — koi refund ya reschedule nahi.</p>}
+          {dd && <a className="btn ghost" href={gcalLink(dd, tt, meet, bk.tier)} target="_blank" rel="noopener noreferrer">📅 Add to Google Calendar</a>}
         </div>
-        <p className="rf-hint" style={{ marginTop: 18 }}>Headphones lagana na bhoolein. 🎧</p>
+        {!f2f && <p className="rf-hint" style={{ marginTop: 18 }}>Headphones lagana na bhoolein. 🎧</p>}
       </div>);
   }
 
@@ -174,7 +177,7 @@ export default function ReadingForm() {
     <form key={editing ? "edit" : "new"} ref={formRef} className="rf-card" onSubmit={submit} onInput={capWords} noValidate>
       <div className="rf-badge">{editing ? "✏️ Edit mode" : "✓ Payment received"}{bk.tier && bk.tier !== "standard" ? ` · ${TIER_INFO[parseTier(bk.tier)].badge}` : ""}{bid ? ` · ID ${bid}` : ""}</div>
       <h1>{editing ? "Form Edit Karein" : def.title || "Personal Reading Form"}</h1>
-      {editing && <p className="rf-hint">Jo badalna hai badlein aur neeche <b>Update</b> dabayein. {written ? "Jawab ki date same rahegi." : "Slot aur Google Meet link same rahenge."} <button type="button" className="otp-link" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button></p>}
+      {editing && <p className="rf-hint">Jo badalna hai badlein aur neeche <b>Update</b> dabayein. {written ? "Jawab ki date same rahegi." : isInPerson(bk.tier) ? "Slot aur jagah same rahenge." : "Slot aur Google Meet link same rahenge."} <button type="button" className="otp-link" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button></p>}
       <div className="stepper">
         <div className="stepper-bar"><i style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }} /></div>
         {STEPS.map((s, i) => <div key={s} className={`stepper-dot${i <= step ? " on" : ""}`}><span>{i < step ? "✓" : i + 1}</span><small>{s}</small></div>)}
@@ -194,8 +197,8 @@ export default function ReadingForm() {
           : <b className="rf-err">Abhi koi slot khaali nahi hai. Aapki booking (ID {bid}) surakshit hai — hum aapki email par jaankari bhejenge.</b>}
       </div>
       {next && !editing && <p className="rf-hint">{isUrgentTier(bk.tier)
-        ? "⚡ Urgent booking: 48 ghante ke andar ka slot aapke liye rakha gaya hai."
-        : "Aapka appointment payment ke 7–10 din ke andar ka sabse pehla khaali slot hai."} Form submit karte hi final slot aur Google Meet link email par aa jayega.</p>}
+        ? `⚡ Urgent booking: ${whenText(bk.tier)} ka slot aapke liye rakha gaya hai.`
+        : `Aapka appointment payment ke ${whenText(bk.tier)} ka sabse pehla khaali slot hai.`} Form submit karte hi final slot aur {isInPerson(bk.tier) ? `meeting ki jagah (${placeOf(bk.tier)})` : "Google Meet link"} email par aa jayega.</p>}
       </>}
 
       {steps.map((st, i) => <div key={st.id} className={S(i)}><StepFields step={st} c={fc} /></div>)}

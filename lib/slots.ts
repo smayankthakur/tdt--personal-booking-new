@@ -10,10 +10,21 @@ export type DayCfg = { on: boolean; start: string; end: string };
  *                  in the customer's language within 7 days of the form. Its "slot" is only Bharti's work plan
  *                  (admin calendar / due list) — the customer is never sent a call time or invite.
  *  writtenurgent = same, answers within 48 hours (plan slot held before payment)
+ *  call          = 1-hour Google Meet VIDEO / AUDIO call, up to 3 people (full form), slot within 3 days of payment (Nov 2026)
+ *  callurgent    = same 1-hour call within 3 HOURS of payment; can be booked only 12 PM – 6 PM IST (slot held before payment)
+ *  f2f           = 1-hour FACE TO FACE meeting at Grand Hyatt Lounge, Mumbai (no Meet), slot within 3 days of payment
  * Price and on/off of each type are set in /admin (lib/pricing.ts).
  */
-export type Tier = "standard" | "urgent" | "video" | "q3" | "q3urgent" | "written" | "writtenurgent";
-type Info = { mins: number; urgent: boolean; questions: boolean; video: boolean; written: boolean; deliveryHours: number; name: string; label: string; tag: string; badge: string };
+export type Tier = "standard" | "urgent" | "video" | "q3" | "q3urgent" | "written" | "writtenurgent" | "call" | "callurgent" | "f2f";
+type Info = {
+  mins: number; urgent: boolean; questions: boolean; video: boolean; written: boolean; deliveryHours: number; name: string; label: string; tag: string; badge: string;
+  /** slot window from payment (hours) + minimum notice (hours); these tiers ignore the schedule's from/to dates */
+  withinHours?: number; leadHours?: number;
+  /** can be booked only between these IST hours (e.g. [12, 18] = 12:00–17:59) */
+  bookHours?: [number, number];
+  /** in-person meeting place (no Google Meet) */
+  place?: string;
+};
 export const TIER_INFO: Record<Tier, Info> = {
   standard: { mins: 40, urgent: false, questions: false, video: false, written: false, deliveryHours: 0, name: "Voice Call (40 min)", label: "Standard", tag: "", badge: "" },
   urgent: { mins: 40, urgent: true, questions: false, video: false, written: false, deliveryHours: 0, name: "Urgent Voice Call (48 hrs)", label: "URGENT (48 hrs)", tag: "⚡ URGENT ", badge: "⚡ Urgent" },
@@ -22,6 +33,9 @@ export const TIER_INFO: Record<Tier, Info> = {
   q3urgent: { mins: 30, urgent: true, questions: true, video: false, written: false, deliveryHours: 0, name: "Urgent 3 Question Voice Call (48 hrs)", label: "URGENT 3-QUESTION VOICE CALL (48 hrs, 30 min)", tag: "⚡❓ URGENT 3Q ", badge: "⚡ Urgent · 3 Sawal · Voice Call (30 min)" },
   written: { mins: 0, urgent: false, questions: true, video: false, written: true, deliveryHours: 7 * 24, name: "Personal Reading (3 Questions, answers on email)", label: "WRITTEN READING (3 questions · email · 7 days)", tag: "✍️ WRITTEN ", badge: "✍️ 3 Sawal · Jawab Email Par (7 din)" },
   writtenurgent: { mins: 0, urgent: true, questions: true, video: false, written: true, deliveryHours: 48, name: "Urgent Personal Reading (3 Questions, answers on email in 48 hrs)", label: "URGENT WRITTEN READING (3 questions · email · 48 hrs)", tag: "⚡✍️ URGENT WRITTEN ", badge: "⚡ Urgent · 3 Sawal · Jawab Email Par (48 ghante)" },
+  call: { mins: 60, urgent: false, questions: false, video: true, written: false, deliveryHours: 0, withinHours: 72, leadHours: 12, name: "Video / Audio Call (1 hour)", label: "VIDEO / AUDIO CALL (1 hour · within 3 days)", tag: "📞 CALL ", badge: "📞 Video / Audio Call (1 hour)" },
+  callurgent: { mins: 60, urgent: true, questions: false, video: true, written: false, deliveryHours: 0, withinHours: 3, leadHours: 1, bookHours: [12, 18], name: "Urgent Video / Audio Call (within 3 hours)", label: "URGENT CALL (1 hour · within 3 hours)", tag: "⚡📞 URGENT CALL ", badge: "⚡ Urgent · Call within 3 hours" },
+  f2f: { mins: 60, urgent: false, questions: false, video: false, written: false, deliveryHours: 0, withinHours: 72, leadHours: 24, place: "Grand Hyatt Lounge, Mumbai", name: "Face to Face Meeting — Mumbai (1 hour)", label: "FACE TO FACE MEETING (Mumbai · 1 hour · within 3 days)", tag: "🤝 F2F ", badge: "🤝 Face to Face · Mumbai (1 hour)" },
 };
 export const ALL_TIERS = Object.keys(TIER_INFO) as Tier[];
 export const parseTier = (x: unknown): Tier => (ALL_TIERS.includes(x as Tier) ? (x as Tier) : "standard");
@@ -30,6 +44,34 @@ export const isUrgentTier = (t?: unknown) => tierInfo(t).urgent;
 export const isQuestionTier = (t?: unknown) => tierInfo(t).questions;
 /** Written readings: answers are emailed (no call, no Google Meet, no calendar invite, no call reminders). */
 export const isWrittenTier = (t?: unknown) => tierInfo(t).written;
+/** Face-to-face meeting: a place instead of a Google Meet link. */
+export const isInPerson = (t?: unknown) => !!tierInfo(t).place;
+export const placeOf = (t?: unknown) => tierInfo(t).place || "";
+const hrsText = (h: number) => (h % 24 === 0 && h >= 72 ? `${h / 24} din` : `${h} ghante`);
+/** "3 din ke andar", "3 ghante ke andar", "48 ghante ke andar", "7 se 10 din ke andar" — when the slot / answers come. */
+export function whenText(t?: unknown) {
+  const i = tierInfo(t);
+  if (i.withinHours) return `${hrsText(i.withinHours)} ke andar`;
+  if (i.written) return `${hrsText(i.deliveryHours)} ke andar`;
+  return i.urgent ? "48 ghante ke andar" : "7 se 10 din ke andar";
+}
+/** How the session happens, for mails / pages. */
+export function sessionText(t?: unknown) {
+  const tier = parseTier(t), i = TIER_INFO[tier];
+  if (i.place) return `Face to Face meeting — ${i.place} (1 hour)`;
+  if (tier === "call" || tier === "callurgent") return "Google Meet video / audio call (1 hour)";
+  if (tier === "video") return "Google Meet VIDEO call (30 min) — camera on rakhein";
+  return `Google Meet voice call (${i.mins} min)`;
+}
+/** Readings that can be booked only at certain hours (urgent 3-hour call: 12 PM – 6 PM IST). "" = open now. */
+export function bookingClosed(t: unknown, now = Date.now()) {
+  const b = tierInfo(t).bookHours;
+  if (!b) return "";
+  const h = new Date(now + 330 * 60000).getUTCHours();
+  if (h >= b[0] && h < b[1]) return "";
+  const f = (x: number) => `${x % 12 || 12} ${x < 12 ? "AM" : "PM"}`;
+  return `${tierInfo(t).name} ki booking sirf ${f(b[0])} se ${f(b[1])} (IST) ke beech hoti hai. Kripya ${f(b[0])} ke baad dobara book karein.`;
+}
 /** Latest time the written answers are promised: form submission + 7 days (urgent: + 48 hours). */
 export const deliverByMs = (tier: unknown, formAt: number) => formAt + tierInfo(tier).deliveryHours * 3600e3;
 /** Reading languages offered on the form (written readings). */
@@ -39,26 +81,32 @@ export const LANGUAGES = ["Hindi", "Hinglish", "English"];
  * same speed first (urgent ↔ urgent), then the same kind of call. Order = preference.
  */
 export const SIMILAR: Record<Tier, Tier[]> = {
-  standard: ["written", "q3", "video", "urgent", "q3urgent", "writtenurgent"],
-  urgent: ["writtenurgent", "q3urgent", "written", "standard", "q3", "video"],
-  video: ["written", "q3", "standard", "q3urgent", "urgent", "writtenurgent"],
-  q3: ["written", "standard", "video", "q3urgent", "urgent", "writtenurgent"],
-  q3urgent: ["writtenurgent", "urgent", "written", "q3", "standard", "video"],
-  written: ["q3", "standard", "video", "writtenurgent", "q3urgent", "urgent"],
-  writtenurgent: ["q3urgent", "urgent", "written", "q3", "standard", "video"],
+  standard: ["call", "written", "q3", "video", "urgent", "q3urgent", "writtenurgent", "callurgent", "f2f"],
+  urgent: ["callurgent", "writtenurgent", "q3urgent", "call", "written", "standard", "q3", "video", "f2f"],
+  video: ["call", "written", "q3", "standard", "q3urgent", "urgent", "writtenurgent", "callurgent", "f2f"],
+  q3: ["call", "written", "standard", "video", "q3urgent", "urgent", "writtenurgent", "callurgent", "f2f"],
+  q3urgent: ["callurgent", "writtenurgent", "urgent", "call", "written", "q3", "standard", "video", "f2f"],
+  written: ["call", "q3", "standard", "video", "writtenurgent", "q3urgent", "urgent", "callurgent", "f2f"],
+  writtenurgent: ["callurgent", "q3urgent", "urgent", "call", "written", "q3", "standard", "video", "f2f"],
+  call: ["standard", "video", "q3", "written", "callurgent", "urgent", "q3urgent", "writtenurgent", "f2f"],
+  callurgent: ["urgent", "q3urgent", "writtenurgent", "call", "standard", "video", "q3", "written", "f2f"],
+  f2f: ["call", "standard", "video", "q3", "written", "callurgent", "urgent", "q3urgent", "writtenurgent"],
 };
 /** The tier itself when it is ON, else the most similar ON tier, else null (everything is OFF). */
 export const resolveTier = (t: Tier, enabled: Partial<Record<Tier, boolean>>): Tier | null =>
   enabled[t] !== false ? t : SIMILAR[t].find((x) => enabled[x] !== false) || null;
 // Names people may have in old / shared links: ?tier=urgent, ?type=video, #voice, /3-questions …
 const ALIASES: [RegExp, Tier][] = [
+  [/^(f2f|facetoface|facetofacemeeting|meeting|mumbai|inperson|grandhyatt)$/, "f2f"],
+  [/^(urgentcall|callurgent|urgentvideo|urgentaudio|3hours?|3hrs?|within3hours?)$/, "callurgent"],
+  [/^(call|onehour|1hour|1hourcall|audiocall|videoaudio|audiovideo|videoaudiocall|session)$/, "call"],
   [/^((written|email|mail|likhit)urgent|urgent(written|email|mail|likhit)(reading)?)$/, "writtenurgent"],
   [/^(written|writtenreading|email|emailreading|mail|mailreading|likhit|writing)$/, "written"],
   [/^((q3|3q|3questions?|3sawal)urgent|urgent(q3|3q|3questions?|3sawal))$/, "q3urgent"],
   [/^(q3|3q|3questions?|questions?|3sawal|teensawal|3questioncall)$/, "q3"],
   [/^(video|videocall|videoreading|meet|googlemeet)$/, "video"],
-  [/^(urgent|urgentcall|urgentreading|48|48hours?|48hrs?)$/, "urgent"],
-  [/^(standard|voice|voicecall|call|callreading|normal|personal|personalreading|reading|40min)$/, "standard"],
+  [/^(urgent|urgentreading|48|48hours?|48hrs?)$/, "urgent"],
+  [/^(standard|voice|voicecall|callreading|normal|personal|personalreading|reading|40min)$/, "standard"],
 ];
 /** Tier named in a link hint (case, spaces, "-" and "_" ignored), or null. */
 export function tierFromHint(h?: string | null): Tier | null {
@@ -131,6 +179,11 @@ export function windowFor(cfg: Cfg, tier: Tier, paidAt: number, now = Date.now()
   if (isWrittenTier(tier)) { // written: plan slot inside the delivery window (7 days / 48 h from now), any configured day
     const base = Math.max(now, paidAt), lead = isUrgentTier(tier) ? cfg.urgentLeadHours * 3600e3 : LEAD_MS;
     return { lo: base + lead, hi: base + tierInfo(tier).deliveryHours * 3600e3, days: isUrgentTier(tier) ? cfg.urgentDays : cfg.days };
+  }
+  const ti = tierInfo(tier);
+  if (ti.withinHours) { // call / callurgent / f2f: within N hours of payment (3 days / 3 hours), from/to dates not used
+    const base = Math.max(now, paidAt);
+    return { lo: base + (ti.leadHours || 0) * 3600e3, hi: paidAt + ti.withinHours * 3600e3, days: ti.urgent ? cfg.urgentDays : cfg.days };
   }
   if (isUrgentTier(tier))
     return { lo: Math.max(from, Math.max(now, paidAt) + cfg.urgentLeadHours * 3600e3), hi: Math.min(to, paidAt + cfg.urgentHours * 3600e3), days: cfg.urgentDays };

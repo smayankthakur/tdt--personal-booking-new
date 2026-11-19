@@ -28,7 +28,8 @@ export async function GET(req: Request) {
   const due = snap.docs.filter((d) => {
     const b = d.data(), [date, time] = d.id.split("T"), start = time ? slotMs(date, time) : 0;
     // call readings only — written (email) readings have no call, so no "reading in 3 hours" mail
-    return b.status === "confirmed" && b.email && !isWrittenTier(b.tier) && !b.reminderAt && !b.soonReminderAt && start > now && start - now <= BEFORE_MS;
+    return b.status === "confirmed" && b.email && !isWrittenTier(b.tier) && !b.reminderAt && !b.soonReminderAt && start > now && start - now <= BEFORE_MS
+      && !(b.createdAt && start - b.createdAt <= BEFORE_MS); // booked inside the 3-hour window (urgent 3-hour call): the confirmation just went
   });
 
   const out: string[] = [];

@@ -1,4 +1,4 @@
-import { callMinutes, slotMs, tierLabel, tierTag } from "./slots";
+import { callMinutes, isInPerson, placeOf, slotMs, tierLabel, tierTag } from "./slots";
 
 /** Customer + the owner accounts that must be on every event (override with CALENDAR_GUESTS, comma-separated). */
 const guests = (customer: string) =>
@@ -24,9 +24,11 @@ async function googleToken() {
 const describe = (bid: string, phone: string, tier?: string) =>
   [
     tier === "video" ? "Aapki Video Call Reading (30 min) — The Divine Tarot. Camera on rakhein, achhi roshni mein baithein. Sirf aapki reading, form wale 3 sawal."
-      : tier === "q3" || tier === "q3urgent" ? "Aapki 3 Question Call Reading (30 min, voice) — The Divine Tarot. Sirf aapki reading, form wale 3 sawal." : "Aapki Personal Reading — The Divine Tarot.",
-    "Slot time par upar diye gaye Google Meet link se join karein (isi email id se). Headphones lagayein.",
-    "Sirf 5 minute wait kiya jayega — uske baad appointment miss maani jayegi. Koi refund / reschedule nahi.",
+      : tier === "q3" || tier === "q3urgent" ? "Aapki 3 Question Call Reading (30 min, voice) — The Divine Tarot. Sirf aapki reading, form wale 3 sawal."
+      : isInPerson(tier) ? `Aapki Face to Face Meeting (1 hour) — The Divine Tarot. Jagah: ${placeOf(tier)}.`
+      : tier === "call" || tier === "callurgent" ? "Aapki 1 Hour Video / Audio Call Reading — The Divine Tarot." : "Aapki Personal Reading — The Divine Tarot.",
+    isInPerson(tier) ? `Time se 10 minute pehle ${placeOf(tier)} pahunchein.` : "Slot time par upar diye gaye Google Meet link se join karein (isi email id se). Headphones lagayein.",
+    isInPerson(tier) ? "Koi refund / reschedule nahi." : "Sirf 5 minute wait kiya jayega — uske baad appointment miss maani jayegi. Koi refund / reschedule nahi.",
     "Contact / WhatsApp: +91 88281 16545",
     "",
     `Booking ID: ${bid}`,
@@ -45,6 +47,7 @@ export async function createMeet(key: string, b: { name: string; email: string; 
   const access = await googleToken();
   const start = slotMs(date, time), end = start + callMinutes(b.tier) * 60000;
   const iso = (ms: number) => new Date(ms + 330 * 60000).toISOString().slice(0, 19) + "+05:30";
+  const inPerson = isInPerson(b.tier); // face-to-face: event with the place, no Google Meet
   const res = await (await fetch(`${EVENTS}?conferenceDataVersion=1&sendUpdates=all`, {
     method: "POST",
     headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" },
@@ -54,10 +57,11 @@ export async function createMeet(key: string, b: { name: string; email: string; 
       start: { dateTime: iso(start), timeZone: "Asia/Kolkata" }, end: { dateTime: iso(end), timeZone: "Asia/Kolkata" },
       attendees: guests(b.email).map((email) => ({ email })),
       guestsCanInviteOthers: false, guestsCanModify: false,
-      conferenceData: { createRequest: { requestId: key, conferenceSolutionKey: { type: "hangoutsMeet" } } },
+      ...(inPerson ? { location: placeOf(b.tier) } : { conferenceData: { createRequest: { requestId: key, conferenceSolutionKey: { type: "hangoutsMeet" } } } }),
       reminders: { useDefault: false, overrides: [{ method: "email", minutes: 1440 }, { method: "popup", minutes: 30 }] },
     }),
   })).json();
+  if (inPerson) { if (!res.id) throw new Error(`Calendar: ${res.error?.message || "event nahi bana"}`); return { meetLink: undefined, eventId: res.id as string }; }
   if (!res.hangoutLink) throw new Error(`Calendar: ${res.error?.message || "event created without Meet link"}`);
   return { meetLink: res.hangoutLink as string | undefined, eventId: res.id as string | undefined };
 }

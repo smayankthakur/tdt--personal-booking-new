@@ -1,6 +1,6 @@
 import nodemailer, { type SendMailOptions } from "nodemailer";
 import { logMail, type MailMeta } from "./mailLog";
-import { callMinutes, isQuestionTier, isUrgentTier, isWrittenTier, slotMs, tierInfo, tierTag } from "./slots";
+import { callMinutes, isInPerson, isQuestionTier, isUrgentTier, isWrittenTier, placeOf, sessionText, slotMs, tierInfo, tierTag, whenText } from "./slots";
 
 function transporter() {
   const { SMTP_HOST, SMTP_PORT, SMTP_SECURE, SMTP_USER, SMTP_PASS } = process.env;
@@ -38,8 +38,8 @@ function ics(bid: string, date: string, time: string, meet: string | null, tier?
   return [
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//The Divine Tarot//Booking//EN", "METHOD:PUBLISH", "BEGIN:VEVENT",
     `UID:${bid}@thedivinetarot`, `DTSTAMP:${utc(Date.now())}`, `DTSTART:${utc(s)}`, `DTEND:${utc(e)}`,
-    "SUMMARY:Personal Reading — The Divine Tarot", `LOCATION:${meet || "Google Meet (link by email)"}`,
-    `DESCRIPTION:Google Meet: ${meet || "link will be sent separately"}`,
+    "SUMMARY:Personal Reading — The Divine Tarot", `LOCATION:${isInPerson(tier) ? placeOf(tier) : meet || "Google Meet (link by email)"}`,
+    isInPerson(tier) ? `DESCRIPTION:Face to Face meeting at ${placeOf(tier)}` : `DESCRIPTION:Google Meet: ${meet || "link will be sent separately"}`,
     "BEGIN:VALARM", "TRIGGER:-PT30M", "ACTION:DISPLAY", "DESCRIPTION:Reading in 30 minutes", "END:VALARM",
     "END:VEVENT", "END:VCALENDAR",
   ].join("\r\n");
@@ -49,7 +49,8 @@ function ics(bid: string, date: string, time: string, meet: string | null, tier?
 export function gcalLink(date: string, time: string, meet: string | null, tier?: string) {
   const s = slotMs(date, time), e = s + callMinutes(tier) * 60000;
   const q = new URLSearchParams({ action: "TEMPLATE", text: "Personal Reading — The Divine Tarot", dates: `${utc(s)}/${utc(e)}`,
-    details: `Google Meet: ${meet || "link aapki email mein"}\nSirf 5 minute wait kiya jayega — time par join karein.`, location: meet || "Google Meet" });
+    details: isInPerson(tier) ? `Face to Face meeting — ${placeOf(tier)}\nTime se 10 minute pehle pahunchein.` : `Google Meet: ${meet || "link aapki email mein"}\nSirf 5 minute wait kiya jayega — time par join karein.`,
+    location: isInPerson(tier) ? placeOf(tier) : meet || "Google Meet" });
   return `https://calendar.google.com/calendar/render?${q}`;
 }
 
@@ -96,8 +97,10 @@ async function sendWrittenConfirmation(b: { name: string; email: string; bid: st
 export async function sendClientConfirmation(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; editLink?: string | null; editUntil?: number; updated?: boolean; tier?: string; by?: string; deliverBy?: number | null; lang?: string }) {
   if (isWrittenTier(b.tier)) return sendWrittenConfirmation(b);
   const { day, range } = prettySlot(b.date, b.time, b.tier);
-  const video = b.tier === "video", q3 = isQuestionTier(b.tier) && !video;
-  const meet = b.meetLink
+  const video = b.tier === "video", q3 = isQuestionTier(b.tier) && !video, f2f = isInPerson(b.tier);
+  const meet = f2f
+    ? `<p style="text-align:center;margin:26px 0;background:#f6f3fb;padding:16px;border-radius:8px;font-size:16px">📍 <b>${esc(placeOf(b.tier))}</b><br/><span style="font-size:13px;color:#555">Face to Face meeting · time se 10 minute pehle pahunchein</span></p>`
+    : b.meetLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink}</span></p>`
     : `<p style="background:#fff4e5;padding:12px 16px;border-radius:6px">Aapka Google Meet link thodi der mein alag email se bhej diya jayega.</p>`;
   await send({
@@ -108,24 +111,25 @@ export async function sendClientConfirmation(b: { name: string; email: string; b
       <h2 style="color:#6d28d9">Namaste ${esc(b.name)}</h2>
       <p>${b.updated ? "Aapka form update ho gaya hai." : "Aapka payment aur form mil gaya hai."} Aapki Personal Reading confirm ho chuki hai.</p>
       <div style="background:#f6f3fb;border-left:3px solid #6d28d9;padding:14px 20px;margin:20px 0;line-height:1.8">
-        <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>Call:</b> ${video ? "Google Meet VIDEO call (30 min) — camera on rakhein" : `Google Meet voice call (${callMinutes(b.tier)} min)`}<br/><b>Booking ID:</b> ${b.bid}
+        <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>${f2f ? "Meeting" : "Call"}:</b> ${esc(sessionText(b.tier))}<br/><b>Booking ID:</b> ${b.bid}
       </div>
       ${meet}
       ${editBox(b.editLink, b.editUntil)}
       <div style="background:#fff4e5;border:2px solid #f59e0b;border-radius:8px;padding:14px 18px;margin:22px 0;line-height:1.7">
         <b style="font-size:16px">⏰ Please set a reminder in your calendar or clock so you don't miss your consultation.</b><br/>
         Abhi apne phone ke Calendar ya Alarm mein reminder laga lein. <b>Hum alag se koi reminder call ya message nahi karte.</b><br/>
-        <b>Slot time par sirf 5 minute wait kiya jayega.</b> 5 minute ke andar join nahi kiya toh appointment miss maani jayegi — koi refund ya reschedule nahi.
+        ${f2f ? "<b>Time se pehle meeting ki jagah pahunchein.</b> Der se aane par meeting utni hi chhoti ho jayegi — koi refund ya reschedule nahi." : "<b>Slot time par sirf 5 minute wait kiya jayega.</b> 5 minute ke andar join nahi kiya toh appointment miss maani jayegi — koi refund ya reschedule nahi."}
         <p style="margin:12px 0 0"><a href="${gcalLink(b.date, b.time, b.meetLink, b.tier)}" style="background:#1b1330;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">📅 Add to Google Calendar</a>
         <span style="font-size:12px;color:#555;display:block;margin-top:6px">Ya is email ke saath attached reading.ics file kholein — kisi bhi calendar app mein add ho jayegi.</span></p>
       </div>
       <div style="font-size:14px;line-height:1.7">
         <b>Zaroori baatein:</b>
         <ul style="padding-left:18px">
-          <li>Slot time par isi email id (${esc(b.email)}) se Meet join karein. Better experience ke liye headphones lagayein.</li>
+          ${f2f ? `<li>Meeting ki jagah: <b>${esc(placeOf(b.tier))}</b>. Time se 10 minute pehle pahunchein.</li>
+          <li>Slot time nikalne ke baad reschedule nahi hota. Koi refund nahi diya jata.</li>` : `<li>Slot time par isi email id (${esc(b.email)}) se Meet join karein — video ya audio, jaise aap chahein. Better experience ke liye headphones lagayein.</li>
           <li><b>Hum sirf 5 minute wait karte hain</b> — uske baad appointment miss maani jayegi.</li>
           <li>Slot time nikalne ke baad reschedule nahi hota. Koi refund nahi diya jata.</li>
-          <li>Stable network mein rahein; baar-baar call cut hui toh appointment cancel ho sakti hai.</li>
+          <li>Stable network mein rahein; baar-baar call cut hui toh appointment cancel ho sakti hai.</li>`}
           <li>${video ? "Video call mein sirf aapki reading hoti hai — form mein likhe 3 sawalon ke jawab. Camera on rakhein aur achhi roshni mein baithein." : q3 ? "Is call mein sirf aapki reading hoti hai — form mein likhe 3 sawalon ke jawab." : "Sirf form mein di gayi details (max 3 log) ki reading hoti hai."}</li>
         </ul>
       </div>
@@ -143,7 +147,7 @@ export async function sendOwnerNotification(sub: Record<string, any>, photos: { 
     ? `<h3 style="color:${isUrgentTier(sub.tier) ? "#c2410c" : "#6d28d9"}">${isUrgentTier(sub.tier) ? "⚡ URGENT · " : ""}✍️ Written reading — jawab ${esc(sub.email)} par bhejna hai <u>${deliverDate(sub.deliverBy)}</u> tak</h3>
       <p>Language: <b>${esc(sub.answers?.Language || "-")}</b><br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}<br/><span style="color:#666">Plan slot (admin calendar): ${day} · ${range.split(" – ")[0]}</span></p>`
     : `<h3>${day} · ${range}</h3>
-      <p>Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "<b style='color:#c00'>NOT CREATED — create manually</b>"}<br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}</p>`;
+      <p>${isInPerson(sub.tier) ? `🤝 Face to Face · 📍 <b>${esc(placeOf(sub.tier))}</b>` : `Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "<b style='color:#c00'>NOT CREATED — create manually</b>"}`}<br/>Booking ID: ${sub.bid} · Payment: ${sub.paymentId || "-"}</p>`;
   await send({
     from: from(), to, replyTo: sub.email,
     subject: sub.test ? `🧪 TEST · ${tierTag(sub.tier)}New reading form - ${sub.name}` : written ? `${tierTag(sub.tier)}New reading form - ${sub.name} - answer by ${deliverDate(sub.deliverBy)}` : `${tierTag(sub.tier)}New reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
@@ -161,7 +165,7 @@ export async function sendEditLink(b: { name: string; email: string; date: strin
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
       <h2 style="color:#6d28d9">Namaste ${esc(b.name || "")}</h2>
       <p>Aapki Personal Reading <b>${day}, ${range}</b> ke liye confirm hai.</p>
-      <p>Ab aap apna reading form <b>${until(b.editUntil)} tak</b> edit kar sakte hain — naam, birth details, partner details, wajah ya photo. Slot aur Google Meet link same rahenge.</p>
+      <p>Ab aap apna reading form <b>${until(b.editUntil)} tak</b> edit kar sakte hain — naam, birth details, partner details, wajah ya photo. Slot ${isInPerson(b.tier) ? "aur jagah" : "aur Google Meet link"} same rahenge.</p>
       <p style="text-align:center;margin:26px 0"><a href="${b.editLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Form edit karein</a></p>
       <p style="font-size:13px;color:#666">Kuch badalna nahi hai toh is email ko ignore karein. Contact: +91 88281 16545</p></div>`,
   }, { kind: "edit", bid: b.bid, slot: `${b.date}T${b.time}`, by: b.by });
@@ -181,7 +185,7 @@ export async function sendOwnerUpdate(sub: { bid: string; tier?: string; date: s
     subject: isWrittenTier(sub.tier) ? `${tierTag(sub.tier)}UPDATED reading form - ${sub.name} - answer by ${deliverDate(sub.deliverBy)}` : `${tierTag(sub.tier)}UPDATED reading form - ${sub.name} - ${day} ${range.split(" – ")[0]}`,
     attachments: photos,
     html: `<div style="font-family:Arial,sans-serif;max-width:680px"><h3 style="color:#b45309">✏️ Customer ne form edit kiya · ${isWrittenTier(sub.tier) ? `✍️ Written reading — jawab ${deliverDate(sub.deliverBy)} tak` : `${day} · ${range}`}</h3>
-      <p>${isWrittenTier(sub.tier) ? "" : `Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "-"}<br/>`}Booking ID: ${sub.bid}</p>
+      <p>${isWrittenTier(sub.tier) ? "" : isInPerson(sub.tier) ? `📍 ${esc(placeOf(sub.tier))}<br/>` : `Meet: ${meetLink ? `<a href="${meetLink}">${meetLink}</a>` : "-"}<br/>`}Booking ID: ${sub.bid}</p>
       <h4>Kya badla (${changed.length})</h4>${changed.length ? `<table><tr><th align="left">Sawal</th><th align="left">Pehle</th><th align="left">Ab</th></tr>${diff}</table>` : "<p>Koi text change nahi (sirf photo).</p>"}
       <p>Nayi photos attached: ${photos.length}${photos.length ? "" : " (purani photos pichhle email mein hain)"}</p>
       <h4>Poora form (ab)</h4><table>${all}</table></div>`,
@@ -191,7 +195,7 @@ export async function sendOwnerUpdate(sub: { bid: string; tier?: string; date: s
 /** Payment receipt + a personal 24-hour form link, so a customer who loses the payment page (Instagram browser,
  *  UPI app switch, closed tab) can still open the form from any phone/browser. */
 export async function sendPaymentReceived(b: { email: string; bid: string; tier?: string; formLink?: string | null; by?: string }) {
-  const when = isUrgentTier(b.tier) ? "48 ghante ke andar" : "7 se 10 din ke andar", written = isWrittenTier(b.tier);
+  const when = whenText(b.tier), written = isWrittenTier(b.tier);
   const kind = b.tier && b.tier !== "standard" ? ` (<b>${tierInfo(b.tier).name}</b>)` : "";
   const btn = b.formLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.formLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Reading Form Bharein</a><br/><span style="font-size:12px;color:#555">Yeh link sirf aapke liye hai aur 24 ghante tak valid hai.</span></p>`
@@ -202,7 +206,7 @@ export async function sendPaymentReceived(b: { email: string; bid: string; tier?
       <h2 style="color:#6d28d9">Namaste</h2>
       <p>Aapka payment receive ho gaya hai${kind}. Ab apna <b>reading form bharein</b> (2-3 minute).</p>
       ${btn}
-      <p>${written ? `Form mein apne <b>3 sawal</b> likhein aur jawab ki <b>bhasha</b> (Hindi, Hinglish ya English) chunein. Form submit karne ke <b>${deliverWhen(b.tier)} ke andar</b> Bharti Singh ke likhe jawab, guidance ke saath, isi email par aa jayenge.` : `Form submit karte hi aapka <b>appointment slot (${when}), Google Meet link aur schedule</b> isi email par aa jayega, aur Google Calendar invite bhi milega.`}</p>
+      <p>${written ? `Form mein apne <b>3 sawal</b> likhein aur jawab ki <b>bhasha</b> (Hindi, Hinglish ya English) chunein. Form submit karne ke <b>${deliverWhen(b.tier)} ke andar</b> Bharti Singh ke likhe jawab, guidance ke saath, isi email par aa jayenge.` : isInPerson(b.tier) ? `Form submit karte hi aapka <b>appointment slot (${when}) aur meeting ki jagah (${esc(placeOf(b.tier))})</b> isi email par aa jayegi, aur Google Calendar invite bhi milega.` : `Form submit karte hi aapka <b>appointment slot (${when}), Google Meet link aur schedule</b> isi email par aa jayega, aur Google Calendar invite bhi milega.`}</p>
       <p style="background:#fff4e5;padding:12px 16px;border-radius:6px;font-size:14px">Koi dikkat ho toh WhatsApp karein <b>+91 88281 16545</b> aur yeh Booking ID bhejein: <b>${b.bid}</b></p></div>`,
   }, { kind: "payment", bid: b.bid, by: b.by });
 }
@@ -221,8 +225,9 @@ export async function sendOtpEmail(email: string, code: string) {
 
 /** Sent once by /api/cron/reminders, about 3 hours before the slot. */
 export async function sendReminder(b: { name: string; email: string; bid: string; date: string; time: string; meetLink: string | null; tier?: string; by?: string }) {
-  const { day, range } = prettySlot(b.date, b.time, b.tier);
-  const meet = b.meetLink
+  const { day, range } = prettySlot(b.date, b.time, b.tier), f2f = isInPerson(b.tier);
+  const meet = f2f ? `<p style="text-align:center;margin:26px 0;background:#f6f3fb;padding:16px;border-radius:8px;font-size:16px">📍 <b>${esc(placeOf(b.tier))}</b></p>`
+    : b.meetLink
     ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink}</span></p>`
     : `<p style="background:#fff4e5;padding:12px 16px;border-radius:6px">Meet link ke liye WhatsApp karein: +91 88281 16545</p>`;
   await send({
@@ -235,7 +240,7 @@ export async function sendReminder(b: { name: string; email: string; bid: string
         <b>Date:</b> ${day}<br/><b>Time:</b> ${range}<br/><b>Booking ID:</b> ${b.bid}
       </div>
       ${meet}
-      <p style="font-size:14px;line-height:1.7"><b>Slot time par sirf 5 minute wait kiya jayega.</b> ${b.tier === "video" ? "Camera on rakhein, achhi roshni aur stable network ke saath" : "Stable network aur headphones ke saath"}, isi email id (${esc(b.email)}) se join karein.</p>
+      ${f2f ? `<p style="font-size:14px;line-height:1.7"><b>Time se 10 minute pehle ${esc(placeOf(b.tier))} pahunchein.</b></p>` : `<p style="font-size:14px;line-height:1.7"><b>Slot time par sirf 5 minute wait kiya jayega.</b> ${b.tier === "video" ? "Camera on rakhein, achhi roshni aur stable network ke saath" : "Stable network aur headphones ke saath"}, isi email id (${esc(b.email)}) se join karein.</p>`}
       <p style="font-size:13px;color:#666;margin-top:28px">Contact: thedivinetarothindi@gmail.com | +91 88281 16545</p></div>`,
   }, { kind: "reminder", bid: b.bid, slot: `${b.date}T${b.time}`, by: b.by });
 }
@@ -243,8 +248,8 @@ export async function sendReminder(b: { name: string; email: string; bid: string
 /** "Aapka form abhi baaki hai" — a fresh 24-hour form link for a paid customer who has not filled the form yet
  *  (sent once automatically ~12 h after payment by the cron, or any time from /admin). */
 export async function sendFormReminder(b: { email: string; bid: string; tier?: string; formLink: string; by?: string }) {
-  const when = isUrgentTier(b.tier) ? "48 ghante ke andar" : "7 se 10 din ke andar";
-  const after = isWrittenTier(b.tier) ? `Form mein apne 3 sawal likhte hi, ${deliverWhen(b.tier)} ke andar aapke jawab isi email par aa jayenge.` : `Form bharte hi aapka appointment slot (${when}) aur Google Meet link isi email par aa jayega.`;
+  const when = whenText(b.tier);
+  const after = isWrittenTier(b.tier) ? `Form mein apne 3 sawal likhte hi, ${deliverWhen(b.tier)} ke andar aapke jawab isi email par aa jayenge.` : `Form bharte hi aapka appointment slot (${when}) aur ${isInPerson(b.tier) ? `meeting ki jagah (${placeOf(b.tier)})` : "Google Meet link"} isi email par aa jayega.`;
   await send({
     from: from(), to: b.email, subject: "Reminder: your reading form is still pending - The Divine Tarot",
     html: `<div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1b1330">
@@ -260,7 +265,8 @@ export async function sendFormReminder(b: { email: string; bid: string; tier?: s
 export async function sendRescheduled(b: { name: string; email: string; bid: string; date: string; time: string; oldKey: string; meetLink: string | null; tier?: string; note?: string; by?: string }) {
   const { day, range } = prettySlot(b.date, b.time, b.tier), [od, ot] = b.oldKey.split("T"), old = prettySlot(od, ot, b.tier);
   const meet = b.meetLink
-    ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink} (link wahi hai)</span></p>` : "";
+    ? `<p style="text-align:center;margin:26px 0"><a href="${b.meetLink}" style="background:#6d28d9;color:#fff;padding:14px 28px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block">Join Google Meet</a><br/><span style="font-size:13px;color:#555">${b.meetLink} (link wahi hai)</span></p>`
+    : isInPerson(b.tier) ? `<p style="text-align:center;margin:26px 0;background:#f6f3fb;padding:16px;border-radius:8px">📍 <b>${esc(placeOf(b.tier))}</b> (jagah wahi hai)</p>` : "";
   await send({
     from: from(), to: b.email, subject: `Your reading has been rescheduled - ${day}, ${range.split(" – ")[0]} IST`,
     attachments: [{ filename: "reading.ics", content: ics(b.bid, b.date, b.time, b.meetLink, b.tier), contentType: "text/calendar; method=PUBLISH" }],
@@ -315,6 +321,6 @@ export async function sendOwnerUrgentPaid(o: { bid: string; tier?: string; amoun
     from: from(), to, subject: `⚡ URGENT payment received - ${tierInfo(o.tier).name} - ₹${Number(o.amount || 0).toLocaleString("en-IN")}`,
     html: `<div style="font-family:Arial,sans-serif;max-width:640px"><h3 style="color:#c2410c">⚡ URGENT booking ka payment aa gaya</h3>
       <p><b>${esc(tierInfo(o.tier).name)}</b> · ₹${Number(o.amount || 0).toLocaleString("en-IN")}<br/>Customer: ${esc(o.email || "-")} · ${esc(o.phone || "-")}<br/>Booking ID: ${o.bid}</p>
-      <p>${isWrittenTier(o.tier) ? "Customer form bharte hi aapko sawalon wali email aayegi — jawab <b>48 ghante ke andar</b> bhejne hain." : "Customer form bharte hi slot confirm hoga (48 ghante ke andar)."}</p></div>`,
+      <p>${isWrittenTier(o.tier) ? "Customer form bharte hi aapko sawalon wali email aayegi — jawab <b>48 ghante ke andar</b> bhejne hain." : `Customer form bharte hi slot confirm hoga (${whenText(o.tier)}) — slot payment se pehle hold ho chuka hai, admin calendar dekhein.`}</p></div>`,
   }, { kind: "owner", bid: o.bid });
 }

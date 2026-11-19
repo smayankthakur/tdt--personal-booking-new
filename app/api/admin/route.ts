@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { CFG_DOC, db, getCfg } from "@/lib/db";
 import { createMeet, sendInvite } from "@/lib/calendar";
-import { slotMs, isWrittenTier } from "@/lib/slots";
+import { slotMs, isInPerson, isWrittenTier } from "@/lib/slots";
 import { sendClientConfirmation, sendEditLink } from "@/lib/mailer";
 import { editUntil } from "@/lib/formEdit";
 import { editToken, originOf, resumeToken } from "@/lib/session";
@@ -75,8 +75,8 @@ export async function POST(req: Request) {
   const b = s.data() as any, [date, time] = String(slot).split("T"), out: string[] = [];
   let meetLink: string | null = b.meetLink || null, calendarErr = "", mailErr = "";
   const written = isWrittenTier(b.tier); // written (email) readings never get a Meet link / invite
-  if (!meetLink && !written) {
-    try { const m = await createMeet(slot, b); meetLink = m.meetLink || null; await ref.update({ meetLink, eventId: m.eventId || null, calendarOk: true, calendarErr: "" }); await logMail({ kind: "invite", bid: b.bid, slot, by: who }, b.email, true); out.push("Meet link ban gaya ✓"); }
+  if (!meetLink && !written && !(isInPerson(b.tier) && b.eventId)) { // face-to-face: calendar event with the place, no Meet
+    try { const m = await createMeet(slot, b); meetLink = m.meetLink || null; await ref.update({ meetLink, eventId: m.eventId || null, calendarOk: true, calendarErr: "" }); await logMail({ kind: "invite", bid: b.bid, slot, by: who }, b.email, true); out.push(isInPerson(b.tier) ? "Calendar event ban gaya ✓" : "Meet link ban gaya ✓"); }
     catch (e: any) { await logMail({ kind: "invite", bid: b.bid, slot, by: who }, b.email, false, e); calendarErr = String(e?.message || e).slice(0, 300); await ref.update({ calendarOk: false, calendarErr }); out.push("Meet link ERROR: " + calendarErr); }
   }
   if (meetLink || !calendarErr) {

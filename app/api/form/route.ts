@@ -3,7 +3,7 @@ import { FieldValue } from "firebase-admin/firestore";
 import { db } from "@/lib/db";
 import { changeGuest, createMeet } from "@/lib/calendar";
 import { freeSlots } from "@/lib/freeSlots";
-import { deliverByMs, isTaken, isUrgentTier, parseTier, tierInfo, tierLabel } from "@/lib/slots";
+import { deliverByMs, isInPerson, isTaken, isUrgentTier, parseTier, placeOf, tierInfo, tierLabel } from "@/lib/slots";
 import { sendClientConfirmation, sendOwnerNotification, sendOwnerUpdate } from "@/lib/mailer";
 import { bidFrom, editToken, originOf } from "@/lib/session";
 import { editUntil } from "@/lib/formEdit";
@@ -142,8 +142,8 @@ export async function POST(req: Request) {
     try { m = await createMeet(key, { name: p1.name, email, bid, phone: p1.phone, tier }); await logMail({ kind: "invite", bid, slot: key }, email, true); }
     catch (e: any) { calendarErr = String(e?.message || e).slice(0, 300); console.error("calendar failed", e); await logMail({ kind: "invite", bid, slot: key }, email, false, e); }
   }
-  const meetLink = m?.meetLink || null;
-  if (!written) { await slotRef.update({ meetLink, eventId: m?.eventId || null, calendarOk: !!meetLink, calendarErr }); await orderRef.update({ meetLink }); }
+  const meetLink = m?.meetLink || null, inPerson = isInPerson(tier); // face-to-face: calendar event with the place, no Meet
+  if (!written) { await slotRef.update({ meetLink, eventId: m?.eventId || null, calendarOk: !!meetLink || (inPerson && !!m?.eventId), calendarErr }); await orderRef.update({ meetLink }); }
 
   const eu = editUntil(Date.now(), key);
   const mails = await Promise.allSettled([
@@ -155,7 +155,7 @@ export async function POST(req: Request) {
   await slotRef.update({ clientMailOk: mails[0].status === "fulfilled", ownerMailOk: mails[1].status === "fulfilled", mailErr: why(mails[0]) || why(mails[1]) });
   const when = new Date(`${key}:00+05:30`).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
   if (written) await notifyAdmins(`${isUrgentTier(tier) ? "⚡ URGENT " : ""}✍️ Naya written form: ${p1.name}`, `Jawab bhejna hai ${dby} tak · ${lang} · ${questions.length} sawal`, "/admin");
-  else await notifyAdmins(`📅 Nayi booking: ${p1.name}`, `${when} · ${tierInfo(tier).name}${meetLink ? "" : " · ⚠ Meet link nahi bana"}`, "/admin");
+  else await notifyAdmins(`📅 Nayi booking: ${p1.name}`, `${when} · ${tierInfo(tier).name}${inPerson ? ` · 📍 ${placeOf(tier)}` : meetLink ? "" : " · ⚠ Meet link nahi bana"}`, "/admin");
 
   return NextResponse.json({ ok: true, date, time, meetLink, deliverBy, lang: written ? lang : null });
 }

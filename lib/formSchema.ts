@@ -17,12 +17,12 @@ export const FORM_KINDS: FormKind[] = ["written", "questions", "voice"];
 export const FORM_KIND_NAME: Record<FormKind, string> = {
   written: "✍️ Written readings (email)",
   questions: "❓ 3-Question / Video call",
-  voice: "🎧 Voice call (40 min)",
+  voice: "📞 Call / Face to Face (teen log wala form)",
 };
 export const FORM_KIND_USE: Record<FormKind, string> = {
   written: "Personal Reading by Bharti Singh (₹5,500) aur Urgent (48 ghante) — jawab email par.",
   questions: "3 Question Voice Reading (normal + urgent) aur Video Call reading.",
-  voice: "Voice Reading (40 min) aur Urgent voice reading.",
+  voice: "Video / Audio Call (1 hour), Urgent Call (3 ghante), Face to Face Meeting (Mumbai) — aur purani 40-min voice readings.",
 };
 export const kindOf = (tier: unknown): FormKind => (isWrittenTier(tier) ? "written" : isQuestionTier(tier) ? "questions" : "voice");
 
@@ -68,7 +68,7 @@ function aboutYou(written: boolean): FormStep {
     id: "s1", title: "Aap", heading: "Aapki Details", fields: [
       { id: "name", type: "text", label: "Full Name with Surname", hint: "Pura naam likhein", required: true, half: true, maxWords: MAX_WORDS, error: "Apna poora naam likhein.", key: "Full name", system: true },
       { id: "phone", type: "phone", label: "WhatsApp Number", hint: written ? "Zaroorat padne par contact isi number par hoga." : "Reading ke liye contact isi number par hoga.", required: true, half: true, error: "Sahi WhatsApp number likhein.", key: "WhatsApp", system: true },
-      { id: "email", type: "email", label: "Email ID", hint: written ? "Aapke sawalon ke jawab isi email par aayenge. Email OTP se verify karein." : "Google Meet link aur schedule isi email par aayega. Email OTP se verify karein.", required: true, half: true, key: "Email (payment)", system: true },
+      { id: "email", type: "email", label: "Email ID", hint: written ? "Aapke sawalon ke jawab isi email par aayenge. Email OTP se verify karein." : "Appointment ka time aur Google Meet link (Face to Face: meeting ki jagah) isi email par aayega. Email OTP se verify karein.", required: true, half: true, key: "Email (payment)", system: true },
       { id: "place", type: "text", label: "Place of Birth", hint: "Jis shehar mein janm hua.", placeholder: "Jaise Mumbai, Jaipur, Delhi", required: true, half: true, maxWords: MAX_WORDS, error: "Place of Birth likhein.", key: "Place of birth", system: true },
       { id: "dob", type: "date", label: "Date of Birth", hint: "Pata ho toh chunein, warna skip.", half: true, key: "Date of birth (D/M/Y)", system: true },
       { id: "tob", type: "time", label: "Birth Time", hint: "Pata ho toh clock se chunein, warna skip.", half: true, key: "Birth time", system: true },

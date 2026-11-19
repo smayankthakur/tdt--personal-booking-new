@@ -17,12 +17,13 @@ export type Pricing = { prices: Record<Tier, number>; offer: Offer; enabled: Rec
 export type Coupon = { code: string; type: "percent" | "flat" | "free"; value: number; tiers: Tier[]; expires?: string | null; maxUses?: number | null; used: number; createdAt: number; createdBy?: string; paused?: boolean };
 
 export const DEFAULT_PRICING: Pricing = {
-  prices: { standard: Number(process.env.PRICE_INR || REGULAR_PRICE), urgent: Number(process.env.PRICE_URGENT_INR || URGENT_PRICE), video: Number(process.env.PRICE_VIDEO_INR || VIDEO_PRICE), q3: 4500, q3urgent: 9000, written: 5500, writtenurgent: 10500 }, // q3 prices = placeholders; admin sets them
+  prices: { standard: Number(process.env.PRICE_INR || REGULAR_PRICE), urgent: Number(process.env.PRICE_URGENT_INR || URGENT_PRICE), video: Number(process.env.PRICE_VIDEO_INR || VIDEO_PRICE), q3: 4500, q3urgent: 9000, written: 5500, writtenurgent: 10500, call: 20500, callurgent: 30500, f2f: 51500 }, // q3 prices = placeholders; admin sets them
   offer: { on: true, name: OFFER.name, from: "2026-10-01", until: istDate(OFFER.until), prices: { standard: OFFER.price } },
   // admin can switch each reading type off: hidden on the website + refused by the server.
   // The two 3-question voice readings start OFF until the admin sets their price and switches them on.
-  // Since Nov 2026 only the WRITTEN email readings are sold (no voice / video calls).
-  enabled: { standard: false, urgent: false, video: false, q3: false, q3urgent: false, written: true, writtenurgent: true },
+  // 10–19 Nov 2026 only the WRITTEN email readings were sold. From 19 Nov 2026: 1-hour video/audio call, urgent call
+  // within 3 hours and face-to-face meeting in Mumbai (written switched off — admin can switch it back on).
+  enabled: { standard: false, urgent: false, video: false, q3: false, q3urgent: false, written: false, writtenurgent: false, call: true, callurgent: true, f2f: true },
 };
 const DOC = "config/pricing";
 let cache: { at: number; p: Pricing } | null = null;
