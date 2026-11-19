@@ -589,7 +589,6 @@ export default function Landing({ pricing }: { pricing: Prices }) {
         </div>
 
         <div className="sf-bottom">
-          <div>Designed by <a href="https://sitelytc.com/" target="_blank" rel="noopener noreferrer" className="sf-maker">Sitelytc</a></div>
           <div className="sf-legal">
             <a href="https://thedivinetarotonline.com/privacy">Privacy</a>
             <span className="sf-sep" />

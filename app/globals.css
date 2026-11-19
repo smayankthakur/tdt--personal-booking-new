@@ -1156,11 +1156,9 @@ footer a {
 .sf-trust { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 24px; padding: 16px 24px; border-top: 1px solid rgba(255, 255, 255, 0.05); color: #5A5A5A; font-size: 12px; }
 .sf-trust div { display: flex; align-items: center; gap: 8px; }
 .sf-trust svg { width: 16px; height: 16px; color: rgba(245, 158, 11, 0.4); }
-.sf-bottom { display: flex; flex-direction: column; justify-content: space-between; margin-top: 16px; padding: 24px 24px 28px; border-top: 1px solid rgba(255, 255, 255, 0.1); font-size: 14px; color: #9ca3af; }
+.sf-bottom { display: flex; flex-direction: column; justify-content: center; text-align: center; margin-top: 16px; padding: 24px 24px 28px; border-top: 1px solid rgba(255, 255, 255, 0.1); font-size: 14px; color: #9ca3af; }
 @media (min-width: 768px) { .sf-bottom { flex-direction: row; } }
-.sf-maker { color: rgba(245, 158, 11, 0.7); transition: color .2s ease; }
-.sf-maker:hover { color: #fbbf24; }
-.sf-legal { display: flex; align-items: center; gap: 16px; margin-top: 8px; flex-wrap: wrap; }
+.sf-legal { display: flex; align-items: center; justify-content: center; gap: 16px; margin-top: 0; flex-wrap: wrap; }
 @media (min-width: 768px) { .sf-legal { margin-top: 0; } }
 .sf-legal a { color: #9ca3af; transition: color .2s ease; }
 .sf-legal a:hover { color: #fbbf24; }
